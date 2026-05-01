@@ -34,9 +34,18 @@ type PlanAbonnement = {
   ordre: number;
 };
 
+type ReponseApiStripe = {
+  success?: boolean;
+  url?: string;
+  error?: string;
+  detail?: string;
+  sessionId?: string;
+};
+
 export default function AbonnementChefPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [nomEntreprise, setNomEntreprise] = useState("");
   const [emailContact, setEmailContact] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -54,23 +63,26 @@ export default function AbonnementChefPage() {
   const [selection, setSelection] = useState(false);
   const [message, setMessage] = useState("");
 
- useEffect(() => {
-  chargerPage();
+  useEffect(() => {
+    chargerPage();
 
-  const retourStripe = searchParams.get("stripe");
+    const retourStripe = searchParams.get("stripe");
+    const retourPortal = searchParams.get("portal");
 
-  if (retourStripe === "success") {
-    setMessage(
-      "Paiement validé ✅ Ton abonnement est en cours d’activation. Si ce n’est pas encore affiché, recharge la page dans quelques secondes."
-    );
-  }
+    if (retourStripe === "success") {
+      setMessage(
+        "Paiement validé ✅ Ton abonnement est en cours d’activation. Si ce n’est pas encore affiché, recharge la page dans quelques secondes."
+      );
+    }
 
-  if (retourStripe === "cancel") {
-    setMessage(
-      "Paiement annulé. Aucun abonnement n’a été activé."
-    );
-  }
-}, [searchParams]);
+    if (retourStripe === "cancel") {
+      setMessage("Paiement annulé. Aucun abonnement n’a été activé.");
+    }
+
+    if (retourPortal === "return") {
+      setMessage("Retour du portail Stripe. Tes informations d’abonnement ont été prises en compte.");
+    }
+  }, [searchParams]);
 
   async function chargerPage() {
     setChargement(true);
@@ -136,7 +148,7 @@ export default function AbonnementChefPage() {
 
   async function choisirPlan(plan: string) {
     setSelection(true);
-    setMessage(`Test Stripe lancé pour le plan : ${plan}`);
+    setMessage("Ouverture de Stripe Checkout...");
 
     try {
       const {
@@ -145,16 +157,10 @@ export default function AbonnementChefPage() {
       } = await supabase.auth.getSession();
 
       if (erreurSession || !session?.access_token) {
-        setMessage(
-          `Erreur session : ${
-            erreurSession?.message || "Aucun token chef trouvé."
-          }`
-        );
+        setMessage("Session chef introuvable. Reconnecte-toi.");
         setSelection(false);
         return;
       }
-
-      setMessage("Session chef OK. Appel de l'API Stripe...");
 
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -168,50 +174,81 @@ export default function AbonnementChefPage() {
         }),
       });
 
-      const texteBrut = await response.text();
-
-      let resultat: any = {};
-
-      try {
-        resultat = JSON.parse(texteBrut);
-      } catch {
-        setMessage(
-          `L'API n'a pas répondu en JSON. Réponse brute : ${texteBrut.slice(
-            0,
-            300
-          )}`
-        );
-        setSelection(false);
-        return;
-      }
+      const resultat = (await response.json()) as ReponseApiStripe;
 
       if (!response.ok) {
         setMessage(
-          `Erreur API Stripe : ${
-            resultat.error || "Erreur inconnue"
-          } ${resultat.detail ? `— ${resultat.detail}` : ""}`
+          resultat.error ||
+            "Impossible d'ouvrir le paiement Stripe pour ce plan."
         );
         setSelection(false);
         return;
       }
 
       if (!resultat.url) {
+        setMessage("Stripe n'a pas renvoyé d'URL de paiement.");
+        setSelection(false);
+        return;
+      }
+
+      window.location.href = resultat.url;
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Erreur inconnue lors de l'ouverture Stripe."
+      );
+      setSelection(false);
+    }
+  }
+
+  async function gererAbonnement() {
+    setSelection(true);
+    setMessage("Ouverture du portail Stripe...");
+
+    try {
+      const {
+        data: { session },
+        error: erreurSession,
+      } = await supabase.auth.getSession();
+
+      if (erreurSession || !session?.access_token) {
+        setMessage("Session chef introuvable. Reconnecte-toi.");
+        setSelection(false);
+        return;
+      }
+
+      const response = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const resultat = (await response.json()) as ReponseApiStripe;
+
+      if (!response.ok) {
         setMessage(
-          `API OK mais aucune URL Stripe reçue. Réponse : ${JSON.stringify(
-            resultat
-          )}`
+          resultat.error ||
+            "Impossible d'ouvrir le portail de gestion Stripe."
         );
         setSelection(false);
         return;
       }
 
-      setMessage("URL Stripe reçue. Redirection en cours...");
+      if (!resultat.url) {
+        setMessage("Stripe n'a pas renvoyé d'URL de portail.");
+        setSelection(false);
+        return;
+      }
+
       window.location.href = resultat.url;
     } catch (error) {
       setMessage(
         error instanceof Error
-          ? `Erreur JS : ${error.message}`
-          : "Erreur inconnue lors de l'ouverture Stripe."
+          ? error.message
+          : "Erreur inconnue lors de l'ouverture du portail Stripe."
       );
       setSelection(false);
     }
@@ -419,6 +456,27 @@ export default function AbonnementChefPage() {
           </div>
         </div>
 
+        {statutAbonnement === "actif" && (
+          <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-slate-900">
+              Gestion de mon abonnement
+            </h2>
+
+            <p className="mt-2 text-sm text-slate-600">
+              Accède au portail sécurisé Stripe pour modifier ton moyen de paiement,
+              consulter tes factures ou gérer ton abonnement.
+            </p>
+
+            <button
+              onClick={gererAbonnement}
+              disabled={selection}
+              className="mt-5 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+            >
+              {selection ? "Ouverture..." : "Gérer mon abonnement"}
+            </button>
+          </div>
+        )}
+
         <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="mb-5 text-xl font-semibold text-slate-900">
             Essai gratuit
@@ -545,12 +603,6 @@ export default function AbonnementChefPage() {
               ))}
             </div>
           )}
-
-          <div className="mt-6 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-            Le bouton ouvre maintenant la page de paiement sécurisée Stripe.
-            Si Stripe ne s’ouvre pas, un message d’erreur détaillé s’affichera
-            au-dessus de la page.
-          </div>
         </div>
 
         <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">

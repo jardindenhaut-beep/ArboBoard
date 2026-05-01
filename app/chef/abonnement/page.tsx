@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
   abonnementEstBloque,
@@ -36,7 +36,7 @@ type PlanAbonnement = {
 
 export default function AbonnementChefPage() {
   const router = useRouter();
-
+  const searchParams = useSearchParams();
   const [nomEntreprise, setNomEntreprise] = useState("");
   const [emailContact, setEmailContact] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -54,9 +54,23 @@ export default function AbonnementChefPage() {
   const [selection, setSelection] = useState(false);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    chargerPage();
-  }, []);
+ useEffect(() => {
+  chargerPage();
+
+  const retourStripe = searchParams.get("stripe");
+
+  if (retourStripe === "success") {
+    setMessage(
+      "Paiement validé ✅ Ton abonnement est en cours d’activation. Si ce n’est pas encore affiché, recharge la page dans quelques secondes."
+    );
+  }
+
+  if (retourStripe === "cancel") {
+    setMessage(
+      "Paiement annulé. Aucun abonnement n’a été activé."
+    );
+  }
+}, [searchParams]);
 
   async function chargerPage() {
     setChargement(true);

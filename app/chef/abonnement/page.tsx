@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
   abonnementEstBloque,
   chargerContexteEntreprise,
+  joursRestantsAbonnement,
   joursRestantsEssai,
 } from "@/lib/entreprise";
 
@@ -44,7 +45,6 @@ type ReponseApiStripe = {
 
 export default function AbonnementChefPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [nomEntreprise, setNomEntreprise] = useState("");
   const [emailContact, setEmailContact] = useState("");
@@ -53,9 +53,15 @@ export default function AbonnementChefPage() {
   const [planSouhaite, setPlanSouhaite] = useState("");
   const [statutAbonnement, setStatutAbonnement] = useState("");
   const [slug, setSlug] = useState("");
+
   const [dateDebutEssai, setDateDebutEssai] = useState<string | null>(null);
   const [dateFinEssai, setDateFinEssai] = useState<string | null>(null);
+  const [dateFinAbonnement, setDateFinAbonnement] = useState<string | null>(
+    null
+  );
+
   const [joursEssai, setJoursEssai] = useState<number | null>(null);
+  const [joursAbonnement, setJoursAbonnement] = useState<number | null>(null);
   const [bloque, setBloque] = useState(false);
 
   const [plans, setPlans] = useState<PlanAbonnement[]>([]);
@@ -66,8 +72,9 @@ export default function AbonnementChefPage() {
   useEffect(() => {
     chargerPage();
 
-    const retourStripe = searchParams.get("stripe");
-    const retourPortal = searchParams.get("portal");
+    const params = new URLSearchParams(window.location.search);
+    const retourStripe = params.get("stripe");
+    const retourPortal = params.get("portal");
 
     if (retourStripe === "success") {
       setMessage(
@@ -80,9 +87,11 @@ export default function AbonnementChefPage() {
     }
 
     if (retourPortal === "return") {
-      setMessage("Retour du portail Stripe. Tes informations d’abonnement ont été prises en compte.");
+      setMessage(
+        "Retour du portail Stripe. Tes informations d’abonnement ont été prises en compte."
+      );
     }
-  }, [searchParams]);
+  }, []);
 
   async function chargerPage() {
     setChargement(true);
@@ -123,11 +132,19 @@ export default function AbonnementChefPage() {
     setPlanSouhaite(contexte.entreprise.plan_souhaite || "");
     setStatutAbonnement(contexte.entreprise.statut_abonnement || "essai");
     setSlug(contexte.entreprise.slug || "");
+
     setDateDebutEssai(contexte.entreprise.date_debut_essai || null);
     setDateFinEssai(contexte.entreprise.date_fin_essai || null);
+    setDateFinAbonnement(contexte.entreprise.date_fin_abonnement || null);
+
     setJoursEssai(
       joursRestantsEssai(contexte.entreprise.date_fin_essai || null)
     );
+
+    setJoursAbonnement(
+      joursRestantsAbonnement(contexte.entreprise.date_fin_abonnement || null)
+    );
+
     setBloque(abonnementEstBloque(contexte.entreprise));
   }
 
@@ -338,6 +355,12 @@ export default function AbonnementChefPage() {
       return "Mode développement actif : aucune limitation d'abonnement.";
     }
 
+    if (statutAbonnement === "actif" && dateFinAbonnement && !bloque) {
+      return `Ton abonnement reste actif jusqu’au ${afficherDate(
+        dateFinAbonnement
+      )}.`;
+    }
+
     if (statutAbonnement === "actif") {
       return "Ton abonnement est actif. Toutes les fonctionnalités sont disponibles.";
     }
@@ -421,6 +444,26 @@ export default function AbonnementChefPage() {
           <p className="mt-2 text-sm">{texteAlerte()}</p>
         </div>
 
+        {statutAbonnement === "actif" && dateFinAbonnement && !bloque && (
+          <div className="mb-8 rounded-2xl bg-orange-50 p-6 text-orange-900 shadow-sm">
+            <h2 className="text-xl font-bold">
+              Abonnement actif jusqu’au {afficherDate(dateFinAbonnement)}
+            </h2>
+
+            <p className="mt-2 text-sm">
+              Ton abonnement a été résilié, mais l’accès reste disponible
+              jusqu’à la fin de la période déjà payée.
+            </p>
+
+            {joursAbonnement !== null && (
+              <p className="mt-3 text-sm font-semibold">
+                Il reste {joursAbonnement} jour
+                {joursAbonnement > 1 ? "s" : ""} d’accès.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="mb-8 grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Entreprise</p>
@@ -446,9 +489,17 @@ export default function AbonnementChefPage() {
                 Plan souhaité : {labelPlan(planSouhaite)}
               </p>
             )}
+
+            {dateFinAbonnement && (
+              <p className="mt-2 text-sm text-orange-700">
+                Fin d’accès : {afficherDate(dateFinAbonnement)}
+              </p>
+            )}
           </div>
 
-          <div className={`rounded-2xl p-6 text-white shadow-sm ${couleurStatut()}`}>
+          <div
+            className={`rounded-2xl p-6 text-white shadow-sm ${couleurStatut()}`}
+          >
             <p className="text-sm text-white/80">Statut</p>
             <p className="mt-2 text-2xl font-bold">
               {labelStatut(statutAbonnement)}
@@ -463,8 +514,8 @@ export default function AbonnementChefPage() {
             </h2>
 
             <p className="mt-2 text-sm text-slate-600">
-              Accède au portail sécurisé Stripe pour modifier ton moyen de paiement,
-              consulter tes factures ou gérer ton abonnement.
+              Accède au portail sécurisé Stripe pour modifier ton moyen de
+              paiement, consulter tes factures ou gérer ton abonnement.
             </p>
 
             <button

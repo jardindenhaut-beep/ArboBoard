@@ -61,11 +61,11 @@ const MENUS: MenuItem[] = [
     plans: ["essai", "pro", "expert", "dev"],
   },
   {
-    label: "Chantiers",
-    href: "/chef/chantiers",
-    emoji: "🌳",
-    plans: ["essai", "pro", "expert", "dev"],
-  },
+  label: "Fiches intervention",
+  href: "/chef/interventions",
+  emoji: "📋",
+  plans: ["essai", "pro", "expert", "dev"],
+},
   {
     label: "Devis",
     href: "/chef/devis",
@@ -136,7 +136,7 @@ function routeAutoriseePourPlan(pathname: string, plan: string) {
       pathname.startsWith("/chef/salaries") ||
       pathname.startsWith("/chef/planning") ||
       pathname.startsWith("/chef/demandes") ||
-      pathname.startsWith("/chef/chantiers")
+     pathname.startsWith("/chef/interventions")
     ) {
       return true;
     }

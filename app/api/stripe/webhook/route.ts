@@ -24,6 +24,14 @@ function statutDepuisStripe(status: string) {
   return "suspendu";
 }
 
+function dateStripeVersIso(timestamp: number | null | undefined) {
+  if (!timestamp) {
+    return null;
+  }
+
+  return new Date(timestamp * 1000).toISOString();
+}
+
 export async function POST(request: Request) {
   try {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -45,7 +53,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "STRIPE_WEBHOOK_SECRET n'est pas encore configuré dans .env.local.",
+            "STRIPE_WEBHOOK_SECRET n'est pas encore configuré dans Vercel.",
         },
         { status: 500 }
       );
@@ -83,6 +91,22 @@ export async function POST(request: Request) {
         persistSession: false,
       },
     });
+
+    async function trouverPlanDepuisPriceId(priceId: string) {
+      if (!priceId) {
+        return "";
+      }
+
+      const { data } = await supabaseAdmin
+        .from("plans_abonnement")
+        .select("code")
+        .or(
+          `stripe_price_id_mensuel.eq.${priceId},stripe_price_id_annuel.eq.${priceId}`
+        )
+        .maybeSingle();
+
+      return data?.code || "";
+    }
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -135,10 +159,25 @@ export async function POST(request: Request) {
 
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
+      const subscriptionAny = subscription as any;
 
       const entrepriseId = subscription.metadata?.entreprise_id || "";
-      const plan = subscription.metadata?.plan || "";
+      const priceId =
+        subscription.items?.data?.[0]?.price?.id ||
+        "";
+
+      const planDepuisMetadata = subscription.metadata?.plan || "";
+      const planDepuisPrice = await trouverPlanDepuisPriceId(priceId);
+      const plan = planDepuisPrice || planDepuisMetadata;
+
       const statut = statutDepuisStripe(subscription.status);
+
+      const annulationFinPeriode =
+        subscriptionAny.cancel_at_period_end === true;
+
+      const dateFinPeriode = dateStripeVersIso(
+        subscriptionAny.current_period_end
+      );
 
       if (!entrepriseId) {
         return NextResponse.json({
@@ -148,16 +187,29 @@ export async function POST(request: Request) {
         });
       }
 
+      const donneesMaj: Record<string, unknown> = {
+        statut_abonnement: statut,
+        stripe_subscription_id: subscription.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (plan) {
+        donneesMaj.plan_abonnement = plan;
+      }
+
+      if (annulationFinPeriode) {
+        donneesMaj.date_fin_abonnement = dateFinPeriode;
+      } else if (statut === "actif") {
+        donneesMaj.date_fin_abonnement = null;
+      }
+
+      if (statut === "annule") {
+        donneesMaj.date_fin_abonnement = new Date().toISOString();
+      }
+
       await supabaseAdmin
         .from("entreprises_abonnees")
-        .update({
-          statut_abonnement: statut,
-          plan_abonnement: plan || undefined,
-          stripe_subscription_id: subscription.id,
-          date_fin_abonnement:
-            statut === "annule" ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(donneesMaj)
         .eq("id", entrepriseId);
 
       return NextResponse.json({
@@ -165,6 +217,8 @@ export async function POST(request: Request) {
         event: event.type,
         entrepriseId,
         statut,
+        plan,
+        annulationFinPeriode,
       });
     }
 

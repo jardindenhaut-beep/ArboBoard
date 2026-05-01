@@ -1,227 +1,386 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
+import { supabase } from "@/lib/supabaseClient";
+
+type ProfilUtilisateur = {
+  id: string;
+  email?: string | null;
+  role?: string | null;
+  statut?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
+  entreprise_id?: string | null;
+};
+
+type Salarie = {
+  id: string;
+  entreprise_id?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
+  email?: string | null;
+  telephone?: string | null;
+  statut?: string | null;
+};
+
+type FormulaireProfil = {
+  nom: string;
+  prenom: string;
+  telephone: string;
+};
+
+function valeurTexte(valeur: string | null | undefined) {
+  return valeur || "";
+}
+
+function nettoyerTexte(valeur: string) {
+  const texte = valeur.trim();
+  return texte.length > 0 ? texte : null;
+}
+
+function nomComplet(profil: ProfilUtilisateur | null, salarie: Salarie | null) {
+  const prenom = salarie?.prenom || profil?.prenom || "";
+  const nom = salarie?.nom || profil?.nom || "";
+  const complet = `${prenom} ${nom}`.trim();
+
+  return complet || profil?.email || salarie?.email || "Salarié";
+}
 
 export default function ProfilSalariePage() {
-  const router = useRouter();
+  const [entrepriseId, setEntrepriseId] = useState("");
+  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
+  const [salarie, setSalarie] = useState<Salarie | null>(null);
 
-  const [nomEntreprise, setNomEntreprise] = useState("");
-  const [email, setEmail] = useState("");
-  const [nom, setNom] = useState("");
-  const [prenom, setPrenom] = useState("");
-
-  const [motDePasse, setMotDePasse] = useState("");
-  const [confirmation, setConfirmation] = useState("");
+  const [formulaire, setFormulaire] = useState<FormulaireProfil>({
+    nom: "",
+    prenom: "",
+    telephone: "",
+  });
 
   const [chargement, setChargement] = useState(true);
-  const [sauvegarde, setSauvegarde] = useState(false);
-  const [message, setMessage] = useState("");
+  const [enregistrement, setEnregistrement] = useState(false);
+
+  const [messageErreur, setMessageErreur] = useState("");
+  const [messageSucces, setMessageSucces] = useState("");
 
   useEffect(() => {
-    chargerProfil();
+    initialiserPage();
   }, []);
 
-  async function chargerProfil() {
-    setChargement(true);
-    setMessage("");
+  async function initialiserPage() {
+    try {
+      setChargement(true);
+      setMessageErreur("");
 
-    const { contexte, erreur } = await chargerContexteEntreprise();
+      const resultat = await chargerContexteEntreprise();
 
-    if (erreur || !contexte) {
-      setMessage(erreur || "Impossible de charger ton profil.");
+      if (resultat.erreur || !resultat.contexte?.profil || !resultat.contexte?.entreprise?.id) {
+        setMessageErreur(
+          "Impossible de charger votre profil. Veuillez vous reconnecter."
+        );
+        setChargement(false);
+        return;
+      }
+
+      const profilConnecte = resultat.contexte.profil as ProfilUtilisateur;
+      const idEntreprise = resultat.contexte.entreprise.id as string;
+
+      if (profilConnecte.role !== "salarie") {
+        setMessageErreur("Cette page est réservée aux salariés.");
+        setChargement(false);
+        return;
+      }
+
+      setEntrepriseId(idEntreprise);
+      setProfil(profilConnecte);
+
+      const salarieConnecte = await chargerSalarie(idEntreprise, profilConnecte);
+      setSalarie(salarieConnecte);
+
+      setFormulaire({
+        nom: valeurTexte(salarieConnecte?.nom || profilConnecte.nom),
+        prenom: valeurTexte(salarieConnecte?.prenom || profilConnecte.prenom),
+        telephone: valeurTexte(salarieConnecte?.telephone),
+      });
+    } catch (error) {
+      console.error("Erreur chargement profil salarié :", error);
+      setMessageErreur("Une erreur est survenue pendant le chargement.");
+    } finally {
       setChargement(false);
-
-      setTimeout(() => {
-        router.push("/connexion/salarie");
-      }, 1200);
-
-      return;
     }
-
-    if (contexte.profil.role !== "salarie") {
-      setMessage("Ce compte n'est pas un compte salarié.");
-      setChargement(false);
-
-      setTimeout(() => {
-        router.push("/connexion/salarie");
-      }, 1200);
-
-      return;
-    }
-
-    setNomEntreprise(contexte.entreprise.nom_entreprise || "");
-    setEmail(contexte.profil.email || "");
-    setNom(contexte.profil.nom || "");
-    setPrenom(contexte.profil.prenom || "");
-
-    setChargement(false);
   }
 
-  async function modifierMotDePasse() {
-    setSauvegarde(true);
-    setMessage("");
+  async function chargerSalarie(
+    idEntreprise: string,
+    profilConnecte: ProfilUtilisateur
+  ) {
+    const { data: salarieParId, error: erreurParId } = await supabase
+      .from("salaries")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .eq("id", profilConnecte.id)
+      .maybeSingle();
 
-    if (motDePasse.length < 8) {
-      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
-      setSauvegarde(false);
+    if (!erreurParId && salarieParId) {
+      return salarieParId as Salarie;
+    }
+
+    if (!profilConnecte.email) {
+      return null;
+    }
+
+    const { data: salarieParEmail, error: erreurParEmail } = await supabase
+      .from("salaries")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .ilike("email", profilConnecte.email)
+      .maybeSingle();
+
+    if (erreurParEmail) {
+      console.error("Erreur chargement fiche salarié :", erreurParEmail);
+      return null;
+    }
+
+    return (salarieParEmail || null) as Salarie | null;
+  }
+
+  function modifierChamp(champ: keyof FormulaireProfil, valeur: string) {
+    setFormulaire((ancien) => ({
+      ...ancien,
+      [champ]: valeur,
+    }));
+  }
+
+  async function enregistrerProfil() {
+    if (!profil?.id || !entrepriseId) {
+      setMessageErreur("Profil introuvable. Veuillez vous reconnecter.");
       return;
     }
 
-    if (motDePasse !== confirmation) {
-      setMessage("Les deux mots de passe ne correspondent pas.");
-      setSauvegarde(false);
-      return;
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const payloadProfil = {
+        nom: nettoyerTexte(formulaire.nom),
+        prenom: nettoyerTexte(formulaire.prenom),
+      };
+
+      const { error: erreurProfil } = await supabase
+        .from("profils_utilisateurs")
+        .update(payloadProfil)
+        .eq("id", profil.id);
+
+      if (erreurProfil) throw erreurProfil;
+
+      if (salarie?.id) {
+        const payloadSalarie = {
+          nom: nettoyerTexte(formulaire.nom),
+          prenom: nettoyerTexte(formulaire.prenom),
+          telephone: nettoyerTexte(formulaire.telephone),
+        };
+
+        const { error: erreurSalarie } = await supabase
+          .from("salaries")
+          .update(payloadSalarie)
+          .eq("id", salarie.id)
+          .eq("entreprise_id", entrepriseId);
+
+        if (erreurSalarie) throw erreurSalarie;
+
+        setSalarie((ancien) =>
+          ancien
+            ? {
+                ...ancien,
+                ...payloadSalarie,
+              }
+            : ancien
+        );
+      }
+
+      setProfil((ancien) =>
+        ancien
+          ? {
+              ...ancien,
+              ...payloadProfil,
+            }
+          : ancien
+      );
+
+      setMessageSucces("Profil salarié mis à jour avec succès.");
+    } catch (error: any) {
+      console.error("Erreur mise à jour profil salarié :", error);
+      setMessageErreur(
+        error?.message || "Impossible de mettre à jour votre profil."
+      );
+    } finally {
+      setEnregistrement(false);
     }
-
-    const { error } = await supabase.auth.updateUser({
-      password: motDePasse,
-    });
-
-    if (error) {
-      setMessage(error.message || "Impossible de modifier le mot de passe.");
-      setSauvegarde(false);
-      return;
-    }
-
-    setMotDePasse("");
-    setConfirmation("");
-    setMessage("Mot de passe modifié avec succès.");
-    setSauvegarde(false);
   }
 
   if (chargement) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
-        <p className="text-slate-700">Chargement du profil salarié...</p>
-      </main>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
+            👤
+          </div>
+          <p className="text-lg font-bold text-slate-950">
+            Chargement du profil...
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Récupération de vos informations salarié.
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">
-            Mon profil
-          </h1>
+    <div className="space-y-6">
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-sm font-medium text-emerald-700">Arboboard</p>
+        <h1 className="mt-1 text-3xl font-bold text-slate-950">Mon profil</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Gérez vos informations personnelles visibles dans l’espace salarié.
+        </p>
+      </section>
 
-          <p className="mt-2 text-slate-600">
-            Consulte tes informations et modifie ton mot de passe.
-          </p>
-
-          {nomEntreprise && (
-            <p className="mt-2 text-sm font-medium text-slate-500">
-              Entreprise connectée : {nomEntreprise}
-            </p>
-          )}
+      {messageErreur && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {messageErreur}
         </div>
+      )}
 
-        <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-semibold text-slate-900">
-            Informations du compte
-          </h2>
+      {messageSucces && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {messageSucces}
+        </div>
+      )}
 
-          <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Prénom
-              </label>
+      <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-5">
+            <h2 className="text-lg font-bold text-slate-950">
+              Informations personnelles
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Ces informations permettent au chef d’entreprise d’identifier les
+              interventions et validations terrain.
+            </p>
+          </div>
 
-              <input
-                value={prenom}
-                readOnly
-                className="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-slate-700 outline-none"
-              />
+          <div className="space-y-5 p-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Prénom
+                </label>
+                <input
+                  value={formulaire.prenom}
+                  onChange={(event) =>
+                    modifierChamp("prenom", event.target.value)
+                  }
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="Votre prénom"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Nom
+                </label>
+                <input
+                  value={formulaire.nom}
+                  onChange={(event) => modifierChamp("nom", event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="Votre nom"
+                />
+              </div>
             </div>
 
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
-                Nom
+                Téléphone
               </label>
-
               <input
-                value={nom}
-                readOnly
-                className="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-slate-700 outline-none"
+                value={formulaire.telephone}
+                onChange={(event) =>
+                  modifierChamp("telephone", event.target.value)
+                }
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                placeholder="06..."
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Email de connexion
               </label>
-
               <input
-                value={email}
-                readOnly
-                className="w-full rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-slate-700 outline-none"
+                value={profil?.email || salarie?.email || ""}
+                disabled
+                className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500"
               />
-            </div>
-          </div>
-
-          <p className="mt-4 text-sm text-slate-500">
-            Pour modifier ton nom, prénom ou email, demande au chef de mettre à jour ta fiche salarié.
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-semibold text-slate-900">
-            Modifier mon mot de passe
-          </h2>
-
-          <div className="grid gap-5">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Nouveau mot de passe
-              </label>
-
-              <input
-                type="password"
-                value={motDePasse}
-                onChange={(e) => setMotDePasse(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                placeholder="8 caractères minimum"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Confirmer le nouveau mot de passe
-              </label>
-
-              <input
-                type="password"
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    modifierMotDePasse();
-                  }
-                }}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                placeholder="Confirmer"
-              />
+              <p className="mt-1 text-xs text-slate-500">
+                L’email de connexion n’est pas modifiable ici.
+              </p>
             </div>
 
             <button
-              onClick={modifierMotDePasse}
-              disabled={sauvegarde}
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+              onClick={enregistrerProfil}
+              disabled={enregistrement}
+              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {sauvegarde ? "Modification..." : "Modifier mon mot de passe"}
+              {enregistrement ? "Enregistrement..." : "Enregistrer mon profil"}
             </button>
-
-            {message && (
-              <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-                {message}
-              </p>
-            )}
           </div>
         </div>
-      </div>
-    </main>
+
+        <aside className="space-y-6">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="font-bold text-slate-950">Compte salarié</h2>
+
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Nom affiché</span>
+                <span className="font-semibold text-slate-950">
+                  {nomComplet(profil, salarie)}
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Rôle</span>
+                <span className="font-semibold text-slate-950">Salarié</span>
+              </div>
+
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Statut profil</span>
+                <span className="font-semibold text-slate-950">
+                  {profil?.statut || "—"}
+                </span>
+              </div>
+
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Statut salarié</span>
+                <span className="font-semibold text-slate-950">
+                  {salarie?.statut || "—"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+            <p className="font-bold text-emerald-900">Information</p>
+            <p className="mt-2 text-sm text-emerald-800">
+              Vos informations sont utilisées pour les fiches d’intervention, le
+              planning et les validations terrain.
+            </p>
+          </div>
+        </aside>
+      </section>
+    </div>
   );
 }

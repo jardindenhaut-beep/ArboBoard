@@ -1,292 +1,426 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   abonnementEstBloque,
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
 
-type LienMenu = {
-  href: string;
+type ContexteEntreprise = {
+  profil: any;
+  entreprise: any;
+};
+
+type MenuItem = {
   label: string;
+  href: string;
+  emoji: string;
   plans: string[];
 };
+
+const TOUS_LES_PLANS = ["essai", "essentiel", "pro", "expert", "dev"];
+
+const MENUS: MenuItem[] = [
+  {
+    label: "Dashboard",
+    href: "/chef/dashboard",
+    emoji: "🏠",
+    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Clients",
+    href: "/chef/clients",
+    emoji: "👥",
+    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Salariés",
+    href: "/chef/salaries",
+    emoji: "👷",
+    plans: ["essai", "pro", "expert", "dev"],
+  },
+  {
+    label: "Accès salariés",
+    href: "/chef/salaries/acces",
+    emoji: "🔐",
+    plans: ["essai", "pro", "expert", "dev"],
+  },
+  {
+    label: "Planning",
+    href: "/chef/planning",
+    emoji: "📅",
+    plans: ["essai", "pro", "expert", "dev"],
+  },
+  {
+    label: "Demandes",
+    href: "/chef/demandes",
+    emoji: "📩",
+    plans: ["essai", "pro", "expert", "dev"],
+  },
+  {
+    label: "Chantiers",
+    href: "/chef/chantiers",
+    emoji: "🌳",
+    plans: ["essai", "pro", "expert", "dev"],
+  },
+  {
+    label: "Devis",
+    href: "/chef/devis",
+    emoji: "📝",
+    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Factures",
+    href: "/chef/factures",
+    emoji: "🧾",
+    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Abonnement",
+    href: "/chef/abonnement",
+    emoji: "💳",
+    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Profil",
+    href: "/chef/profil",
+    emoji: "🙋",
+    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Paramètres",
+    href: "/chef/parametres",
+    emoji: "⚙️",
+    plans: TOUS_LES_PLANS,
+  },
+];
+
+function normaliserPlan(plan: string | null | undefined) {
+  return String(plan || "essai").toLowerCase().trim();
+}
+
+function routeAutoriseePourPlan(pathname: string, plan: string) {
+  const planNormalise = normaliserPlan(plan);
+
+  if (planNormalise === "dev") {
+    return true;
+  }
+
+  if (
+    pathname === "/chef" ||
+    pathname.startsWith("/chef/dashboard") ||
+    pathname.startsWith("/chef/abonnement") ||
+    pathname.startsWith("/chef/profil") ||
+    pathname.startsWith("/chef/parametres")
+  ) {
+    return true;
+  }
+
+  if (
+    pathname.startsWith("/chef/clients") ||
+    pathname.startsWith("/chef/devis") ||
+    pathname.startsWith("/chef/factures")
+  ) {
+    return true;
+  }
+
+  if (
+    planNormalise === "essai" ||
+    planNormalise === "pro" ||
+    planNormalise === "expert"
+  ) {
+    if (
+      pathname.startsWith("/chef/salaries") ||
+      pathname.startsWith("/chef/planning") ||
+      pathname.startsWith("/chef/demandes") ||
+      pathname.startsWith("/chef/chantiers")
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export default function ChefLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [autorise, setAutorise] = useState(false);
   const [chargement, setChargement] = useState(true);
-  const [nomEntreprise, setNomEntreprise] = useState("");
-  const [nomUtilisateur, setNomUtilisateur] = useState("");
-  const [statutAbonnement, setStatutAbonnement] = useState("");
-  const [planAbonnement, setPlanAbonnement] = useState("");
+  const [contexte, setContexte] = useState<ContexteEntreprise | null>(null);
+  const [messageErreur, setMessageErreur] = useState("");
 
   useEffect(() => {
-    verifierAccesChef();
-  }, [pathname]);
+    let actif = true;
 
-  async function verifierAccesChef() {
-    setChargement(true);
-    setAutorise(false);
+    async function verifierAcces() {
+      try {
+        setChargement(true);
+        setMessageErreur("");
 
-    const { contexte, erreur } = await chargerContexteEntreprise();
+        const resultat = await chargerContexteEntreprise();
 
-    if (erreur || !contexte) {
-      setChargement(false);
-      router.replace("/connexion");
-      return;
+        if (!actif) return;
+
+        if (resultat.erreur || !resultat.contexte) {
+          router.replace("/connexion");
+          return;
+        }
+
+        const contexteEntreprise = resultat.contexte;
+
+        if (!contexteEntreprise.profil || !contexteEntreprise.entreprise) {
+          router.replace("/connexion");
+          return;
+        }
+
+        const profil = contexteEntreprise.profil;
+        const entreprise = contexteEntreprise.entreprise;
+
+        if (profil.role !== "chef") {
+          await supabase.auth.signOut();
+          router.replace("/connexion");
+          return;
+        }
+
+        if (profil.statut && profil.statut !== "actif") {
+          await supabase.auth.signOut();
+          router.replace("/connexion");
+          return;
+        }
+
+        const abonnementBloque = abonnementEstBloque(entreprise);
+
+        if (abonnementBloque && !pathname.startsWith("/chef/abonnement")) {
+          router.replace("/chef/abonnement?acces=bloque");
+          return;
+        }
+
+        const planActuel = normaliserPlan(entreprise.plan_abonnement);
+
+        if (!routeAutoriseePourPlan(pathname, planActuel)) {
+          router.replace("/chef/abonnement?acces=plan");
+          return;
+        }
+
+        setContexte(contexteEntreprise);
+        setChargement(false);
+      } catch (error) {
+        console.error("Erreur layout chef :", error);
+
+        if (!actif) return;
+
+        setMessageErreur(
+          "Impossible de vérifier votre accès. Veuillez vous reconnecter."
+        );
+        setChargement(false);
+      }
     }
 
-    if (contexte.profil.role !== "chef") {
-      await supabase.auth.signOut();
-      setChargement(false);
-      router.replace("/connexion");
-      return;
-    }
+    verifierAcces();
 
-    const statut = contexte.entreprise.statut_abonnement || "essai";
-    const plan = contexte.entreprise.plan_abonnement || "essai";
+    return () => {
+      actif = false;
+    };
+  }, [pathname, router]);
 
-    const cheminAutoriseSiBloque =
-      pathname.startsWith("/chef/abonnement") ||
-      pathname.startsWith("/chef/profil");
+  const planActuel = useMemo(() => {
+    return normaliserPlan(contexte?.entreprise?.plan_abonnement);
+  }, [contexte]);
 
-    const abonnementBloque = abonnementEstBloque(contexte.entreprise);
+  const menusDisponibles = useMemo(() => {
+    return MENUS.filter((menu) => menu.plans.includes(planActuel));
+  }, [planActuel]);
 
-    if (abonnementBloque && !cheminAutoriseSiBloque) {
-      setChargement(false);
-      router.replace("/chef/abonnement");
-      return;
-    }
-
-    const accesPlanOk = verifierAccesPlan(plan, pathname);
-
-    if (!accesPlanOk) {
-      setChargement(false);
-      router.replace("/chef/abonnement");
-      return;
-    }
-
-    const nomComplet = `${contexte.profil.prenom || ""} ${
-      contexte.profil.nom || ""
-    }`.trim();
-
-    setNomEntreprise(contexte.entreprise.nom_entreprise || "");
-    setNomUtilisateur(nomComplet || contexte.profil.email || "Chef");
-    setStatutAbonnement(statut);
-    setPlanAbonnement(plan);
-
-    setAutorise(true);
-    setChargement(false);
-  }
-
-  function verifierAccesPlan(plan: string, chemin: string) {
-    const cheminsToujoursAutorises = [
-      "/chef/dashboard",
-      "/chef/clients",
-      "/chef/devis",
-      "/chef/factures",
-      "/chef/abonnement",
-      "/chef/profil",
-      "/chef/parametres",
-    ];
-
-    const cheminsPro = [
-      "/chef/salaries",
-      "/chef/salaries/acces",
-      "/chef/planning",
-      "/chef/demandes",
-      "/chef/chantiers",
-    ];
-
-    if (plan === "dev") {
-      return true;
-    }
-
-    if (plan === "expert") {
-      return true;
-    }
-
-    if (plan === "pro") {
-      return (
-        cheminsToujoursAutorises.some((c) => chemin.startsWith(c)) ||
-        cheminsPro.some((c) => chemin.startsWith(c))
-      );
-    }
-
-    if (plan === "essentiel" || plan === "essai") {
-      return cheminsToujoursAutorises.some((c) => chemin.startsWith(c));
-    }
-
-    return cheminsToujoursAutorises.some((c) => chemin.startsWith(c));
-  }
-
-  async function seDeconnecter() {
+  async function deconnexion() {
     await supabase.auth.signOut();
-    router.push("/connexion");
+    router.replace("/connexion");
   }
-
-  const liens: LienMenu[] = [
-    {
-      href: "/chef/dashboard",
-      label: "Dashboard",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/clients",
-      label: "Clients",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/salaries",
-      label: "Salariés",
-      plans: ["pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/salaries/acces",
-      label: "Accès salariés",
-      plans: ["pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/planning",
-      label: "Planning",
-      plans: ["pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/demandes",
-      label: "Demandes",
-      plans: ["pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/chantiers",
-      label: "Chantiers",
-      plans: ["pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/devis",
-      label: "Devis",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/factures",
-      label: "Factures",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/abonnement",
-      label: "Abonnement",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/profil",
-      label: "Profil",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-    {
-      href: "/chef/parametres",
-      label: "Paramètres",
-      plans: ["essai", "essentiel", "pro", "expert", "dev"],
-    },
-  ];
-
-  const liensVisibles = liens.filter((lien) =>
-    lien.plans.includes(planAbonnement || "essai")
-  );
-
-  const abonnementBloque =
-    statutAbonnement === "suspendu" ||
-    statutAbonnement === "annule" ||
-    statutAbonnement === "annulé";
 
   if (chargement) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
-        <p className="text-slate-700">Vérification de l&apos;accès chef...</p>
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
+          <div className="text-3xl mb-3">🌳</div>
+          <h1 className="text-xl font-semibold text-slate-900">
+            Chargement de votre espace
+          </h1>
+          <p className="text-sm text-slate-500 mt-2">
+            Vérification de votre compte, de votre entreprise et de votre
+            abonnement.
+          </p>
+        </div>
       </main>
     );
   }
 
-  if (!autorise) {
+  if (messageErreur) {
+    return (
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-8 max-w-md w-full text-center">
+          <div className="text-3xl mb-3">⚠️</div>
+          <h1 className="text-xl font-semibold text-red-700">
+            Accès impossible
+          </h1>
+          <p className="text-sm text-slate-600 mt-2">{messageErreur}</p>
+          <button
+            onClick={() => router.replace("/connexion")}
+            className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-5 py-2.5 text-sm font-medium hover:bg-slate-700"
+          >
+            Retour connexion
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!contexte) {
     return null;
   }
 
+  const entreprise = contexte.entreprise;
+  const profil = contexte.profil;
+  const abonnementBloque = abonnementEstBloque(entreprise);
+
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <Link
-              href="/chef/dashboard"
-              className="text-xl font-bold text-slate-900"
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+        <div className="border-b border-slate-200 p-5">
+          <Link href="/chef/dashboard" className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+              🌳
+            </div>
+            <div>
+              <p className="text-lg font-bold leading-tight">Arboboard</p>
+              <p className="text-xs text-slate-500">
+                Espace chef d’entreprise
+              </p>
+            </div>
+          </Link>
+        </div>
+
+        <div className="border-b border-slate-200 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Entreprise
+          </p>
+          <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+            {entreprise.nom_entreprise || "Entreprise"}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              Plan {planActuel}
+            </span>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                abonnementBloque
+                  ? "bg-red-100 text-red-700"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}
             >
-              Arboboard
-            </Link>
-
-            <p className="text-sm text-slate-500">
-              Espace chef — {nomEntreprise || "Entreprise"}
-            </p>
-
-            <p className="text-xs text-slate-400">
-              Plan : {planAbonnement || "essai"} — Statut :{" "}
-              {statutAbonnement || "essai"}
-            </p>
+              {entreprise.statut_abonnement || "essai"}
+            </span>
           </div>
+        </div>
 
-          <nav className="flex flex-wrap gap-2">
-            {liensVisibles.map((lien) => {
-              const actif = pathname === lien.href;
+        <nav className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-1">
+            {menusDisponibles.map((menu) => {
+              const actif =
+                pathname === menu.href ||
+                pathname.startsWith(`${menu.href}/`);
 
               return (
                 <Link
-                  key={lien.href}
-                  href={lien.href}
-                  className={
+                  key={menu.href}
+                  href={menu.href}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                     actif
-                      ? "rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
-                      : "rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
-                  }
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                  }`}
                 >
-                  {lien.label}
+                  <span className="text-base">{menu.emoji}</span>
+                  <span>{menu.label}</span>
                 </Link>
               );
             })}
-          </nav>
+          </div>
+        </nav>
 
-          <div className="flex flex-col gap-2 lg:items-end">
-            <p className="text-sm font-medium text-slate-700">
-              {nomUtilisateur}
+        <div className="border-t border-slate-200 p-4">
+          <div className="mb-3">
+            <p className="truncate text-sm font-semibold">
+              {profil.prenom || ""} {profil.nom || ""}
             </p>
+            <p className="truncate text-xs text-slate-500">{profil.email}</p>
+          </div>
+
+          <button
+            onClick={deconnexion}
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Se déconnecter
+          </button>
+        </div>
+      </aside>
+
+      <div className="lg:pl-72">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Link href="/chef/dashboard" className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-xl">
+                🌳
+              </div>
+              <div>
+                <p className="font-bold leading-tight">Arboboard</p>
+                <p className="text-xs text-slate-500">Espace chef</p>
+              </div>
+            </Link>
 
             <button
-              onClick={seDeconnecter}
-              className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
+              onClick={deconnexion}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium"
             >
               Déconnexion
             </button>
           </div>
-        </div>
+
+          <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+            {menusDisponibles.map((menu) => {
+              const actif =
+                pathname === menu.href ||
+                pathname.startsWith(`${menu.href}/`);
+
+              return (
+                <Link
+                  key={menu.href}
+                  href={menu.href}
+                  className={`whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium ${
+                    actif
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {menu.emoji} {menu.label}
+                </Link>
+              );
+            })}
+          </div>
+        </header>
 
         {abonnementBloque && (
-          <div className="border-t border-orange-200 bg-orange-50 px-6 py-3 text-sm text-orange-800">
-            Ton abonnement est actuellement bloqué. L’accès aux fonctionnalités
-            est limité. Consulte la page Abonnement.
+          <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 lg:px-8">
+            Votre abonnement est bloqué, suspendu, annulé ou expiré. Vous pouvez
+            accéder uniquement à la page abonnement pour régulariser la
+            situation.
           </div>
         )}
 
-        {planAbonnement === "essentiel" && (
-          <div className="border-t border-blue-200 bg-blue-50 px-6 py-3 text-sm text-blue-800">
-            Plan Essentiel : les fonctions équipe, planning et chantiers sont
-            disponibles à partir du plan Pro.
-          </div>
-        )}
-      </header>
-
-      {children}
+        <main className="p-4 lg:p-8">{children}</main>
+      </div>
     </div>
   );
 }

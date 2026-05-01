@@ -106,6 +106,17 @@ export async function chargerContexteEntreprise(): Promise<{
   };
 }
 
+function dateEstDepassee(dateIso: string | null) {
+  if (!dateIso) {
+    return false;
+  }
+
+  const maintenant = new Date();
+  const date = new Date(dateIso);
+
+  return date.getTime() < maintenant.getTime();
+}
+
 export function abonnementEstBloque(entreprise: EntrepriseAbonnee) {
   const statut = entreprise.statut_abonnement || "essai";
 
@@ -114,6 +125,10 @@ export function abonnementEstBloque(entreprise: EntrepriseAbonnee) {
   }
 
   if (statut === "actif") {
+    if (entreprise.date_fin_abonnement) {
+      return dateEstDepassee(entreprise.date_fin_abonnement);
+    }
+
     return false;
   }
 
@@ -122,10 +137,7 @@ export function abonnementEstBloque(entreprise: EntrepriseAbonnee) {
   }
 
   if (statut === "essai" && entreprise.date_fin_essai) {
-    const maintenant = new Date();
-    const finEssai = new Date(entreprise.date_fin_essai);
-
-    return finEssai.getTime() < maintenant.getTime();
+    return dateEstDepassee(entreprise.date_fin_essai);
   }
 
   return false;
@@ -138,6 +150,20 @@ export function joursRestantsEssai(dateFinEssai: string | null) {
 
   const maintenant = new Date();
   const fin = new Date(dateFinEssai);
+
+  const difference = fin.getTime() - maintenant.getTime();
+  const jours = Math.ceil(difference / (1000 * 60 * 60 * 24));
+
+  return Math.max(jours, 0);
+}
+
+export function joursRestantsAbonnement(dateFinAbonnement: string | null) {
+  if (!dateFinAbonnement) {
+    return null;
+  }
+
+  const maintenant = new Date();
+  const fin = new Date(dateFinAbonnement);
 
   const difference = fin.getTime() - maintenant.getTime();
   const jours = Math.ceil(difference / (1000 * 60 * 60 * 24));

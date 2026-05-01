@@ -1,131 +1,205 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
+import { supabase } from "@/lib/supabaseClient";
 
-type ClientEntreprise = {
+type StatutChantier = "a_prevoir" | "en_cours" | "termine" | "annule" | "archive";
+
+type Client = {
   id: string;
-  type_client: string;
-  nom: string;
-  prenom: string;
-  entreprise: string;
-  adresse_facturation: string;
-  adresse_chantier: string;
-  statut: string;
+  type_client: string | null;
+  nom: string | null;
+  prenom: string | null;
+  entreprise: string | null;
+  email: string | null;
+  telephone: string | null;
+  adresse: string | null;
+  code_postal: string | null;
+  ville: string | null;
+  statut: string | null;
 };
 
 type Chantier = {
   id: string;
-  entreprise_id: string | null;
+  entreprise_id: string;
   client_id: string | null;
-  client_nom: string;
-  titre: string;
-  description: string;
-  adresse_chantier: string;
-  statut: string;
+  client_nom: string | null;
+  titre: string | null;
+  statut: string | null;
+  description: string | null;
+  adresse: string | null;
+  code_postal: string | null;
+  ville: string | null;
   date_debut_prevue: string | null;
   date_fin_prevue: string | null;
-  avancement: number;
-  notes: string;
-  created_at: string;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
-type FormChantier = {
+type FormulaireChantier = {
   client_id: string;
-  client_nom: string;
   titre: string;
+  statut: StatutChantier;
   description: string;
-  adresse_chantier: string;
-  statut: string;
+  adresse: string;
+  code_postal: string;
+  ville: string;
   date_debut_prevue: string;
   date_fin_prevue: string;
-  avancement: string;
   notes: string;
 };
 
-const formulaireVide: FormChantier = {
+const FORMULAIRE_VIDE: FormulaireChantier = {
   client_id: "",
-  client_nom: "",
   titre: "",
+  statut: "a_prevoir",
   description: "",
-  adresse_chantier: "",
-  statut: "À planifier",
+  adresse: "",
+  code_postal: "",
+  ville: "",
   date_debut_prevue: "",
   date_fin_prevue: "",
-  avancement: "0",
   notes: "",
 };
 
-export default function ChantiersChefPage() {
-  const router = useRouter();
+function nettoyerTexte(valeur: string) {
+  const texte = valeur.trim();
+  return texte.length > 0 ? texte : null;
+}
 
-  const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
-  const [nomEntreprise, setNomEntreprise] = useState("");
+function nettoyerDate(valeur: string) {
+  const texte = valeur.trim();
+  return texte.length > 0 ? texte : null;
+}
 
-  const [clients, setClients] = useState<ClientEntreprise[]>([]);
-  const [chantiers, setChantiers] = useState<Chantier[]>([]);
+function nomClient(client: Client | null | undefined) {
+  if (!client) return "Client non renseigné";
 
-  const [form, setForm] = useState<FormChantier>(formulaireVide);
-  const [chargement, setChargement] = useState(true);
-  const [sauvegarde, setSauvegarde] = useState(false);
-  const [message, setMessage] = useState("");
-  const [recherche, setRecherche] = useState("");
-  const [idEdition, setIdEdition] = useState<string | null>(null);
-
-  useEffect(() => {
-    chargerContexteEtChantiers();
-  }, []);
-
-  async function chargerContexteEtChantiers() {
-    setChargement(true);
-    setMessage("");
-
-    const { contexte, erreur } = await chargerContexteEntreprise();
-
-    if (erreur || !contexte) {
-      setMessage(erreur || "Impossible de charger le contexte entreprise.");
-      setChargement(false);
-
-      setTimeout(() => {
-        router.push("/connexion");
-      }, 1200);
-
-      return;
-    }
-
-    setEntrepriseId(contexte.entreprise.id);
-    setNomEntreprise(contexte.entreprise.nom_entreprise);
-
-    await Promise.all([
-      chargerClients(contexte.entreprise.id),
-      chargerChantiers(contexte.entreprise.id),
-    ]);
-
-    setChargement(false);
+  if (client.type_client === "particulier") {
+    const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
+    return complet || "Client particulier";
   }
 
-  async function chargerClients(idEntreprise: string) {
+  return (
+    client.entreprise ||
+    client.nom ||
+    `${client.prenom || ""} ${client.nom || ""}`.trim() ||
+    "Client professionnel"
+  );
+}
+
+function libelleStatut(statut: string | null | undefined) {
+  if (statut === "en_cours") return "En cours";
+  if (statut === "termine") return "Terminé";
+  if (statut === "annule") return "Annulé";
+  if (statut === "archive") return "Archivé";
+  return "À prévoir";
+}
+
+function badgeStatut(statut: string | null | undefined) {
+  if (statut === "en_cours") return "bg-blue-50 text-blue-700 border-blue-200";
+  if (statut === "termine")
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (statut === "annule") return "bg-red-50 text-red-700 border-red-200";
+  if (statut === "archive") return "bg-slate-100 text-slate-600 border-slate-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function formatDate(date: string | null) {
+  if (!date) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(`${date}T00:00:00`));
+  } catch {
+    return "—";
+  }
+}
+
+function titreChantier(chantier: Chantier) {
+  return chantier.titre || "Chantier sans titre";
+}
+
+export default function ChantiersPage() {
+  const [entrepriseId, setEntrepriseId] = useState("");
+  const [clients, setClients] = useState<Client[]>([]);
+  const [chantiers, setChantiers] = useState<Chantier[]>([]);
+  const [chargement, setChargement] = useState(true);
+  const [enregistrement, setEnregistrement] = useState(false);
+
+  const [recherche, setRecherche] = useState("");
+  const [filtreStatut, setFiltreStatut] = useState<
+    "tous" | "a_prevoir" | "en_cours" | "termine" | "annule" | "archive"
+  >("tous");
+
+  const [modalOuverte, setModalOuverte] = useState(false);
+  const [chantierEdition, setChantierEdition] = useState<Chantier | null>(null);
+  const [formulaire, setFormulaire] =
+    useState<FormulaireChantier>(FORMULAIRE_VIDE);
+
+  const [messageErreur, setMessageErreur] = useState("");
+  const [messageSucces, setMessageSucces] = useState("");
+
+  useEffect(() => {
+    initialiserPage();
+  }, []);
+
+  async function initialiserPage() {
+    try {
+      setChargement(true);
+      setMessageErreur("");
+
+      const resultat = await chargerContexteEntreprise();
+
+      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
+        setMessageErreur(
+          "Impossible de charger votre entreprise. Veuillez vous reconnecter."
+        );
+        setChargement(false);
+        return;
+      }
+
+      const idEntreprise = resultat.contexte.entreprise.id;
+      setEntrepriseId(idEntreprise);
+
+      await Promise.all([chargerClients(idEntreprise), chargerChantiers(idEntreprise)]);
+    } catch (error) {
+      console.error("Erreur initialisation chantiers :", error);
+      setMessageErreur("Une erreur est survenue pendant le chargement.");
+    } finally {
+      setChargement(false);
+    }
+  }
+
+  async function chargerClients(idEntreprise = entrepriseId) {
+    if (!idEntreprise) return;
+
     const { data, error } = await supabase
       .from("clients")
       .select(
-        "id, type_client, nom, prenom, entreprise, adresse_facturation, adresse_chantier, statut"
+        "id,type_client,nom,prenom,entreprise,email,telephone,adresse,code_postal,ville,statut"
       )
       .eq("entreprise_id", idEntreprise)
-      .in("statut", ["Actif", "Prospect"])
-      .order("entreprise", { ascending: true })
-      .order("nom", { ascending: true })
-      .order("prenom", { ascending: true });
+      .neq("statut", "archive")
+      .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage(error.message || "Erreur lors du chargement des clients.");
-    } else {
-      setClients(data || []);
+      console.error("Erreur chargement clients :", error);
+      setMessageErreur(error.message || "Impossible de charger les clients.");
+      return;
     }
+
+    setClients((data || []) as Client[]);
   }
 
-  async function chargerChantiers(idEntreprise: string) {
+  async function chargerChantiers(idEntreprise = entrepriseId) {
+    if (!idEntreprise) return;
+
     const { data, error } = await supabase
       .from("chantiers")
       .select("*")
@@ -133,602 +207,732 @@ export default function ChantiersChefPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage(error.message || "Erreur lors du chargement des chantiers.");
-    } else {
-      setChantiers(data || []);
+      console.error("Erreur chargement chantiers :", error);
+      setMessageErreur(error.message || "Impossible de charger les chantiers.");
+      return;
     }
+
+    setChantiers((data || []) as Chantier[]);
   }
 
-  function modifierChamp(champ: keyof FormChantier, valeur: string) {
-    setForm((ancien) => ({
+  const statistiques = useMemo(() => {
+    return {
+      total: chantiers.length,
+      a_prevoir: chantiers.filter((chantier) => chantier.statut === "a_prevoir")
+        .length,
+      en_cours: chantiers.filter((chantier) => chantier.statut === "en_cours")
+        .length,
+      termines: chantiers.filter((chantier) => chantier.statut === "termine")
+        .length,
+      archives: chantiers.filter((chantier) => chantier.statut === "archive")
+        .length,
+    };
+  }, [chantiers]);
+
+  const chantiersFiltres = useMemo(() => {
+    const texte = recherche.trim().toLowerCase();
+
+    return chantiers.filter((chantier) => {
+      const statutChantier = chantier.statut || "a_prevoir";
+
+      const correspondStatut =
+        filtreStatut === "tous" || statutChantier === filtreStatut;
+
+      const zoneRecherche = [
+        chantier.titre,
+        chantier.client_nom,
+        chantier.description,
+        chantier.adresse,
+        chantier.code_postal,
+        chantier.ville,
+        chantier.notes,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const correspondRecherche =
+        texte.length === 0 || zoneRecherche.includes(texte);
+
+      return correspondStatut && correspondRecherche;
+    });
+  }, [chantiers, recherche, filtreStatut]);
+
+  function trouverClient(clientId: string | null | undefined) {
+    if (!clientId) return null;
+    return clients.find((client) => client.id === clientId) || null;
+  }
+
+  function ouvrirCreation() {
+    setChantierEdition(null);
+    setFormulaire(FORMULAIRE_VIDE);
+    setMessageErreur("");
+    setMessageSucces("");
+    setModalOuverte(true);
+  }
+
+  function ouvrirEdition(chantier: Chantier) {
+    setChantierEdition(chantier);
+    setFormulaire({
+      client_id: chantier.client_id || "",
+      titre: chantier.titre || "",
+      statut: (chantier.statut as StatutChantier) || "a_prevoir",
+      description: chantier.description || "",
+      adresse: chantier.adresse || "",
+      code_postal: chantier.code_postal || "",
+      ville: chantier.ville || "",
+      date_debut_prevue: chantier.date_debut_prevue || "",
+      date_fin_prevue: chantier.date_fin_prevue || "",
+      notes: chantier.notes || "",
+    });
+    setMessageErreur("");
+    setMessageSucces("");
+    setModalOuverte(true);
+  }
+
+  function fermerModal() {
+    if (enregistrement) return;
+
+    setModalOuverte(false);
+    setChantierEdition(null);
+    setFormulaire(FORMULAIRE_VIDE);
+  }
+
+  function modifierChamp(champ: keyof FormulaireChantier, valeur: string) {
+    setFormulaire((ancien) => ({
       ...ancien,
       [champ]: valeur,
     }));
   }
 
-  function nomAffichageClient(client: ClientEntreprise) {
-    if (client.type_client === "Professionnel" && client.entreprise) {
-      return client.entreprise;
-    }
+  function utiliserAdresseClient() {
+    const client = trouverClient(formulaire.client_id);
 
-    const nomComplet = `${client.prenom || ""} ${client.nom || ""}`.trim();
-
-    if (nomComplet) {
-      return nomComplet;
-    }
-
-    return client.entreprise || "Client sans nom";
-  }
-
-  function choisirClient(id: string) {
-    if (!id) {
-      setForm((ancien) => ({
-        ...ancien,
-        client_id: "",
-        client_nom: "",
-        adresse_chantier: "",
-      }));
+    if (!client) {
+      setMessageErreur("Choisissez d’abord un client.");
       return;
     }
 
-    const clientTrouve = clients.find((client) => client.id === id);
-
-    if (!clientTrouve) {
-      return;
-    }
-
-    setForm((ancien) => ({
+    setFormulaire((ancien) => ({
       ...ancien,
-      client_id: clientTrouve.id,
-      client_nom: nomAffichageClient(clientTrouve),
-      adresse_chantier:
-        clientTrouve.adresse_chantier ||
-        clientTrouve.adresse_facturation ||
-        ancien.adresse_chantier,
+      adresse: client.adresse || "",
+      code_postal: client.code_postal || "",
+      ville: client.ville || "",
     }));
+
+    setMessageErreur("");
   }
 
-  function afficherDate(date: string | null) {
-    if (!date) {
-      return "—";
-    }
-
-    return new Date(date + "T00:00:00").toLocaleDateString("fr-FR");
+  function formulaireValide() {
+    return formulaire.titre.trim().length > 0;
   }
 
   async function enregistrerChantier() {
-    setSauvegarde(true);
-    setMessage("");
-
     if (!entrepriseId) {
-      setMessage("Aucune entreprise connectée. Reconnecte-toi.");
-      setSauvegarde(false);
+      setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
       return;
     }
 
-    if (!form.titre.trim()) {
-      setMessage("Merci de remplir le titre du chantier.");
-      setSauvegarde(false);
+    if (!formulaireValide()) {
+      setMessageErreur("Renseignez au minimum un titre de chantier.");
       return;
     }
 
-    const avancementCorrige = Math.min(
-      Math.max(Number(form.avancement) || 0, 0),
-      100
-    );
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
 
-    if (idEdition) {
+      const clientSelectionne = trouverClient(formulaire.client_id);
+
+      const payload = {
+        entreprise_id: entrepriseId,
+        client_id: formulaire.client_id || null,
+        client_nom: clientSelectionne ? nomClient(clientSelectionne) : null,
+        titre: nettoyerTexte(formulaire.titre),
+        statut: formulaire.statut,
+        description: nettoyerTexte(formulaire.description),
+        adresse: nettoyerTexte(formulaire.adresse),
+        code_postal: nettoyerTexte(formulaire.code_postal),
+        ville: nettoyerTexte(formulaire.ville),
+        date_debut_prevue: nettoyerDate(formulaire.date_debut_prevue),
+        date_fin_prevue: nettoyerDate(formulaire.date_fin_prevue),
+        notes: nettoyerTexte(formulaire.notes),
+      };
+
+      if (chantierEdition) {
+        const { error } = await supabase
+          .from("chantiers")
+          .update(payload)
+          .eq("id", chantierEdition.id)
+          .eq("entreprise_id", entrepriseId);
+
+        if (error) throw error;
+
+        setMessageSucces("Chantier modifié avec succès.");
+      } else {
+        const { error } = await supabase.from("chantiers").insert(payload);
+
+        if (error) throw error;
+
+        setMessageSucces("Chantier créé avec succès.");
+      }
+
+      await chargerChantiers(entrepriseId);
+      fermerModal();
+    } catch (error: any) {
+      console.error("Erreur enregistrement chantier :", error);
+      setMessageErreur(
+        error?.message || "Impossible d’enregistrer le chantier pour le moment."
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function changerStatutChantier(chantier: Chantier, statut: StatutChantier) {
+    if (!entrepriseId) return;
+
+    try {
+      setMessageErreur("");
+      setMessageSucces("");
+
       const { error } = await supabase
         .from("chantiers")
-        .update({
-          client_id: form.client_id || null,
-          client_nom: form.client_nom,
-          titre: form.titre,
-          description: form.description,
-          adresse_chantier: form.adresse_chantier,
-          statut: form.statut,
-          date_debut_prevue: form.date_debut_prevue || null,
-          date_fin_prevue: form.date_fin_prevue || null,
-          avancement: avancementCorrige,
-          notes: form.notes,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", idEdition)
+        .update({ statut })
+        .eq("id", chantier.id)
         .eq("entreprise_id", entrepriseId);
 
-      if (error) {
-        setMessage(error.message || "Erreur : le chantier n'a pas été modifié.");
-      } else {
-        setMessage("Chantier modifié avec succès.");
-        annulerEdition();
-        await chargerChantiers(entrepriseId);
-      }
-    } else {
-      const { error } = await supabase.from("chantiers").insert({
-        entreprise_id: entrepriseId,
-        client_id: form.client_id || null,
-        client_nom: form.client_nom,
-        titre: form.titre,
-        description: form.description,
-        adresse_chantier: form.adresse_chantier,
-        statut: form.statut,
-        date_debut_prevue: form.date_debut_prevue || null,
-        date_fin_prevue: form.date_fin_prevue || null,
-        avancement: avancementCorrige,
-        notes: form.notes,
-        updated_at: new Date().toISOString(),
-      });
+      if (error) throw error;
 
-      if (error) {
-        setMessage(error.message || "Erreur : le chantier n'a pas été ajouté.");
-      } else {
-        setMessage("Chantier ajouté avec succès.");
-        setForm(formulaireVide);
-        await chargerChantiers(entrepriseId);
-      }
-    }
-
-    setSauvegarde(false);
-  }
-
-  function lancerEdition(chantier: Chantier) {
-    setIdEdition(chantier.id);
-
-    setForm({
-      client_id: chantier.client_id || "",
-      client_nom: chantier.client_nom || "",
-      titre: chantier.titre || "",
-      description: chantier.description || "",
-      adresse_chantier: chantier.adresse_chantier || "",
-      statut: chantier.statut || "À planifier",
-      date_debut_prevue: chantier.date_debut_prevue || "",
-      date_fin_prevue: chantier.date_fin_prevue || "",
-      avancement: String(chantier.avancement || 0),
-      notes: chantier.notes || "",
-    });
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function annulerEdition() {
-    setIdEdition(null);
-    setForm(formulaireVide);
-  }
-
-  async function changerStatut(id: string, statut: string) {
-    if (!entrepriseId) {
-      setMessage("Aucune entreprise connectée.");
-      return;
-    }
-
-    const avancementAuto =
-      statut === "Terminé" ? 100 : statut === "À planifier" ? 0 : null;
-
-    const updateData =
-      avancementAuto === null
-        ? {
-            statut,
-            updated_at: new Date().toISOString(),
-          }
-        : {
-            statut,
-            avancement: avancementAuto,
-            updated_at: new Date().toISOString(),
-          };
-
-    const { error } = await supabase
-      .from("chantiers")
-      .update(updateData)
-      .eq("id", id)
-      .eq("entreprise_id", entrepriseId);
-
-    if (error) {
-      setMessage(error.message || "Erreur lors du changement de statut.");
-    } else {
-      setMessage("Statut du chantier mis à jour.");
       await chargerChantiers(entrepriseId);
+      setMessageSucces(`Statut du chantier mis à jour : ${libelleStatut(statut)}.`);
+    } catch (error: any) {
+      console.error("Erreur changement statut chantier :", error);
+      setMessageErreur(
+        error?.message || "Impossible de modifier le statut du chantier."
+      );
     }
   }
 
-  async function supprimerChantier(id: string) {
-    if (!entrepriseId) {
-      setMessage("Aucune entreprise connectée.");
-      return;
-    }
+  async function archiverOuRestaurerChantier(chantier: Chantier) {
+    const estArchive = chantier.statut === "archive";
+    const nouveauStatut: StatutChantier = estArchive ? "a_prevoir" : "archive";
 
-    const confirmation = confirm(
-      "Supprimer ce chantier ? Cette action est définitive."
+    const confirmation = window.confirm(
+      estArchive
+        ? `Voulez-vous réactiver le chantier "${titreChantier(chantier)}" ?`
+        : `Voulez-vous archiver le chantier "${titreChantier(chantier)}" ?`
     );
 
-    if (!confirmation) {
-      return;
-    }
+    if (!confirmation) return;
 
-    const { error } = await supabase
-      .from("chantiers")
-      .delete()
-      .eq("id", id)
-      .eq("entreprise_id", entrepriseId);
+    await changerStatutChantier(chantier, nouveauStatut);
+  }
 
-    if (error) {
-      setMessage(error.message || "Erreur lors de la suppression du chantier.");
-    } else {
-      setMessage("Chantier supprimé.");
+  async function supprimerChantier(chantier: Chantier) {
+    if (!entrepriseId) return;
+
+    const confirmation = window.confirm(
+      `Suppression définitive du chantier "${titreChantier(
+        chantier
+      )}". Cette action est irréversible. Continuer ?`
+    );
+
+    if (!confirmation) return;
+
+    try {
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const { error } = await supabase
+        .from("chantiers")
+        .delete()
+        .eq("id", chantier.id)
+        .eq("entreprise_id", entrepriseId);
+
+      if (error) throw error;
+
       await chargerChantiers(entrepriseId);
+      setMessageSucces("Chantier supprimé définitivement.");
+    } catch (error: any) {
+      console.error("Erreur suppression chantier :", error);
+      setMessageErreur(
+        error?.message ||
+          "Impossible de supprimer ce chantier. Il sera peut-être lié plus tard à des devis, factures ou interventions."
+      );
     }
   }
 
-  const chantiersFiltres = useMemo(() => {
-    const texte = recherche.toLowerCase().trim();
-
-    if (!texte) {
-      return chantiers;
-    }
-
-    return chantiers.filter((chantier) => {
-      const contenu = `
-        ${chantier.client_nom}
-        ${chantier.titre}
-        ${chantier.description}
-        ${chantier.adresse_chantier}
-        ${chantier.statut}
-        ${chantier.notes}
-      `;
-
-      return contenu.toLowerCase().includes(texte);
-    });
-  }, [chantiers, recherche]);
-
   return (
-    <main className="min-h-screen bg-slate-100 p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">
-            Gestion des chantiers
-          </h1>
-
-          <p className="mt-2 text-slate-600">
-            Crée, planifie et suis l&apos;avancement des chantiers de ton entreprise.
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
+          <h1 className="mt-1 text-3xl font-bold text-slate-950">Chantiers</h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-600">
+            Créez vos chantiers, rattachez-les à vos clients et préparez la base
+            pour les devis, factures, plannings et fiches d’intervention.
           </p>
-
-          {nomEntreprise && (
-            <p className="mt-2 text-sm font-medium text-slate-500">
-              Entreprise connectée : {nomEntreprise}
-            </p>
-          )}
         </div>
 
-        <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-semibold text-slate-900">
-            {idEdition ? "Modifier un chantier" : "Ajouter un chantier"}
-          </h2>
+        <button
+          onClick={ouvrirCreation}
+          className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+          + Ajouter un chantier
+        </button>
+      </section>
 
-          <div className="grid gap-5">
-            <div className="grid gap-5 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Client lié
-                </label>
+      {messageErreur && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {messageErreur}
+        </div>
+      )}
 
-                <select
-                  value={form.client_id}
-                  onChange={(e) => choisirClient(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                >
-                  <option value="">Aucun client sélectionné</option>
+      {messageSucces && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {messageSucces}
+        </div>
+      )}
 
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {nomAffichageClient(client)}
-                    </option>
-                  ))}
-                </select>
-
-                {clients.length === 0 && (
-                  <p className="mt-2 text-sm text-orange-700">
-                    Aucun client trouvé. Ajoute d&apos;abord un client.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Titre du chantier
-                </label>
-
-                <input
-                  value={form.titre}
-                  onChange={(e) => modifierChamp("titre", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                  placeholder="Exemple : Création massif chez Mme Martin"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Adresse du chantier
-              </label>
-
-              <input
-                value={form.adresse_chantier}
-                onChange={(e) =>
-                  modifierChamp("adresse_chantier", e.target.value)
-                }
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                placeholder="Adresse complète du chantier"
-              />
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Statut
-                </label>
-
-                <select
-                  value={form.statut}
-                  onChange={(e) => modifierChamp("statut", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                >
-                  <option>À planifier</option>
-                  <option>Planifié</option>
-                  <option>En cours</option>
-                  <option>Terminé</option>
-                  <option>Annulé</option>
-                  <option>En attente</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Date début prévue
-                </label>
-
-                <input
-                  type="date"
-                  value={form.date_debut_prevue}
-                  onChange={(e) =>
-                    modifierChamp("date_debut_prevue", e.target.value)
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Date fin prévue
-                </label>
-
-                <input
-                  type="date"
-                  value={form.date_fin_prevue}
-                  onChange={(e) =>
-                    modifierChamp("date_fin_prevue", e.target.value)
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Avancement %
-                </label>
-
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={form.avancement}
-                  onChange={(e) => modifierChamp("avancement", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Description du chantier
-              </label>
-
-              <textarea
-                value={form.description}
-                onChange={(e) => modifierChamp("description", e.target.value)}
-                rows={3}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                placeholder="Travaux prévus, détails techniques, matériel nécessaire..."
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Notes internes
-              </label>
-
-              <textarea
-                value={form.notes}
-                onChange={(e) => modifierChamp("notes", e.target.value)}
-                rows={3}
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-                placeholder="Accès, portail, contraintes, consignes particulières..."
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={enregistrerChantier}
-                disabled={sauvegarde}
-                className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                {sauvegarde
-                  ? "Enregistrement..."
-                  : idEdition
-                  ? "Modifier le chantier"
-                  : "Ajouter le chantier"}
-              </button>
-
-              {idEdition && (
-                <button
-                  onClick={annulerEdition}
-                  className="rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-800 hover:bg-slate-300"
-                >
-                  Annuler la modification
-                </button>
-              )}
-            </div>
-
-            {message && (
-              <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-                {message}
-              </p>
-            )}
-          </div>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">
+            {statistiques.total}
+          </p>
         </div>
 
-        <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Rechercher un chantier
-          </label>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            À prévoir
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">
+            {statistiques.a_prevoir}
+          </p>
+        </div>
 
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            En cours
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">
+            {statistiques.en_cours}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Terminés
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">
+            {statistiques.termines}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Archives
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">
+            {statistiques.archives}
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_240px]">
           <input
             value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
-            placeholder="Recherche par client, titre, adresse, statut..."
+            onChange={(event) => setRecherche(event.target.value)}
+            placeholder="Rechercher par titre, client, ville, adresse, notes..."
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
           />
+
+          <select
+            value={filtreStatut}
+            onChange={(event) =>
+              setFiltreStatut(event.target.value as typeof filtreStatut)
+            }
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+          >
+            <option value="tous">Tous les statuts</option>
+            <option value="a_prevoir">À prévoir</option>
+            <option value="en_cours">En cours</option>
+            <option value="termine">Terminés</option>
+            <option value="annule">Annulés</option>
+            <option value="archive">Archivés</option>
+          </select>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-semibold text-slate-900">
-            Liste des chantiers
-          </h2>
-
-          {chargement ? (
-            <p className="text-slate-600">Chargement...</p>
-          ) : chantiersFiltres.length === 0 ? (
-            <p className="text-slate-600">Aucun chantier trouvé.</p>
-          ) : (
-            <div className="grid gap-4">
-              {chantiersFiltres.map((chantier) => (
-                <div
-                  key={chantier.id}
-                  className="rounded-2xl border border-slate-200 p-5"
-                >
-                  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">
-                        {chantier.titre || "Chantier sans titre"}
-                      </h3>
-
-                      <p className="text-sm text-slate-600">
-                        {chantier.client_nom || "Client non renseigné"}
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        {chantier.adresse_chantier || "Adresse non renseignée"}
-                      </p>
-                    </div>
-
-                    <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                      {chantier.statut}
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="mb-2 flex items-center justify-between text-sm text-slate-700">
-                      <span>Avancement</span>
-                      <span className="font-semibold">
-                        {Number(chantier.avancement || 0)}%
-                      </span>
-                    </div>
-
-                    <div className="h-2 rounded-full bg-slate-200">
-                      <div
-                        className="h-2 rounded-full bg-slate-900"
-                        style={{
-                          width: `${Math.min(
-                            Math.max(Number(chantier.avancement) || 0, 0),
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-                    <p>
-                      <span className="font-medium">Début prévu :</span>{" "}
-                      {afficherDate(chantier.date_debut_prevue)}
-                    </p>
-
-                    <p>
-                      <span className="font-medium">Fin prévue :</span>{" "}
-                      {afficherDate(chantier.date_fin_prevue)}
-                    </p>
-                  </div>
-
-                  {chantier.description && (
-                    <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-                      {chantier.description}
-                    </p>
-                  )}
-
-                  {chantier.notes && (
-                    <p className="mt-4 rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-800">
-                      Notes : {chantier.notes}
-                    </p>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => lancerEdition(chantier)}
-                      className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-                    >
-                      Modifier
-                    </button>
-
-                    <button
-                      onClick={() => changerStatut(chantier.id, "Planifié")}
-                      className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600"
-                    >
-                      Planifié
-                    </button>
-
-                    <button
-                      onClick={() => changerStatut(chantier.id, "En cours")}
-                      className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-                    >
-                      En cours
-                    </button>
-
-                    <button
-                      onClick={() => changerStatut(chantier.id, "Terminé")}
-                      className="rounded-xl bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600"
-                    >
-                      Terminé
-                    </button>
-
-                    <button
-                      onClick={() => changerStatut(chantier.id, "Annulé")}
-                      className="rounded-xl bg-orange-700 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
-                    >
-                      Annulé
-                    </button>
-
-                    <button
-                      onClick={() => supprimerChantier(chantier.id)}
-                      className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))}
+        {chargement ? (
+          <div className="p-8 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+              🌳
             </div>
-          )}
+            <p className="font-semibold text-slate-900">
+              Chargement des chantiers...
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Récupération des données depuis Supabase.
+            </p>
+          </div>
+        ) : chantiersFiltres.length === 0 ? (
+          <div className="p-8 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+              🌳
+            </div>
+            <p className="font-semibold text-slate-900">Aucun chantier trouvé</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Créez votre premier chantier ou modifiez les filtres de recherche.
+            </p>
+
+            <button
+              onClick={ouvrirCreation}
+              className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Ajouter un chantier
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Chantier</th>
+                  <th className="px-4 py-3 font-semibold">Client</th>
+                  <th className="px-4 py-3 font-semibold">Adresse</th>
+                  <th className="px-4 py-3 font-semibold">Dates prévues</th>
+                  <th className="px-4 py-3 font-semibold">Statut</th>
+                  <th className="px-4 py-3 text-right font-semibold">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {chantiersFiltres.map((chantier) => (
+                  <tr key={chantier.id} className="hover:bg-slate-50/70">
+                    <td className="px-4 py-4 align-top">
+                      <p className="font-semibold text-slate-950">
+                        {titreChantier(chantier)}
+                      </p>
+
+                      {chantier.description && (
+                        <p className="mt-1 max-w-md text-xs text-slate-500">
+                          {chantier.description}
+                        </p>
+                      )}
+
+                      {chantier.notes && (
+                        <p className="mt-2 max-w-md text-xs text-slate-400">
+                          Notes : {chantier.notes}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 align-top">
+                      <p className="font-medium text-slate-800">
+                        {chantier.client_nom || "—"}
+                      </p>
+                    </td>
+
+                    <td className="px-4 py-4 align-top">
+                      <div className="max-w-xs text-sm text-slate-700">
+                        <p>{chantier.adresse || "—"}</p>
+                        <p className="text-xs text-slate-500">
+                          {[chantier.code_postal, chantier.ville]
+                            .filter(Boolean)
+                            .join(" ") || "—"}
+                        </p>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4 align-top text-sm text-slate-700">
+                      <p>Début : {formatDate(chantier.date_debut_prevue)}</p>
+                      <p className="text-xs text-slate-500">
+                        Fin : {formatDate(chantier.date_fin_prevue)}
+                      </p>
+                    </td>
+
+                    <td className="px-4 py-4 align-top">
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
+                          chantier.statut
+                        )}`}
+                      >
+                        {libelleStatut(chantier.statut)}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4 align-top">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          onClick={() => ouvrirEdition(chantier)}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Modifier
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            changerStatutChantier(chantier, "en_cours")
+                          }
+                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                        >
+                          En cours
+                        </button>
+
+                        <button
+                          onClick={() => changerStatutChantier(chantier, "termine")}
+                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Terminer
+                        </button>
+
+                        <button
+                          onClick={() => archiverOuRestaurerChantier(chantier)}
+                          className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                        >
+                          {chantier.statut === "archive"
+                            ? "Réactiver"
+                            : "Archiver"}
+                        </button>
+
+                        <button
+                          onClick={() => supprimerChantier(chantier)}
+                          className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {modalOuverte && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+              <div>
+                <h2 className="text-xl font-bold text-slate-950">
+                  {chantierEdition
+                    ? "Modifier le chantier"
+                    : "Ajouter un chantier"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Rattachez le chantier à un client et renseignez les
+                  informations utiles pour le suivi terrain.
+                </p>
+              </div>
+
+              <button
+                onClick={fermerModal}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Client rattaché
+                  </label>
+                  <select
+                    value={formulaire.client_id}
+                    onChange={(event) =>
+                      modifierChamp("client_id", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  >
+                    <option value="">Aucun client sélectionné</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {nomClient(client)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={utiliserAdresseClient}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Utiliser adresse client
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Titre du chantier
+                  </label>
+                  <input
+                    value={formulaire.titre}
+                    onChange={(event) =>
+                      modifierChamp("titre", event.target.value)
+                    }
+                    placeholder="Ex : Taille haie charmille, création massif, abattage..."
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Statut
+                  </label>
+                  <select
+                    value={formulaire.statut}
+                    onChange={(event) =>
+                      modifierChamp("statut", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  >
+                    <option value="a_prevoir">À prévoir</option>
+                    <option value="en_cours">En cours</option>
+                    <option value="termine">Terminé</option>
+                    <option value="annule">Annulé</option>
+                    <option value="archive">Archivé</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Description
+                </label>
+                <textarea
+                  value={formulaire.description}
+                  onChange={(event) =>
+                    modifierChamp("description", event.target.value)
+                  }
+                  placeholder="Décrivez rapidement les travaux prévus..."
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Adresse du chantier
+                </label>
+                <input
+                  value={formulaire.adresse}
+                  onChange={(event) =>
+                    modifierChamp("adresse", event.target.value)
+                  }
+                  placeholder="Adresse complète du chantier"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Code postal
+                  </label>
+                  <input
+                    value={formulaire.code_postal}
+                    onChange={(event) =>
+                      modifierChamp("code_postal", event.target.value)
+                    }
+                    placeholder="03000"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Ville
+                  </label>
+                  <input
+                    value={formulaire.ville}
+                    onChange={(event) => modifierChamp("ville", event.target.value)}
+                    placeholder="Ville"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Date début prévue
+                  </label>
+                  <input
+                    type="date"
+                    value={formulaire.date_debut_prevue}
+                    onChange={(event) =>
+                      modifierChamp("date_debut_prevue", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Date fin prévue
+                  </label>
+                  <input
+                    type="date"
+                    value={formulaire.date_fin_prevue}
+                    onChange={(event) =>
+                      modifierChamp("date_fin_prevue", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Notes internes
+                </label>
+                <textarea
+                  value={formulaire.notes}
+                  onChange={(event) => modifierChamp("notes", event.target.value)}
+                  placeholder="Accès, contraintes, matériel à prévoir, consignes..."
+                  rows={4}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+              <button
+                onClick={fermerModal}
+                disabled={enregistrement}
+                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annuler
+              </button>
+
+              <button
+                onClick={enregistrerChantier}
+                disabled={enregistrement}
+                className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {enregistrement
+                  ? "Enregistrement..."
+                  : chantierEdition
+                  ? "Modifier le chantier"
+                  : "Créer le chantier"}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+      )}
+    </div>
   );
 }

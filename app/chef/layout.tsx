@@ -9,6 +9,12 @@ import {
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
 
+type LienMenu = {
+  href: string;
+  label: string;
+  plans: string[];
+};
+
 export default function ChefLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,6 +50,7 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     }
 
     const statut = contexte.entreprise.statut_abonnement || "essai";
+    const plan = contexte.entreprise.plan_abonnement || "essai";
 
     const cheminAutoriseSiBloque =
       pathname.startsWith("/chef/abonnement") ||
@@ -57,6 +64,14 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
       return;
     }
 
+    const accesPlanOk = verifierAccesPlan(plan, pathname);
+
+    if (!accesPlanOk) {
+      setChargement(false);
+      router.replace("/chef/abonnement");
+      return;
+    }
+
     const nomComplet = `${contexte.profil.prenom || ""} ${
       contexte.profil.nom || ""
     }`.trim();
@@ -64,10 +79,51 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     setNomEntreprise(contexte.entreprise.nom_entreprise || "");
     setNomUtilisateur(nomComplet || contexte.profil.email || "Chef");
     setStatutAbonnement(statut);
-    setPlanAbonnement(contexte.entreprise.plan_abonnement || "essai");
+    setPlanAbonnement(plan);
 
     setAutorise(true);
     setChargement(false);
+  }
+
+  function verifierAccesPlan(plan: string, chemin: string) {
+    const cheminsToujoursAutorises = [
+      "/chef/dashboard",
+      "/chef/clients",
+      "/chef/devis",
+      "/chef/factures",
+      "/chef/abonnement",
+      "/chef/profil",
+      "/chef/parametres",
+    ];
+
+    const cheminsPro = [
+      "/chef/salaries",
+      "/chef/salaries/acces",
+      "/chef/planning",
+      "/chef/demandes",
+      "/chef/chantiers",
+    ];
+
+    if (plan === "dev") {
+      return true;
+    }
+
+    if (plan === "expert") {
+      return true;
+    }
+
+    if (plan === "pro") {
+      return (
+        cheminsToujoursAutorises.some((c) => chemin.startsWith(c)) ||
+        cheminsPro.some((c) => chemin.startsWith(c))
+      );
+    }
+
+    if (plan === "essentiel" || plan === "essai") {
+      return cheminsToujoursAutorises.some((c) => chemin.startsWith(c));
+    }
+
+    return cheminsToujoursAutorises.some((c) => chemin.startsWith(c));
   }
 
   async function seDeconnecter() {
@@ -75,26 +131,78 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     router.push("/connexion");
   }
 
-  const liens = [
-    { href: "/chef/dashboard", label: "Dashboard" },
-    { href: "/chef/clients", label: "Clients" },
-    { href: "/chef/salaries", label: "Salariés" },
-    { href: "/chef/salaries/acces", label: "Accès salariés" },
-    { href: "/chef/planning", label: "Planning" },
-    { href: "/chef/demandes", label: "Demandes" },
-    { href: "/chef/chantiers", label: "Chantiers" },
-    { href: "/chef/devis", label: "Devis" },
-    { href: "/chef/factures", label: "Factures" },
-    { href: "/chef/abonnement", label: "Abonnement" },
-    { href: "/chef/profil", label: "Profil" },
-    { href: "/chef/parametres", label: "Paramètres" },
+  const liens: LienMenu[] = [
+    {
+      href: "/chef/dashboard",
+      label: "Dashboard",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/clients",
+      label: "Clients",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/salaries",
+      label: "Salariés",
+      plans: ["pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/salaries/acces",
+      label: "Accès salariés",
+      plans: ["pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/planning",
+      label: "Planning",
+      plans: ["pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/demandes",
+      label: "Demandes",
+      plans: ["pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/chantiers",
+      label: "Chantiers",
+      plans: ["pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/devis",
+      label: "Devis",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/factures",
+      label: "Factures",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/abonnement",
+      label: "Abonnement",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/profil",
+      label: "Profil",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
+    {
+      href: "/chef/parametres",
+      label: "Paramètres",
+      plans: ["essai", "essentiel", "pro", "expert", "dev"],
+    },
   ];
 
- const abonnementBloque =
-  statutAbonnement === "suspendu" ||
-  statutAbonnement === "annule" ||
-  statutAbonnement === "annulé";
-  
+  const liensVisibles = liens.filter((lien) =>
+    lien.plans.includes(planAbonnement || "essai")
+  );
+
+  const abonnementBloque =
+    statutAbonnement === "suspendu" ||
+    statutAbonnement === "annule" ||
+    statutAbonnement === "annulé";
+
   if (chargement) {
     return (
       <main className="min-h-screen bg-slate-100 p-8">
@@ -130,7 +238,7 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="flex flex-wrap gap-2">
-            {liens.map((lien) => {
+            {liensVisibles.map((lien) => {
               const actif = pathname === lien.href;
 
               return (
@@ -167,6 +275,13 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           <div className="border-t border-orange-200 bg-orange-50 px-6 py-3 text-sm text-orange-800">
             Ton abonnement est actuellement bloqué. L’accès aux fonctionnalités
             est limité. Consulte la page Abonnement.
+          </div>
+        )}
+
+        {planAbonnement === "essentiel" && (
+          <div className="border-t border-blue-200 bg-blue-50 px-6 py-3 text-sm text-blue-800">
+            Plan Essentiel : les fonctions équipe, planning et chantiers sont
+            disponibles à partir du plan Pro.
           </div>
         )}
       </header>

@@ -106,6 +106,14 @@ type FactureAvecLignes = Facture & {
   lignes: LigneFacture[];
 };
 
+type EntrepriseParametres = {
+  tva_defaut?: number | null;
+  delai_paiement_jours?: number | null;
+  prefixe_facture?: string | null;
+  numerotation_factures_auto?: boolean | null;
+  conditions_factures?: string | null;
+};
+
 type LigneFormulaire = {
   designation: string;
   description: string;
@@ -131,14 +139,8 @@ type FormulaireFacture = {
   lignes: LigneFormulaire[];
 };
 
-const LIGNE_VIDE: LigneFormulaire = {
-  designation: "",
-  description: "",
-  quantite: "1",
-  unite: "u",
-  prix_unitaire_ht: "0",
-  tva: "20",
-};
+const CONDITIONS_FACTURES_DEFAUT =
+  "Paiement à réception de facture sauf indication contraire. Aucun escompte ne sera accordé pour paiement anticipé.";
 
 function dateDuJour() {
   return new Date().toISOString().slice(0, 10);
@@ -148,37 +150,6 @@ function dateDansJours(jours: number) {
   const date = new Date();
   date.setDate(date.getDate() + jours);
   return date.toISOString().slice(0, 10);
-}
-
-function genererNumeroFacture() {
-  const maintenant = new Date();
-  const annee = maintenant.getFullYear();
-  const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
-  const jour = String(maintenant.getDate()).padStart(2, "0");
-  const heures = String(maintenant.getHours()).padStart(2, "0");
-  const minutes = String(maintenant.getMinutes()).padStart(2, "0");
-  const secondes = String(maintenant.getSeconds()).padStart(2, "0");
-
-  return `FAC-${annee}${mois}${jour}-${heures}${minutes}${secondes}`;
-}
-
-function formulaireVide(): FormulaireFacture {
-  return {
-    client_id: "",
-    devis_id: "",
-    numero: genererNumeroFacture(),
-    objet: "",
-    description: "",
-    type_facture: "simple",
-    statut: "brouillon",
-    date_facture: dateDuJour(),
-    date_echeance: dateDansJours(30),
-    montant_paye: "0",
-    notes_internes: "",
-    conditions:
-      "Paiement à réception de facture sauf indication contraire. En cas de retard de paiement, des pénalités pourront être appliquées selon les conditions prévues.",
-    lignes: [{ ...LIGNE_VIDE }],
-  };
 }
 
 function nettoyerTexte(valeur: string) {
@@ -208,6 +179,69 @@ function nombreDepuisTexte(valeur: string | number | null | undefined) {
 
 function arrondir2(nombre: number) {
   return Math.round((nombre + Number.EPSILON) * 100) / 100;
+}
+
+function formatMontant(montant: number | null | undefined) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(montant || 0));
+}
+
+function formatDate(date: string | null | undefined) {
+  if (!date) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(`${date}T00:00:00`));
+  } catch {
+    return "—";
+  }
+}
+
+function nomClient(client: Client | null | undefined) {
+  if (!client) return "Client non renseigné";
+
+  if (client.type_client === "particulier") {
+    const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
+    return complet || "Client particulier";
+  }
+
+  return (
+    client.entreprise ||
+    client.nom ||
+    `${client.prenom || ""} ${client.nom || ""}`.trim() ||
+    "Client professionnel"
+  );
+}
+
+function libelleStatut(statut: string | null | undefined) {
+  if (statut === "envoyee") return "Envoyée";
+  if (statut === "payee") return "Payée";
+  if (statut === "en_retard") return "En retard";
+  if (statut === "annulee") return "Annulée";
+  if (statut === "archive") return "Archivée";
+  return "Brouillon";
+}
+
+function badgeStatut(statut: string | null | undefined) {
+  if (statut === "envoyee") return "bg-blue-50 text-blue-700 border-blue-200";
+  if (statut === "payee")
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (statut === "en_retard") return "bg-red-50 text-red-700 border-red-200";
+  if (statut === "annulee")
+    return "bg-orange-50 text-orange-700 border-orange-200";
+  if (statut === "archive") return "bg-slate-100 text-slate-600 border-slate-200";
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function libelleTypeFacture(type: string | null | undefined) {
+  if (type === "acompte") return "Acompte";
+  if (type === "solde") return "Solde";
+  return "Simple";
 }
 
 function calculerLigne(ligne: LigneFormulaire) {
@@ -248,84 +282,42 @@ function calculerTotaux(lignes: LigneFormulaire[]) {
   );
 }
 
-function formatMontant(montant: number | null | undefined) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number(montant || 0));
-}
-
-function formatDate(date: string | null) {
-  if (!date) return "—";
-
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
-  } catch {
-    return "—";
-  }
-}
-
-function nomClient(client: Client | null | undefined) {
-  if (!client) return "Client non renseigné";
-
-  if (client.type_client === "particulier") {
-    const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
-    return complet || "Client particulier";
-  }
-
-  return (
-    client.entreprise ||
-    client.nom ||
-    `${client.prenom || ""} ${client.nom || ""}`.trim() ||
-    "Client professionnel"
-  );
-}
-
-function libelleStatut(statut: string | null | undefined) {
-  if (statut === "envoyee") return "Envoyée";
-  if (statut === "payee") return "Payée";
-  if (statut === "en_retard") return "En retard";
-  if (statut === "annulee") return "Annulée";
-  if (statut === "archive") return "Archivée";
-  return "Brouillon";
-}
-
-function badgeStatut(statut: string | null | undefined) {
-  if (statut === "envoyee") {
-    return "bg-blue-50 text-blue-700 border-blue-200";
-  }
-
-  if (statut === "payee") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  }
-
-  if (statut === "en_retard") {
-    return "bg-red-50 text-red-700 border-red-200";
-  }
-
-  if (statut === "annulee") {
-    return "bg-orange-50 text-orange-700 border-orange-200";
-  }
-
-  if (statut === "archive") {
-    return "bg-slate-100 text-slate-600 border-slate-200";
-  }
-
-  return "bg-amber-50 text-amber-700 border-amber-200";
-}
-
-function libelleTypeFacture(type: string | null | undefined) {
-  if (type === "acompte") return "Acompte";
-  if (type === "solde") return "Solde";
-  return "Simple";
-}
-
 function ligneEstValide(ligne: LigneFormulaire) {
   return ligne.designation.trim().length > 0;
+}
+
+function ligneVide(tva = 20): LigneFormulaire {
+  return {
+    designation: "",
+    description: "",
+    quantite: "1",
+    unite: "u",
+    prix_unitaire_ht: "0",
+    tva: String(tva),
+  };
+}
+
+function formulaireVide(
+  parametres: EntrepriseParametres | null
+): FormulaireFacture {
+  const tva = parametres?.tva_defaut ?? 20;
+  const delaiPaiement = parametres?.delai_paiement_jours ?? 30;
+
+  return {
+    client_id: "",
+    devis_id: "",
+    numero: "",
+    objet: "",
+    description: "",
+    type_facture: "simple",
+    statut: "brouillon",
+    date_facture: dateDuJour(),
+    date_echeance: dateDansJours(delaiPaiement),
+    montant_paye: "0",
+    notes_internes: "",
+    conditions: parametres?.conditions_factures || CONDITIONS_FACTURES_DEFAUT,
+    lignes: [ligneVide(tva)],
+  };
 }
 
 export default function FacturesPage() {
@@ -333,6 +325,7 @@ export default function FacturesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [devisAcceptes, setDevisAcceptes] = useState<DevisAvecLignes[]>([]);
   const [factures, setFactures] = useState<FactureAvecLignes[]>([]);
+  const [parametres, setParametres] = useState<EntrepriseParametres | null>(null);
 
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
@@ -346,7 +339,7 @@ export default function FacturesPage() {
   const [factureEdition, setFactureEdition] =
     useState<FactureAvecLignes | null>(null);
   const [formulaire, setFormulaire] = useState<FormulaireFacture>(() =>
-    formulaireVide()
+    formulaireVide(null)
   );
 
   const [messageErreur, setMessageErreur] = useState("");
@@ -371,8 +364,11 @@ export default function FacturesPage() {
         return;
       }
 
-      const idEntreprise = resultat.contexte.entreprise.id;
+      const idEntreprise = resultat.contexte.entreprise.id as string;
       setEntrepriseId(idEntreprise);
+
+      const params = await chargerParametres(idEntreprise);
+      setParametres(params);
 
       await Promise.all([
         chargerClients(idEntreprise),
@@ -385,6 +381,23 @@ export default function FacturesPage() {
     } finally {
       setChargement(false);
     }
+  }
+
+  async function chargerParametres(idEntreprise = entrepriseId) {
+    if (!idEntreprise) return null;
+
+    const { data, error } = await supabase
+      .from("entreprise_parametres")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Erreur chargement paramètres factures :", error);
+      return null;
+    }
+
+    return (data || null) as EntrepriseParametres | null;
   }
 
   async function chargerClients(idEntreprise = entrepriseId) {
@@ -565,7 +578,7 @@ export default function FacturesPage() {
 
   function ouvrirCreation() {
     setFactureEdition(null);
-    setFormulaire(formulaireVide());
+    setFormulaire(formulaireVide(parametres));
     setMessageErreur("");
     setMessageSucces("");
     setModalOuverte(true);
@@ -573,6 +586,8 @@ export default function FacturesPage() {
 
   function ouvrirEdition(item: FactureAvecLignes) {
     setFactureEdition(item);
+
+    const tva = parametres?.tva_defaut ?? 20;
 
     const lignesFormulaire =
       item.lignes.length > 0
@@ -582,25 +597,28 @@ export default function FacturesPage() {
             quantite: String(ligne.quantite ?? 1),
             unite: ligne.unite || "u",
             prix_unitaire_ht: String(ligne.prix_unitaire_ht ?? 0),
-            tva: String(ligne.tva ?? 20),
+            tva: String(ligne.tva ?? tva),
           }))
-        : [{ ...LIGNE_VIDE }];
+        : [ligneVide(tva)];
 
     setFormulaire({
       client_id: item.client_id || "",
       devis_id: item.devis_id || "",
-      numero: item.numero || genererNumeroFacture(),
+      numero: item.numero || "",
       objet: item.objet || "",
       description: item.description || "",
       type_facture: (item.type_facture as TypeFacture) || "simple",
       statut: (item.statut as StatutFacture) || "brouillon",
       date_facture: item.date_facture || dateDuJour(),
-      date_echeance: item.date_echeance || dateDansJours(30),
+      date_echeance:
+        item.date_echeance ||
+        dateDansJours(parametres?.delai_paiement_jours ?? 30),
       montant_paye: String(item.montant_paye ?? 0),
       notes_internes: item.notes_internes || "",
       conditions:
         item.conditions ||
-        "Paiement à réception de facture sauf indication contraire.",
+        parametres?.conditions_factures ||
+        CONDITIONS_FACTURES_DEFAUT,
       lignes: lignesFormulaire,
     });
 
@@ -614,7 +632,7 @@ export default function FacturesPage() {
 
     setModalOuverte(false);
     setFactureEdition(null);
-    setFormulaire(formulaireVide());
+    setFormulaire(formulaireVide(parametres));
   }
 
   function modifierChamp(
@@ -648,15 +666,13 @@ export default function FacturesPage() {
   function ajouterLigne() {
     setFormulaire((ancien) => ({
       ...ancien,
-      lignes: [...ancien.lignes, { ...LIGNE_VIDE }],
+      lignes: [...ancien.lignes, ligneVide(parametres?.tva_defaut ?? 20)],
     }));
   }
 
   function supprimerLigne(index: number) {
     setFormulaire((ancien) => {
-      if (ancien.lignes.length <= 1) {
-        return ancien;
-      }
+      if (ancien.lignes.length <= 1) return ancien;
 
       return {
         ...ancien,
@@ -678,6 +694,8 @@ export default function FacturesPage() {
       return;
     }
 
+    const tva = parametres?.tva_defaut ?? 20;
+
     const lignesDepuisDevis =
       devis.lignes.length > 0
         ? devis.lignes.map((ligne) => ({
@@ -686,9 +704,9 @@ export default function FacturesPage() {
             quantite: String(ligne.quantite ?? 1),
             unite: ligne.unite || "u",
             prix_unitaire_ht: String(ligne.prix_unitaire_ht ?? 0),
-            tva: String(ligne.tva ?? 20),
+            tva: String(ligne.tva ?? tva),
           }))
-        : [{ ...LIGNE_VIDE }];
+        : [ligneVide(tva)];
 
     setFormulaire((ancien) => ({
       ...ancien,
@@ -699,8 +717,9 @@ export default function FacturesPage() {
         : "Facture suite devis accepté",
       description: devis.description || "",
       conditions:
+        parametres?.conditions_factures ||
         devis.conditions ||
-        "Paiement à réception de facture sauf indication contraire.",
+        CONDITIONS_FACTURES_DEFAUT,
       lignes: lignesDepuisDevis,
     }));
 
@@ -710,6 +729,41 @@ export default function FacturesPage() {
   function formulaireValide() {
     if (!formulaire.objet.trim()) return false;
     return formulaire.lignes.some((ligne) => ligneEstValide(ligne));
+  }
+
+  async function genererNumeroFactureSiBesoin() {
+    const numeroManuel = formulaire.numero.trim();
+
+    if (numeroManuel.length > 0) {
+      return numeroManuel;
+    }
+
+    if (parametres?.numerotation_factures_auto === false) {
+      const maintenant = new Date();
+      const annee = maintenant.getFullYear();
+      const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
+      const jour = String(maintenant.getDate()).padStart(2, "0");
+      const heures = String(maintenant.getHours()).padStart(2, "0");
+      const minutes = String(maintenant.getMinutes()).padStart(2, "0");
+      const secondes = String(maintenant.getSeconds()).padStart(2, "0");
+
+      return `FAC-${annee}${mois}${jour}-${heures}${minutes}${secondes}`;
+    }
+
+    const { data, error } = await supabase.rpc(
+      "generer_numero_facture_entreprise",
+      {
+        p_entreprise_id: entrepriseId,
+      }
+    );
+
+    if (error) throw error;
+
+    if (!data || typeof data !== "string") {
+      throw new Error("Impossible de générer le numéro de facture.");
+    }
+
+    return data;
   }
 
   async function enregistrerFacture() {
@@ -738,6 +792,10 @@ export default function FacturesPage() {
       const montantPaye = nombreDepuisTexte(formulaire.montant_paye);
       const resteAPayer = arrondir2(Math.max(totaux.totalTtc - montantPaye, 0));
 
+      const numeroFinal = factureEdition
+        ? formulaire.numero.trim() || factureEdition.numero || ""
+        : await genererNumeroFactureSiBesoin();
+
       const statutFinal =
         formulaire.statut === "payee"
           ? "payee"
@@ -750,7 +808,7 @@ export default function FacturesPage() {
         client_id: formulaire.client_id || null,
         client_nom: clientSelectionne ? nomClient(clientSelectionne) : null,
         devis_id: formulaire.devis_id || null,
-        numero: nettoyerTexte(formulaire.numero) || genererNumeroFacture(),
+        numero: numeroFinal,
         objet: nettoyerTexte(formulaire.objet),
         description: nettoyerTexte(formulaire.description),
         type_facture: formulaire.type_facture,
@@ -834,7 +892,7 @@ export default function FacturesPage() {
       setMessageSucces(
         factureEdition
           ? "Facture modifiée avec succès."
-          : "Facture créée avec succès."
+          : `Facture créée avec succès : ${numeroFinal}.`
       );
 
       fermerModal();
@@ -937,8 +995,8 @@ export default function FacturesPage() {
           <p className="text-sm font-medium text-emerald-700">Arboboard</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Factures</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Créez vos factures, suivez les paiements, les échéances et les
-            montants restants à encaisser.
+            Créez vos factures avec numérotation automatique, suivez les
+            paiements, les échéances et les montants restants à encaisser.
           </p>
         </div>
 
@@ -1061,7 +1119,7 @@ export default function FacturesPage() {
             </div>
             <p className="font-semibold text-slate-900">Aucune facture trouvée</p>
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre première facture ou transformez un devis accepté.
+              Créez votre première facture avec numérotation automatique.
             </p>
 
             <button
@@ -1193,8 +1251,9 @@ export default function FacturesPage() {
                   {factureEdition ? "Modifier la facture" : "Créer une facture"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Créez une facture simple ou préremplissez-la depuis un devis
-                  accepté.
+                  {factureEdition
+                    ? "Le numéro existant est conservé."
+                    : "Le numéro sera généré automatiquement à l’enregistrement."}
                 </p>
               </div>
 
@@ -1258,6 +1317,11 @@ export default function FacturesPage() {
                     value={formulaire.numero}
                     onChange={(event) =>
                       modifierChamp("numero", event.target.value)
+                    }
+                    placeholder={
+                      parametres?.numerotation_factures_auto === false
+                        ? "Numéro manuel"
+                        : "Auto à l’enregistrement"
                     }
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />

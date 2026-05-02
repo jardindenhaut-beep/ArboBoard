@@ -84,10 +84,9 @@ export default function SalariesChefPage() {
     }
 
     setEntrepriseId(contexte.entreprise.id);
-    setNomEntreprise(contexte.entreprise.nom_entreprise);
-
+   setNomEntreprise(contexte.entreprise.nom_entreprise || "");
+   
     await chargerSalaries(contexte.entreprise.id);
-
     setChargement(false);
   }
 

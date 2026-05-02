@@ -79,7 +79,7 @@ export default function AccesSalariesPage() {
     }
 
     setEntrepriseId(contexte.entreprise.id);
-    setNomEntreprise(contexte.entreprise.nom_entreprise);
+   setNomEntreprise(contexte.entreprise.nom_entreprise || "");
 
     await chargerSalaries(contexte.entreprise.id);
 

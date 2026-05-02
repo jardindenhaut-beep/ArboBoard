@@ -104,7 +104,6 @@ export default function DetailDevisPage() {
 
     setEntrepriseId(contexte.entreprise.id);
     setNomEntrepriseSaas(contexte.entreprise.nom_entreprise || "");
-
     await chargerDetailDevis(contexte.entreprise.id);
   }
 

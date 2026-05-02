@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
+import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 
 type StatutFacture =
   | "brouillon"
@@ -1146,105 +1147,120 @@ export default function FacturesPage() {
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {facturesFiltrees.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-4 align-top">
-                      <p className="font-semibold text-slate-950">
-                        {item.numero || "Sans numéro"}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-700">
-                        {item.objet || "Sans objet"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Type : {libelleTypeFacture(item.type_facture)}
-                      </p>
-                    </td>
+                {facturesFiltrees.map((item) => {
+                  const client = trouverClient(item.client_id);
 
-                    <td className="px-4 py-4 align-top">
-                      <p className="font-medium text-slate-800">
-                        {item.client_nom || "—"}
-                      </p>
-                    </td>
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-semibold text-slate-950">
+                          {item.numero || "Sans numéro"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-700">
+                          {item.objet || "Sans objet"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Type : {libelleTypeFacture(item.type_facture)}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top text-sm text-slate-700">
-                      <p>Facture : {formatDate(item.date_facture)}</p>
-                      <p className="text-xs text-slate-500">
-                        Échéance : {formatDate(item.date_echeance)}
-                      </p>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-medium text-slate-800">
+                          {item.client_nom || "—"}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top text-sm text-slate-700">
-                      <p>HT : {formatMontant(item.total_ht)}</p>
-                      <p className="text-xs text-slate-500">
-                        TVA : {formatMontant(item.total_tva)}
-                      </p>
-                      <p className="font-semibold text-slate-950">
-                        TTC : {formatMontant(item.total_ttc)}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Reste : {formatMontant(item.reste_a_payer)}
-                      </p>
-                    </td>
+                      <td className="px-4 py-4 align-top text-sm text-slate-700">
+                        <p>Facture : {formatDate(item.date_facture)}</p>
+                        <p className="text-xs text-slate-500">
+                          Échéance : {formatDate(item.date_echeance)}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
-                          item.statut
-                        )}`}
-                      >
-                        {libelleStatut(item.statut)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-4 align-top text-sm text-slate-700">
+                        <p>HT : {formatMontant(item.total_ht)}</p>
+                        <p className="text-xs text-slate-500">
+                          TVA : {formatMontant(item.total_tva)}
+                        </p>
+                        <p className="font-semibold text-slate-950">
+                          TTC : {formatMontant(item.total_ttc)}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Reste : {formatMontant(item.reste_a_payer)}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <a
-                          href={`/chef/factures/${item.id}/impression`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                      <td className="px-4 py-4 align-top">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
+                            item.statut
+                          )}`}
                         >
-                          PDF
-                        </a>
+                          {libelleStatut(item.statut)}
+                        </span>
+                      </td>
 
-                        <button
-                          onClick={() => ouvrirEdition(item)}
-                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                        >
-                          Modifier
-                        </button>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <a
+                            href={`/chef/factures/${item.id}/impression`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            PDF
+                          </a>
 
-                        <button
-                          onClick={() => changerStatutFacture(item, "envoyee")}
-                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                        >
-                          Envoyée
-                        </button>
+                          <BoutonEnvoyerDocumentEmail
+                            typeDocument="facture"
+                            documentId={item.id}
+                            numero={item.numero}
+                            defaultEmail={client?.email || ""}
+                            defaultMessage={`Bonjour,\n\nVeuillez trouver ci-dessous votre facture ${
+                              item.numero || ""
+                            }.\n\nCordialement.`}
+                            onEnvoye={() => chargerFactures(entrepriseId)}
+                          />
 
-                        <button
-                          onClick={() => changerStatutFacture(item, "payee")}
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                        >
-                          Payée
-                        </button>
+                          <button
+                            onClick={() => ouvrirEdition(item)}
+                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          >
+                            Modifier
+                          </button>
 
-                        <button
-                          onClick={() => changerStatutFacture(item, "en_retard")}
-                          className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                        >
-                          Retard
-                        </button>
+                          <button
+                            onClick={() => changerStatutFacture(item, "envoyee")}
+                            className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                          >
+                            Envoyée
+                          </button>
 
-                        <button
-                          onClick={() => supprimerFacture(item)}
-                          className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            onClick={() => changerStatutFacture(item, "payee")}
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Payée
+                          </button>
+
+                          <button
+                            onClick={() => changerStatutFacture(item, "en_retard")}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Retard
+                          </button>
+
+                          <button
+                            onClick={() => supprimerFacture(item)}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

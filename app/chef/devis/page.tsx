@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
+import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 
 type StatutDevis = "brouillon" | "envoye" | "accepte" | "refuse" | "archive";
 
@@ -489,7 +490,8 @@ export default function DevisPage() {
       date_validite:
         item.date_validite ||
         dateDansJours(parametres?.validite_devis_jours ?? 30),
-      conditions: item.conditions || parametres?.conditions_devis || CONDITIONS_DEVIS_DEFAUT,
+      conditions:
+        item.conditions || parametres?.conditions_devis || CONDITIONS_DEVIS_DEFAUT,
       notes_internes: item.notes_internes || "",
       lignes: lignesFormulaire,
     });
@@ -923,99 +925,114 @@ export default function DevisPage() {
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {devisFiltres.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-4 align-top">
-                      <p className="font-semibold text-slate-950">
-                        {item.numero || "Sans numéro"}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-700">
-                        {item.objet || "Sans objet"}
-                      </p>
-                    </td>
+                {devisFiltres.map((item) => {
+                  const client = trouverClient(item.client_id);
 
-                    <td className="px-4 py-4 align-top">
-                      <p className="font-medium text-slate-800">
-                        {item.client_nom || "—"}
-                      </p>
-                    </td>
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-semibold text-slate-950">
+                          {item.numero || "Sans numéro"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-700">
+                          {item.objet || "Sans objet"}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top text-sm text-slate-700">
-                      <p>Devis : {formatDate(item.date_devis)}</p>
-                      <p className="text-xs text-slate-500">
-                        Validité : {formatDate(item.date_validite)}
-                      </p>
-                    </td>
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-medium text-slate-800">
+                          {item.client_nom || "—"}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top text-sm text-slate-700">
-                      <p>HT : {formatMontant(item.total_ht)}</p>
-                      <p className="text-xs text-slate-500">
-                        TVA : {formatMontant(item.total_tva)}
-                      </p>
-                      <p className="font-semibold text-slate-950">
-                        TTC : {formatMontant(item.total_ttc)}
-                      </p>
-                    </td>
+                      <td className="px-4 py-4 align-top text-sm text-slate-700">
+                        <p>Devis : {formatDate(item.date_devis)}</p>
+                        <p className="text-xs text-slate-500">
+                          Validité : {formatDate(item.date_validite)}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
-                          item.statut
-                        )}`}
-                      >
-                        {libelleStatut(item.statut)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-4 align-top text-sm text-slate-700">
+                        <p>HT : {formatMontant(item.total_ht)}</p>
+                        <p className="text-xs text-slate-500">
+                          TVA : {formatMontant(item.total_tva)}
+                        </p>
+                        <p className="font-semibold text-slate-950">
+                          TTC : {formatMontant(item.total_ttc)}
+                        </p>
+                      </td>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <a
-                          href={`/chef/devis/${item.id}/impression`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                      <td className="px-4 py-4 align-top">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
+                            item.statut
+                          )}`}
                         >
-                          PDF
-                        </a>
+                          {libelleStatut(item.statut)}
+                        </span>
+                      </td>
 
-                        <button
-                          onClick={() => ouvrirEdition(item)}
-                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                        >
-                          Modifier
-                        </button>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <a
+                            href={`/chef/devis/${item.id}/impression`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            PDF
+                          </a>
 
-                        <button
-                          onClick={() => changerStatutDevis(item, "envoye")}
-                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                        >
-                          Envoyé
-                        </button>
+                          <BoutonEnvoyerDocumentEmail
+                            typeDocument="devis"
+                            documentId={item.id}
+                            numero={item.numero}
+                            defaultEmail={client?.email || ""}
+                            defaultMessage={`Bonjour,\n\nVeuillez trouver ci-dessous votre devis ${
+                              item.numero || ""
+                            }.\n\nCordialement.`}
+                            onEnvoye={() => chargerDevis(entrepriseId)}
+                          />
 
-                        <button
-                          onClick={() => changerStatutDevis(item, "accepte")}
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                        >
-                          Accepté
-                        </button>
+                          <button
+                            onClick={() => ouvrirEdition(item)}
+                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          >
+                            Modifier
+                          </button>
 
-                        <button
-                          onClick={() => changerStatutDevis(item, "refuse")}
-                          className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                        >
-                          Refusé
-                        </button>
+                          <button
+                            onClick={() => changerStatutDevis(item, "envoye")}
+                            className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                          >
+                            Envoyé
+                          </button>
 
-                        <button
-                          onClick={() => supprimerDevis(item)}
-                          className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            onClick={() => changerStatutDevis(item, "accepte")}
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Accepté
+                          </button>
+
+                          <button
+                            onClick={() => changerStatutDevis(item, "refuse")}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Refusé
+                          </button>
+
+                          <button
+                            onClick={() => supprimerDevis(item)}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

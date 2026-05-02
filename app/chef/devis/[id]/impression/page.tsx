@@ -11,6 +11,19 @@ type Entreprise = {
   slug?: string | null;
   email_contact?: string | null;
   telephone?: string | null;
+
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  siret?: string | null;
+  numero_tva?: string | null;
+  forme_juridique?: string | null;
+
+  assurance_nom?: string | null;
+  assurance_numero_contrat?: string | null;
+  assurance_zone_couverture?: string | null;
+
+  mentions_legales_documents?: string | null;
 };
 
 type Client = {
@@ -121,6 +134,14 @@ function adresseClient(client: Client | null) {
   );
 }
 
+function adresseEntreprise(entreprise: Entreprise | null) {
+  if (!entreprise) return "";
+
+  return [entreprise.adresse, entreprise.code_postal, entreprise.ville]
+    .filter(Boolean)
+    .join(", ");
+}
+
 function statutLisible(statut: string | null | undefined) {
   if (statut === "envoye") return "Envoyé";
   if (statut === "accepte") return "Accepté";
@@ -150,6 +171,46 @@ function calculerTotaux(lignes: LigneDevis[], devis: Devis | null) {
     totalTva: devis?.total_tva ?? totalTvaLignes,
     totalTtc: devis?.total_ttc ?? totalTtcLignes,
   };
+}
+
+function infosLegalesEntreprise(entreprise: Entreprise | null) {
+  if (!entreprise) return [];
+
+  const infos: string[] = [];
+
+  if (entreprise.forme_juridique) {
+    infos.push(entreprise.forme_juridique);
+  }
+
+  if (entreprise.siret) {
+    infos.push(`SIRET : ${entreprise.siret}`);
+  }
+
+  if (entreprise.numero_tva) {
+    infos.push(`TVA intracommunautaire : ${entreprise.numero_tva}`);
+  }
+
+  return infos;
+}
+
+function infosAssuranceEntreprise(entreprise: Entreprise | null) {
+  if (!entreprise) return [];
+
+  const infos: string[] = [];
+
+  if (entreprise.assurance_nom) {
+    infos.push(`Assurance : ${entreprise.assurance_nom}`);
+  }
+
+  if (entreprise.assurance_numero_contrat) {
+    infos.push(`Contrat : ${entreprise.assurance_numero_contrat}`);
+  }
+
+  if (entreprise.assurance_zone_couverture) {
+    infos.push(`Zone de couverture : ${entreprise.assurance_zone_couverture}`);
+  }
+
+  return infos;
 }
 
 export default function ImpressionDevisPage() {
@@ -322,6 +383,14 @@ export default function ImpressionDevisPage() {
   const footer =
     parametres?.footer_documents || "Merci pour votre confiance.";
 
+  const mentionsLegales =
+    entreprise?.mentions_legales_documents ||
+    "Entreprise assurée pour les travaux réalisés selon les garanties du contrat d’assurance en vigueur.";
+
+  const infosLegales = infosLegalesEntreprise(entreprise);
+  const infosAssurance = infosAssuranceEntreprise(entreprise);
+  const adressePro = adresseEntreprise(entreprise);
+
   return (
     <main className="min-h-screen bg-slate-100 p-6 print:bg-white print:p-0">
       <div className="mx-auto mb-6 flex max-w-5xl items-center justify-between print:hidden">
@@ -343,9 +412,9 @@ export default function ImpressionDevisPage() {
       <section className="mx-auto max-w-5xl bg-white p-10 shadow-sm print:max-w-none print:p-8 print:shadow-none">
         <header className="flex flex-col gap-8 border-b border-slate-200 pb-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               {parametres?.afficher_logo_documents !== false && (
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
                   🌿
                 </div>
               )}
@@ -356,12 +425,26 @@ export default function ImpressionDevisPage() {
                     entreprise?.slug ||
                     "Votre entreprise"}
                 </p>
+
+                {adressePro && (
+                  <p className="mt-1 text-sm text-slate-500">{adressePro}</p>
+                )}
+
                 <p className="mt-1 text-sm text-slate-500">
                   {entreprise?.email_contact || "Email non renseigné"}
                 </p>
+
                 <p className="text-sm text-slate-500">
                   {entreprise?.telephone || "Téléphone non renseigné"}
                 </p>
+
+                {infosLegales.length > 0 && (
+                  <div className="mt-2 space-y-0.5 text-xs text-slate-500">
+                    {infosLegales.map((info) => (
+                      <p key={info}>{info}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -542,6 +625,34 @@ export default function ImpressionDevisPage() {
             </div>
           </div>
         </section>
+
+        {(infosAssurance.length > 0 || mentionsLegales) && (
+          <section className="mt-8 rounded-2xl border border-slate-200 p-5">
+            {infosAssurance.length > 0 && (
+              <div>
+                <p className="text-sm font-bold text-slate-950">
+                  Assurance professionnelle
+                </p>
+                <div className="mt-2 space-y-1 text-xs text-slate-600">
+                  {infosAssurance.map((info) => (
+                    <p key={info}>{info}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {mentionsLegales && (
+              <div className={infosAssurance.length > 0 ? "mt-4" : ""}>
+                <p className="text-sm font-bold text-slate-950">
+                  Mentions légales
+                </p>
+                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                  {mentionsLegales}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         <footer className="mt-10 border-t border-slate-200 pt-5 text-center text-xs text-slate-500">
           {footer}

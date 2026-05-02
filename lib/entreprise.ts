@@ -62,8 +62,8 @@ export type ResultatContexteEntreprise = {
   erreur: string | null;
 };
 
-function normaliserStatut(statut: string | null | undefined) {
-  return String(statut || "")
+function normaliserTexte(valeur: string | null | undefined) {
+  return String(valeur || "")
     .toLowerCase()
     .trim();
 }
@@ -186,8 +186,8 @@ export function abonnementEstBloque(
 ) {
   if (!entreprise) return true;
 
-  const statut = normaliserStatut(entreprise.statut_abonnement);
-  const plan = normaliserStatut(entreprise.plan_abonnement);
+  const statut = normaliserTexte(entreprise.statut_abonnement);
+  const plan = normaliserTexte(entreprise.plan_abonnement);
 
   if (statut === "dev" || plan === "dev") {
     return false;
@@ -214,13 +214,21 @@ export function abonnementEstBloque(
   return false;
 }
 
+/**
+ * Compatible avec les anciens appels :
+ * - joursRestantsEssai("2026-05-30")
+ * - joursRestantsEssai(entreprise)
+ */
 export function joursRestantsEssai(
-  entreprise: EntrepriseAbonnee | null | undefined
+  valeur: EntrepriseAbonnee | string | null | undefined
 ) {
-  if (!entreprise?.date_fin_essai) return null;
+  const dateFin =
+    typeof valeur === "string" ? valeur : valeur?.date_fin_essai || null;
+
+  if (!dateFin) return null;
 
   const maintenant = new Date();
-  const fin = new Date(entreprise.date_fin_essai);
+  const fin = new Date(dateFin);
 
   if (Number.isNaN(fin.getTime())) return null;
 
@@ -228,13 +236,21 @@ export function joursRestantsEssai(
   return Math.ceil(difference / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Compatible avec les anciens appels :
+ * - joursRestantsAbonnement("2026-05-30")
+ * - joursRestantsAbonnement(entreprise)
+ */
 export function joursRestantsAbonnement(
-  entreprise: EntrepriseAbonnee | null | undefined
+  valeur: EntrepriseAbonnee | string | null | undefined
 ) {
-  if (!entreprise?.date_fin_abonnement) return null;
+  const dateFin =
+    typeof valeur === "string" ? valeur : valeur?.date_fin_abonnement || null;
+
+  if (!dateFin) return null;
 
   const maintenant = new Date();
-  const fin = new Date(entreprise.date_fin_abonnement);
+  const fin = new Date(dateFin);
 
   if (Number.isNaN(fin.getTime())) return null;
 

@@ -77,6 +77,7 @@ function infosLegalesEntreprise(entreprise: any) {
 
   if (entreprise?.forme_juridique) infos.push(entreprise.forme_juridique);
   if (entreprise?.siret) infos.push(`SIRET : ${entreprise.siret}`);
+
   if (entreprise?.numero_tva) {
     infos.push(`TVA intracommunautaire : ${entreprise.numero_tva}`);
   }
@@ -122,17 +123,21 @@ function construireLignesHtml(lignes: any[]) {
                 : ""
             }
           </td>
+
           <td style="padding:12px;border-bottom:1px solid #e5e7eb;text-align:right;vertical-align:top;">
             ${echapperHtml(ligne.quantite ?? 0)} ${echapperHtml(
         ligne.unite || ""
       )}
           </td>
+
           <td style="padding:12px;border-bottom:1px solid #e5e7eb;text-align:right;vertical-align:top;">
             ${formatMontant(ligne.prix_unitaire_ht)}
           </td>
+
           <td style="padding:12px;border-bottom:1px solid #e5e7eb;text-align:right;vertical-align:top;">
             ${echapperHtml(ligne.tva ?? 0)} %
           </td>
+
           <td style="padding:12px;border-bottom:1px solid #e5e7eb;text-align:right;vertical-align:top;font-weight:700;">
             ${formatMontant(ligne.total_ttc)}
           </td>
@@ -155,8 +160,10 @@ function construireEmailHtml(params: {
   const estDevis = typeDocument === "devis";
   const titreDocument = estDevis ? "Devis" : "Facture";
   const numero = document.numero || "sans numéro";
+
   const nomEntreprise =
     entreprise?.nom_entreprise || entreprise?.slug || "Votre entreprise";
+
   const nomDuClient = nomClient(client, document);
   const adressePro = adresseEntreprise(entreprise);
   const infosLegales = infosLegalesEntreprise(entreprise);
@@ -185,6 +192,7 @@ function construireEmailHtml(params: {
                   <h1 style="margin:0;font-size:22px;color:#064e3b;">
                     ${echapperHtml(nomEntreprise)}
                   </h1>
+
                   ${
                     adressePro
                       ? `<p style="margin:6px 0 0;color:#64748b;font-size:13px;">${echapperHtml(
@@ -192,6 +200,7 @@ function construireEmailHtml(params: {
                         )}</p>`
                       : ""
                   }
+
                   ${
                     entreprise?.email_contact
                       ? `<p style="margin:4px 0 0;color:#64748b;font-size:13px;">${echapperHtml(
@@ -199,6 +208,7 @@ function construireEmailHtml(params: {
                         )}</p>`
                       : ""
                   }
+
                   ${
                     entreprise?.telephone
                       ? `<p style="margin:4px 0 0;color:#64748b;font-size:13px;">${echapperHtml(
@@ -206,6 +216,7 @@ function construireEmailHtml(params: {
                         )}</p>`
                       : ""
                   }
+
                   ${
                     infosLegales
                       ? `<p style="margin:8px 0 0;color:#64748b;font-size:12px;">${echapperHtml(
@@ -305,6 +316,7 @@ function construireEmailHtml(params: {
                       document.total_ttc
                     )}</td>
                   </tr>
+
                   ${
                     !estDevis
                       ? `
@@ -374,6 +386,54 @@ Total TTC : ${formatMontant(document.total_ttc)}
 Cordialement,
 ${entreprise?.nom_entreprise || ""}
   `.trim();
+}
+
+async function enregistrerHistoriqueEmail(params: {
+  supabaseAdmin: any;
+  entrepriseId: string;
+  typeDocument: TypeDocument;
+  documentId: string;
+  emailDestinataire: string;
+  sujet: string;
+  message: string;
+  statut: "envoye" | "erreur";
+  resendId?: string | null;
+  erreur?: string | null;
+  envoyePar: string;
+}) {
+  const {
+    supabaseAdmin,
+    entrepriseId,
+    typeDocument,
+    documentId,
+    emailDestinataire,
+    sujet,
+    message,
+    statut,
+    resendId,
+    erreur,
+    envoyePar,
+  } = params;
+
+  const { error } = await supabaseAdmin
+    .from("documents_emails_envoyes")
+    .insert({
+      entreprise_id: entrepriseId,
+      type_document: typeDocument,
+      document_id: documentId,
+      email_destinataire: emailDestinataire,
+      sujet,
+      message,
+      statut,
+      resend_id: resendId || null,
+      erreur: erreur || null,
+      envoye_par: envoyePar,
+      envoye_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error("Erreur historique email :", error);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -584,18 +644,47 @@ export async function POST(request: NextRequest) {
     const resultatResend = await reponseResend.json().catch(() => null);
 
     if (!reponseResend.ok) {
+      const erreurResend =
+        resultatResend?.message || "Resend a refusé l’envoi de l’email.";
+
       console.error("Erreur Resend :", resultatResend);
+
+      await enregistrerHistoriqueEmail({
+        supabaseAdmin,
+        entrepriseId,
+        typeDocument,
+        documentId,
+        emailDestinataire,
+        sujet,
+        message,
+        statut: "erreur",
+        resendId: resultatResend?.id || null,
+        erreur: erreurResend,
+        envoyePar: user.id,
+      });
 
       return NextResponse.json(
         {
           success: false,
-          error:
-            resultatResend?.message ||
-            "Resend a refusé l’envoi de l’email.",
+          error: erreurResend,
         },
         { status: 500 }
       );
     }
+
+    await enregistrerHistoriqueEmail({
+      supabaseAdmin,
+      entrepriseId,
+      typeDocument,
+      documentId,
+      emailDestinataire,
+      sujet,
+      message,
+      statut: "envoye",
+      resendId: resultatResend?.id || null,
+      erreur: null,
+      envoyePar: user.id,
+    });
 
     if (typeDocument === "devis") {
       await supabaseAdmin

@@ -1198,6 +1198,15 @@ export default function FacturesPage() {
 
                     <td className="px-4 py-4 align-top">
                       <div className="flex flex-wrap justify-end gap-2">
+                        <a
+                          href={`/chef/factures/${item.id}/impression`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        >
+                          PDF
+                        </a>
+
                         <button
                           onClick={() => ouvrirEdition(item)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"

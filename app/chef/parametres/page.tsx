@@ -279,90 +279,62 @@ export default function ParametresChefPage() {
         } as FormulaireParametres)
     );
   }
+async function enregistrerParametres() {
+  if (!entrepriseId) {
+    setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
+    return;
+  }
 
-  async function enregistrerParametres() {
-    if (!entrepriseId) {
-      setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
-      return;
-    }
+  try {
+    setEnregistrement(true);
+    setMessageErreur("");
+    setMessageSucces("");
 
-    try {
-      setEnregistrement(true);
-      setMessageErreur("");
-      setMessageSucces("");
+    const { data, error } = await supabase.rpc(
+      "enregistrer_parametres_entreprise",
+      {
+        p_entreprise_id: entrepriseId,
 
-      const payload = {
-        entreprise_id: entrepriseId,
+        p_tva_defaut: nombreDepuisTexte(formulaire.tva_defaut, 20),
+        p_acompte_defaut: nombreDepuisTexte(formulaire.acompte_defaut, 30),
 
-        tva_defaut: nombreDepuisTexte(formulaire.tva_defaut, 20),
-        acompte_defaut: nombreDepuisTexte(formulaire.acompte_defaut, 30),
-
-        validite_devis_jours: entierDepuisTexte(
+        p_validite_devis_jours: entierDepuisTexte(
           formulaire.validite_devis_jours,
           30
         ),
-        delai_paiement_jours: entierDepuisTexte(
+        p_delai_paiement_jours: entierDepuisTexte(
           formulaire.delai_paiement_jours,
           30
         ),
 
-        prefixe_devis: nettoyerTexte(formulaire.prefixe_devis) || "DEV",
-        prefixe_facture: nettoyerTexte(formulaire.prefixe_facture) || "FAC",
+        p_prefixe_devis: nettoyerTexte(formulaire.prefixe_devis) || "DEV",
+        p_prefixe_facture: nettoyerTexte(formulaire.prefixe_facture) || "FAC",
 
-        numerotation_devis_auto: formulaire.numerotation_devis_auto,
-        numerotation_factures_auto: formulaire.numerotation_factures_auto,
+        p_numerotation_devis_auto: formulaire.numerotation_devis_auto,
+        p_numerotation_factures_auto: formulaire.numerotation_factures_auto,
 
-        conditions_devis: nettoyerTexte(formulaire.conditions_devis),
-        conditions_factures: nettoyerTexte(formulaire.conditions_factures),
-        mention_retard: nettoyerTexte(formulaire.mention_retard),
-        footer_documents: nettoyerTexte(formulaire.footer_documents),
+        p_conditions_devis: nettoyerTexte(formulaire.conditions_devis),
+        p_conditions_factures: nettoyerTexte(formulaire.conditions_factures),
+        p_mention_retard: nettoyerTexte(formulaire.mention_retard),
+        p_footer_documents: nettoyerTexte(formulaire.footer_documents),
 
-        afficher_logo_documents: formulaire.afficher_logo_documents,
-      };
-
-      const { data: parametreExistant, error: erreurRecherche } = await supabase
-        .from("entreprise_parametres")
-        .select("id, entreprise_id")
-        .eq("entreprise_id", entrepriseId)
-        .maybeSingle();
-
-      if (erreurRecherche) {
-        throw erreurRecherche;
+        p_afficher_logo_documents: formulaire.afficher_logo_documents,
       }
+    );
 
-      if (parametreExistant) {
-        const { data, error } = await supabase
-          .from("entreprise_parametres")
-          .update(payload)
-          .eq("entreprise_id", entrepriseId)
-          .select("*")
-          .single();
+    if (error) throw error;
 
-        if (error) throw error;
-
-        setParametres(data as EntrepriseParametres);
-      } else {
-        const { data, error } = await supabase
-          .from("entreprise_parametres")
-          .insert(payload)
-          .select("*")
-          .single();
-
-        if (error) throw error;
-
-        setParametres(data as EntrepriseParametres);
-      }
-
-      setMessageSucces("Paramètres entreprise enregistrés avec succès.");
-    } catch (error: any) {
-      console.error("Erreur enregistrement paramètres :", error);
-      setMessageErreur(
-        error?.message || "Impossible d’enregistrer les paramètres."
-      );
-    } finally {
-      setEnregistrement(false);
-    }
+    setParametres(data as EntrepriseParametres);
+    setMessageSucces("Paramètres entreprise enregistrés avec succès.");
+  } catch (error: any) {
+    console.error("Erreur enregistrement paramètres :", error);
+    setMessageErreur(
+      error?.message || "Impossible d’enregistrer les paramètres."
+    );
+  } finally {
+    setEnregistrement(false);
   }
+}
 
   function reinitialiserTextes() {
     setFormulaire((ancien) => ({

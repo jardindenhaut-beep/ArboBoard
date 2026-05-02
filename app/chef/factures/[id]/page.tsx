@@ -1,484 +1,714 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
+import { supabase } from "@/lib/supabaseClient";
+
+type ProfilUtilisateur = {
+  id: string;
+  email?: string | null;
+  role?: string | null;
+  statut?: string | null;
+  entreprise_id?: string | null;
+};
+
+type Entreprise = {
+  id: string;
+  nom_entreprise?: string | null;
+  slug?: string | null;
+  email_contact?: string | null;
+  telephone?: string | null;
+
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  siret?: string | null;
+  numero_tva?: string | null;
+  forme_juridique?: string | null;
+
+  assurance_nom?: string | null;
+  assurance_numero_contrat?: string | null;
+  assurance_zone_couverture?: string | null;
+
+  mentions_legales_documents?: string | null;
+};
+
+type Client = {
+  id: string;
+  type_client?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
+  entreprise?: string | null;
+  email?: string | null;
+  telephone?: string | null;
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+};
+
+type Facture = {
+  id: string;
+  entreprise_id: string;
+  client_id: string | null;
+  client_nom: string | null;
+  devis_id: string | null;
+  numero: string | null;
+  objet: string | null;
+  description: string | null;
+  type_facture: string | null;
+  statut: string | null;
+  date_facture: string | null;
+  date_echeance: string | null;
+  total_ht: number | null;
+  total_tva: number | null;
+  total_ttc: number | null;
+  montant_paye: number | null;
+  reste_a_payer: number | null;
+  notes_internes: string | null;
+  conditions: string | null;
+};
+
+type LigneFacture = {
+  id: string;
+  facture_id: string;
+  entreprise_id: string;
+  ordre: number | null;
+  designation: string | null;
+  description: string | null;
+  quantite: number | null;
+  unite: string | null;
+  prix_unitaire_ht: number | null;
+  tva: number | null;
+  total_ht: number | null;
+  total_tva: number | null;
+  total_ttc: number | null;
+};
 
 type EntrepriseParametres = {
-  nom: string;
-  siret: string;
-  email: string;
-  telephone: string;
-  adresse: string;
-  tva: number;
+  conditions_factures?: string | null;
+  mention_retard?: string | null;
+  footer_documents?: string | null;
+  afficher_logo_documents?: boolean | null;
 };
 
-type ClientComplet = {
-  id: string;
-  type_client: string;
-  nom: string;
-  prenom: string;
-  entreprise: string;
-  telephone: string;
-  email: string;
-  adresse_facturation: string;
-  adresse_chantier: string;
-  code_postal: string;
-  ville: string;
-};
+function formatMontant(montant: number | null | undefined) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(montant || 0));
+}
 
-type Devis = {
-  id: string;
-  entreprise_id: string | null;
-  numero: string;
-  client_id: string | null;
-  client_nom: string;
-  chantier_id: string | null;
-  chantier_titre: string;
-  objet: string;
-  description: string;
-  date_devis: string | null;
-  validite_jours: number;
-  statut: string;
-  total_ht: number;
-  total_tva: number;
-  total_ttc: number;
-  notes: string;
-  created_at: string;
-};
+function formatNombre(nombre: number | null | undefined) {
+  return new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: 2,
+  }).format(Number(nombre || 0));
+}
 
-type LigneDevis = {
-  id: string;
-  devis_id: string;
-  entreprise_id: string | null;
-  ordre: number;
-  designation: string;
-  quantite: number;
-  unite: string;
-  prix_unitaire_ht: number;
-  tva: number;
-  total_ht: number;
-  total_tva: number;
-  total_ttc: number;
-};
+function formatDate(date: string | null | undefined) {
+  if (!date) return "—";
 
-export default function DetailDevisPage() {
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(`${date}T00:00:00`));
+  } catch {
+    return "—";
+  }
+}
+
+function nomClient(client: Client | null, facture: Facture | null) {
+  if (client) {
+    if (client.type_client === "particulier") {
+      const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
+      return complet || "Client particulier";
+    }
+
+    return (
+      client.entreprise ||
+      client.nom ||
+      `${client.prenom || ""} ${client.nom || ""}`.trim() ||
+      "Client professionnel"
+    );
+  }
+
+  return facture?.client_nom || "Client non renseigné";
+}
+
+function adresseClient(client: Client | null) {
+  if (!client) return "Adresse non renseignée";
+
+  return (
+    [client.adresse, client.code_postal, client.ville]
+      .filter(Boolean)
+      .join(", ") || "Adresse non renseignée"
+  );
+}
+
+function adresseEntreprise(entreprise: Entreprise | null) {
+  if (!entreprise) return "";
+
+  return [entreprise.adresse, entreprise.code_postal, entreprise.ville]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function statutLisible(statut: string | null | undefined) {
+  if (statut === "envoyee") return "Envoyée";
+  if (statut === "payee") return "Payée";
+  if (statut === "en_retard") return "En retard";
+  if (statut === "annulee") return "Annulée";
+  if (statut === "archive") return "Archivée";
+  return "Brouillon";
+}
+
+function typeFactureLisible(type: string | null | undefined) {
+  if (type === "acompte") return "Facture d’acompte";
+  if (type === "solde") return "Facture de solde";
+  return "Facture";
+}
+
+function calculerTotaux(lignes: LigneFacture[], facture: Facture | null) {
+  const totalHtLignes = lignes.reduce(
+    (total, ligne) => total + Number(ligne.total_ht || 0),
+    0
+  );
+
+  const totalTvaLignes = lignes.reduce(
+    (total, ligne) => total + Number(ligne.total_tva || 0),
+    0
+  );
+
+  const totalTtcLignes = lignes.reduce(
+    (total, ligne) => total + Number(ligne.total_ttc || 0),
+    0
+  );
+
+  return {
+    totalHt: facture?.total_ht ?? totalHtLignes,
+    totalTva: facture?.total_tva ?? totalTvaLignes,
+    totalTtc: facture?.total_ttc ?? totalTtcLignes,
+  };
+}
+
+function infosLegalesEntreprise(entreprise: Entreprise | null) {
+  if (!entreprise) return [];
+
+  const infos: string[] = [];
+
+  if (entreprise.forme_juridique) {
+    infos.push(entreprise.forme_juridique);
+  }
+
+  if (entreprise.siret) {
+    infos.push(`SIRET : ${entreprise.siret}`);
+  }
+
+  if (entreprise.numero_tva) {
+    infos.push(`TVA intracommunautaire : ${entreprise.numero_tva}`);
+  }
+
+  return infos;
+}
+
+function infosAssuranceEntreprise(entreprise: Entreprise | null) {
+  if (!entreprise) return [];
+
+  const infos: string[] = [];
+
+  if (entreprise.assurance_nom) {
+    infos.push(`Assurance : ${entreprise.assurance_nom}`);
+  }
+
+  if (entreprise.assurance_numero_contrat) {
+    infos.push(`Contrat : ${entreprise.assurance_numero_contrat}`);
+  }
+
+  if (entreprise.assurance_zone_couverture) {
+    infos.push(`Zone de couverture : ${entreprise.assurance_zone_couverture}`);
+  }
+
+  return infos;
+}
+
+export default function ImpressionFacturePage() {
   const params = useParams();
   const router = useRouter();
 
-  const id = Array.isArray(params.id) ? params.id[0] : String(params.id || "");
+  const factureId =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+      ? params.id[0]
+      : "";
 
-  const [entrepriseId, setEntrepriseId] = useState<string | null>(null);
-  const [nomEntrepriseSaas, setNomEntrepriseSaas] = useState("");
+  const [entreprise, setEntreprise] = useState<Entreprise | null>(null);
+  const [client, setClient] = useState<Client | null>(null);
+  const [facture, setFacture] = useState<Facture | null>(null);
+  const [lignes, setLignes] = useState<LigneFacture[]>([]);
+  const [parametres, setParametres] = useState<EntrepriseParametres | null>(
+    null
+  );
 
-  const [entreprise, setEntreprise] = useState<EntrepriseParametres | null>(null);
-  const [client, setClient] = useState<ClientComplet | null>(null);
-  const [devis, setDevis] = useState<Devis | null>(null);
-  const [lignes, setLignes] = useState<LigneDevis[]>([]);
   const [chargement, setChargement] = useState(true);
-  const [message, setMessage] = useState("");
+  const [messageErreur, setMessageErreur] = useState("");
 
   useEffect(() => {
-    if (id) {
-      chargerPage();
-    }
-  }, [id]);
+    chargerDocument();
+  }, []);
 
-  async function chargerPage() {
-    setChargement(true);
-    setMessage("");
+  async function chargerDocument() {
+    try {
+      setChargement(true);
+      setMessageErreur("");
 
-    const { contexte, erreur } = await chargerContexteEntreprise();
+      if (!factureId) {
+        setMessageErreur("Identifiant de la facture introuvable.");
+        setChargement(false);
+        return;
+      }
 
-    if (erreur || !contexte) {
-      setMessage(erreur || "Impossible de charger le contexte entreprise.");
-      setChargement(false);
+      const resultat = await chargerContexteEntreprise();
 
-      setTimeout(() => {
-        router.push("/connexion");
-      }, 1200);
+      if (
+        resultat.erreur ||
+        !resultat.contexte?.profil ||
+        !resultat.contexte?.entreprise?.id
+      ) {
+        setMessageErreur(
+          "Impossible de charger votre entreprise. Veuillez vous reconnecter."
+        );
+        setChargement(false);
+        return;
+      }
 
-      return;
-    }
+      const profilCharge = resultat.contexte.profil as ProfilUtilisateur;
 
-    setEntrepriseId(contexte.entreprise.id);
-    setNomEntrepriseSaas(contexte.entreprise.nom_entreprise || "");
+      if (profilCharge.role !== "chef") {
+        setMessageErreur("Cette page est réservée au chef d’entreprise.");
+        setChargement(false);
+        return;
+      }
 
-    await chargerDetailDevis(contexte.entreprise.id);
-  }
+      const entrepriseChargee = resultat.contexte.entreprise as Entreprise;
+      const idEntreprise = entrepriseChargee.id;
 
-  async function chargerDetailDevis(idEntreprise: string) {
-    const { data: entrepriseData } = await supabase
-      .from("entreprise_parametres")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .maybeSingle();
+      setEntreprise(entrepriseChargee);
 
-    if (entrepriseData) {
-      setEntreprise(entrepriseData);
-    }
-
-    const { data: devisData, error: erreurDevis } = await supabase
-      .from("devis")
-      .select("*")
-      .eq("id", id)
-      .eq("entreprise_id", idEntreprise)
-      .maybeSingle();
-
-    if (erreurDevis || !devisData) {
-      setMessage(
-        erreurDevis?.message ||
-          "Impossible de charger ce devis. Il n'existe pas ou n'appartient pas à cette entreprise."
-      );
-      setChargement(false);
-      return;
-    }
-
-    setDevis(devisData);
-
-    if (devisData.client_id) {
-      const { data: clientData } = await supabase
-        .from("clients")
+      const { data: factureData, error: factureError } = await supabase
+        .from("factures")
         .select("*")
-        .eq("id", devisData.client_id)
+        .eq("id", factureId)
+        .eq("entreprise_id", idEntreprise)
+        .single();
+
+      if (factureError) throw factureError;
+
+      const factureChargee = factureData as Facture;
+      setFacture(factureChargee);
+
+      const { data: lignesData, error: lignesError } = await supabase
+        .from("factures_lignes")
+        .select("*")
+        .eq("facture_id", factureId)
+        .eq("entreprise_id", idEntreprise)
+        .order("ordre", { ascending: true });
+
+      if (lignesError) throw lignesError;
+
+      setLignes((lignesData || []) as LigneFacture[]);
+
+      if (factureChargee.client_id) {
+        const { data: clientData, error: clientError } = await supabase
+          .from("clients")
+          .select("*")
+          .eq("id", factureChargee.client_id)
+          .eq("entreprise_id", idEntreprise)
+          .maybeSingle();
+
+        if (!clientError && clientData) {
+          setClient(clientData as Client);
+        }
+      }
+
+      const { data: parametresData, error: parametresError } = await supabase
+        .from("entreprise_parametres")
+        .select("*")
         .eq("entreprise_id", idEntreprise)
         .maybeSingle();
 
-      if (clientData) {
-        setClient(clientData);
+      if (!parametresError && parametresData) {
+        setParametres(parametresData as EntrepriseParametres);
       }
-    }
-
-    const { data: lignesData, error: erreurLignes } = await supabase
-      .from("devis_lignes")
-      .select("*")
-      .eq("devis_id", id)
-      .eq("entreprise_id", idEntreprise)
-      .order("ordre", { ascending: true });
-
-    if (erreurLignes) {
-      setMessage(
-        erreurLignes.message || "Impossible de charger les lignes du devis."
+    } catch (error: any) {
+      console.error("Erreur impression facture :", error);
+      setMessageErreur(
+        error?.message || "Impossible de charger l’aperçu de la facture."
       );
-    } else {
-      setLignes(lignesData || []);
+    } finally {
+      setChargement(false);
     }
-
-    setChargement(false);
   }
 
-  function formatPrix(nombre: number) {
-    return Number(nombre || 0).toLocaleString("fr-FR", {
-      style: "currency",
-      currency: "EUR",
-    });
-  }
-
-  function afficherDate(date: string | null) {
-    if (!date) {
-      return "—";
-    }
-
-    return new Date(date + "T00:00:00").toLocaleDateString("fr-FR");
-  }
-
-  function calculerDateValidite() {
-    if (!devis?.date_devis) {
-      return "—";
-    }
-
-    const date = new Date(devis.date_devis + "T00:00:00");
-    date.setDate(date.getDate() + Number(devis.validite_jours || 30));
-
-    return date.toLocaleDateString("fr-FR");
-  }
-
-  function nomClientComplet() {
-    if (!client) {
-      return devis?.client_nom || "Client non renseigné";
-    }
-
-    if (client.type_client === "Professionnel" && client.entreprise) {
-      return client.entreprise;
-    }
-
-    const nomComplet = `${client.prenom || ""} ${client.nom || ""}`.trim();
-
-    if (nomComplet) {
-      return nomComplet;
-    }
-
-    return client.entreprise || devis?.client_nom || "Client non renseigné";
-  }
-
-  function imprimerPDF() {
-    window.print();
-  }
+  const totaux = useMemo(
+    () => calculerTotaux(lignes, facture),
+    [lignes, facture]
+  );
 
   if (chargement) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
-        <p className="text-slate-700">Chargement du devis...</p>
-      </main>
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+        <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
+            🧾
+          </div>
+          <p className="text-lg font-bold text-slate-950">
+            Chargement de la facture...
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Préparation de l’aperçu imprimable.
+          </p>
+        </div>
+      </div>
     );
   }
 
-  if (!devis) {
+  if (messageErreur || !facture) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
-        <div className="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow-sm">
-          <p className="mb-4 text-red-700">
-            {message || "Devis introuvable."}
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+        <div className="max-w-lg rounded-3xl bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-red-50 text-3xl">
+            ⚠️
+          </div>
+          <p className="text-lg font-bold text-slate-950">
+            Impossible d’afficher la facture
+          </p>
+          <p className="mt-2 text-sm text-slate-600">
+            {messageErreur || "Facture introuvable."}
           </p>
 
           <button
-            onClick={() => router.push("/chef/devis")}
-            className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700"
+            onClick={() => router.push("/chef/factures")}
+            className="mt-5 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
           >
-            Retour aux devis
+            Retour aux factures
           </button>
         </div>
-      </main>
+      </div>
     );
   }
 
+  const conditions =
+    facture.conditions ||
+    parametres?.conditions_factures ||
+    "Paiement à réception de facture sauf indication contraire.";
+
+  const mentionRetard =
+    parametres?.mention_retard ||
+    "En cas de retard de paiement, des pénalités pourront être appliquées, ainsi qu’une indemnité forfaitaire de recouvrement de 40 € pour les professionnels.";
+
+  const footer = parametres?.footer_documents || "Merci pour votre confiance.";
+
+  const mentionsLegales =
+    entreprise?.mentions_legales_documents ||
+    "Entreprise assurée pour les travaux réalisés selon les garanties du contrat d’assurance en vigueur.";
+
+  const montantPaye = Number(facture.montant_paye || 0);
+
+  const resteAPayer =
+    facture.reste_a_payer !== null && facture.reste_a_payer !== undefined
+      ? Number(facture.reste_a_payer)
+      : Math.max(Number(totaux.totalTtc || 0) - montantPaye, 0);
+
+  const infosLegales = infosLegalesEntreprise(entreprise);
+  const infosAssurance = infosAssuranceEntreprise(entreprise);
+  const adressePro = adresseEntreprise(entreprise);
+
   return (
-    <main className="min-h-screen bg-slate-100 p-8 print:bg-white print:p-0">
-      <style>{`
-        @media print {
-          .no-print {
-            display: none !important;
-          }
-
-          body {
-            background: white !important;
-          }
-
-          .print-page {
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            margin: 0 !important;
-            max-width: none !important;
-            width: 100% !important;
-          }
-        }
-      `}</style>
-
-      <div className="no-print mx-auto mb-6 flex max-w-5xl flex-wrap gap-3">
+    <main className="min-h-screen bg-slate-100 p-6 print:bg-white print:p-0">
+      <div className="mx-auto mb-6 flex max-w-5xl items-center justify-between print:hidden">
         <button
-          onClick={() => router.push("/chef/devis")}
-          className="rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-800 hover:bg-slate-300"
+          onClick={() => router.push("/chef/factures")}
+          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
         >
-          Retour aux devis
+          ← Retour aux factures
         </button>
 
         <button
-          onClick={imprimerPDF}
-          className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700"
+          onClick={() => window.print()}
+          className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
         >
-          Imprimer / PDF
+          Imprimer / Enregistrer en PDF
         </button>
       </div>
 
-      {message && (
-        <div className="no-print mx-auto mb-6 max-w-5xl rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-800">
-          {message}
-        </div>
-      )}
-
-      <div className="print-page mx-auto max-w-5xl rounded-2xl bg-white p-8 shadow-sm">
-        <div className="mb-8 flex flex-col gap-6 border-b border-slate-200 pb-6 md:flex-row md:items-start md:justify-between">
+      <section className="mx-auto max-w-5xl bg-white p-10 shadow-sm print:max-w-none print:p-8 print:shadow-none">
+        <header className="flex flex-col gap-8 border-b border-slate-200 pb-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">DEVIS</h1>
+            <div className="flex items-start gap-3">
+              {parametres?.afficher_logo_documents !== false && (
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+                  🌿
+                </div>
+              )}
 
-            <p className="mt-2 text-slate-600">N° {devis.numero}</p>
-            <p className="text-slate-600">
-              Date : {afficherDate(devis.date_devis)}
-            </p>
-            <p className="text-slate-600">
-              Valable jusqu’au : {calculerDateValidite()}
-            </p>
+              <div>
+                <p className="text-xl font-bold text-slate-950">
+                  {entreprise?.nom_entreprise ||
+                    entreprise?.slug ||
+                    "Votre entreprise"}
+                </p>
 
-            <p className="mt-2 inline-block rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-              Statut : {devis.statut}
-            </p>
+                {adressePro && (
+                  <p className="mt-1 text-sm text-slate-500">{adressePro}</p>
+                )}
 
-            {entrepriseId && (
-              <p className="no-print mt-2 text-xs text-slate-400">
-                Entreprise SaaS : {nomEntrepriseSaas}
-              </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {entreprise?.email_contact || "Email non renseigné"}
+                </p>
+
+                <p className="text-sm text-slate-500">
+                  {entreprise?.telephone || "Téléphone non renseigné"}
+                </p>
+
+                {infosLegales.length > 0 && (
+                  <div className="mt-2 space-y-0.5 text-xs text-slate-500">
+                    {infosLegales.map((info) => (
+                      <p key={info}>{info}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-left sm:text-right">
+            <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
+              {typeFactureLisible(facture.type_facture)}
+            </p>
+            <h1 className="mt-1 text-3xl font-bold text-slate-950">
+              {facture.numero || "Sans numéro"}
+            </h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Statut : {statutLisible(facture.statut)}
+            </p>
+          </div>
+        </header>
+
+        <section className="grid gap-8 border-b border-slate-200 py-8 md:grid-cols-2">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+              Client
+            </p>
+            <p className="mt-2 text-lg font-bold text-slate-950">
+              {nomClient(client, facture)}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {adresseClient(client)}
+            </p>
+            {client?.email && (
+              <p className="mt-1 text-sm text-slate-600">{client.email}</p>
+            )}
+            {client?.telephone && (
+              <p className="mt-1 text-sm text-slate-600">{client.telephone}</p>
             )}
           </div>
 
-          <div className="text-left md:text-right">
-            <h2 className="text-xl font-bold text-slate-900">
-              {entreprise?.nom || nomEntrepriseSaas || "Entreprise"}
-            </h2>
-
-            <p className="mt-2 whitespace-pre-line text-sm text-slate-600">
-              {entreprise?.adresse || ""}
+          <div className="md:text-right">
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+              Informations
             </p>
+            <div className="mt-2 space-y-1 text-sm text-slate-600">
+              <p>
+                <span className="font-semibold text-slate-800">
+                  Date facture :
+                </span>{" "}
+                {formatDate(facture.date_facture)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-800">
+                  Date échéance :
+                </span>{" "}
+                {formatDate(facture.date_echeance)}
+              </p>
+            </div>
+          </div>
+        </section>
 
-            <p className="text-sm text-slate-600">
-              SIRET : {entreprise?.siret || "—"}
+        <section className="py-8">
+          <h2 className="text-xl font-bold text-slate-950">
+            {facture.objet || "Objet non renseigné"}
+          </h2>
+
+          {facture.description && (
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
+              {facture.description}
             </p>
+          )}
+        </section>
 
-            <p className="text-sm text-slate-600">
-              Tél : {entreprise?.telephone || "—"}
+        <section>
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Désignation</th>
+                  <th className="px-4 py-3 text-right font-semibold">Qté</th>
+                  <th className="px-4 py-3 text-right font-semibold">Unité</th>
+                  <th className="px-4 py-3 text-right font-semibold">PU HT</th>
+                  <th className="px-4 py-3 text-right font-semibold">TVA</th>
+                  <th className="px-4 py-3 text-right font-semibold">
+                    Total TTC
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {lignes.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-6 text-center text-slate-500"
+                    >
+                      Aucune ligne renseignée.
+                    </td>
+                  </tr>
+                ) : (
+                  lignes.map((ligne) => (
+                    <tr key={ligne.id}>
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-semibold text-slate-900">
+                          {ligne.designation || "Ligne sans désignation"}
+                        </p>
+                        {ligne.description && (
+                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-500">
+                            {ligne.description}
+                          </p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-4 text-right align-top text-slate-700">
+                        {formatNombre(ligne.quantite)}
+                      </td>
+
+                      <td className="px-4 py-4 text-right align-top text-slate-700">
+                        {ligne.unite || "u"}
+                      </td>
+
+                      <td className="px-4 py-4 text-right align-top text-slate-700">
+                        {formatMontant(ligne.prix_unitaire_ht)}
+                      </td>
+
+                      <td className="px-4 py-4 text-right align-top text-slate-700">
+                        {formatNombre(ligne.tva)} %
+                      </td>
+
+                      <td className="px-4 py-4 text-right align-top font-semibold text-slate-950">
+                        {formatMontant(ligne.total_ttc)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-8 flex justify-end">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 p-5">
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total HT</span>
+                <span className="font-semibold text-slate-950">
+                  {formatMontant(totaux.totalHt)}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total TVA</span>
+                <span className="font-semibold text-slate-950">
+                  {formatMontant(totaux.totalTva)}
+                </span>
+              </div>
+
+              <div className="flex justify-between border-t border-slate-200 pt-3 text-lg">
+                <span className="font-bold text-slate-950">Total TTC</span>
+                <span className="font-bold text-slate-950">
+                  {formatMontant(totaux.totalTtc)}
+                </span>
+              </div>
+
+              <div className="flex justify-between border-t border-slate-200 pt-3">
+                <span className="text-slate-500">Déjà payé</span>
+                <span className="font-semibold text-slate-950">
+                  {formatMontant(montantPaye)}
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span className="text-slate-500">Reste à payer</span>
+                <span className="font-bold text-slate-950">
+                  {formatMontant(resteAPayer)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-10 grid gap-6 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 p-5">
+            <p className="text-sm font-bold text-slate-950">
+              Conditions de paiement
             </p>
-
-            <p className="text-sm text-slate-600">
-              Email : {entreprise?.email || "—"}
+            <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+              {conditions}
             </p>
           </div>
-        </div>
 
-        <div className="mb-8 grid gap-6 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 p-5">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900">
-              Client
-            </h2>
+            <p className="text-sm font-bold text-slate-950">
+              Retard de paiement
+            </p>
+            <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+              {mentionRetard}
+            </p>
+          </div>
+        </section>
 
-            <p className="font-medium text-slate-900">{nomClientComplet()}</p>
-
-            {client && (
-              <div className="mt-2 text-sm text-slate-600">
-                {client.telephone && <p>Tél : {client.telephone}</p>}
-                {client.email && <p>Email : {client.email}</p>}
-
-                <p className="mt-2 whitespace-pre-line">
-                  {client.adresse_facturation ||
-                    client.adresse_chantier ||
-                    ""}
+        {(infosAssurance.length > 0 || mentionsLegales) && (
+          <section className="mt-8 rounded-2xl border border-slate-200 p-5">
+            {infosAssurance.length > 0 && (
+              <div>
+                <p className="text-sm font-bold text-slate-950">
+                  Assurance professionnelle
                 </p>
+                <div className="mt-2 space-y-1 text-xs text-slate-600">
+                  {infosAssurance.map((info) => (
+                    <p key={info}>{info}</p>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                <p>
-                  {client.code_postal || ""} {client.ville || ""}
+            {mentionsLegales && (
+              <div className={infosAssurance.length > 0 ? "mt-4" : ""}>
+                <p className="text-sm font-bold text-slate-950">
+                  Mentions légales
+                </p>
+                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                  {mentionsLegales}
                 </p>
               </div>
             )}
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 p-5">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900">
-              Objet du devis
-            </h2>
-
-            <p className="font-medium text-slate-900">{devis.objet}</p>
-
-            {devis.chantier_titre && (
-              <p className="mt-2 text-sm text-slate-600">
-                Chantier lié : {devis.chantier_titre}
-              </p>
-            )}
-
-            {devis.description && (
-              <p className="mt-3 whitespace-pre-line text-sm text-slate-600">
-                {devis.description}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-slate-100 text-left text-slate-700">
-              <tr>
-                <th className="p-3">Désignation</th>
-                <th className="p-3 text-right">Qté</th>
-                <th className="p-3">Unité</th>
-                <th className="p-3 text-right">PU HT</th>
-                <th className="p-3 text-right">TVA</th>
-                <th className="p-3 text-right">Total HT</th>
-                <th className="p-3 text-right">Total TTC</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {lignes.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-slate-600" colSpan={7}>
-                    Aucune ligne enregistrée pour ce devis.
-                  </td>
-                </tr>
-              ) : (
-                lignes.map((ligne) => (
-                  <tr key={ligne.id} className="border-t border-slate-200">
-                    <td className="p-3 text-slate-900">
-                      {ligne.designation}
-                    </td>
-
-                    <td className="p-3 text-right text-slate-700">
-                      {Number(ligne.quantite || 0)}
-                    </td>
-
-                    <td className="p-3 text-slate-700">{ligne.unite}</td>
-
-                    <td className="p-3 text-right text-slate-700">
-                      {formatPrix(Number(ligne.prix_unitaire_ht) || 0)}
-                    </td>
-
-                    <td className="p-3 text-right text-slate-700">
-                      {Number(ligne.tva || 0)} %
-                    </td>
-
-                    <td className="p-3 text-right text-slate-700">
-                      {formatPrix(Number(ligne.total_ht) || 0)}
-                    </td>
-
-                    <td className="p-3 text-right font-medium text-slate-900">
-                      {formatPrix(Number(ligne.total_ttc) || 0)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mb-8 flex justify-end">
-          <div className="w-full max-w-sm rounded-2xl bg-slate-100 p-5">
-            <div className="flex justify-between py-2 text-slate-700">
-              <span>Total HT</span>
-              <span>{formatPrix(Number(devis.total_ht) || 0)}</span>
-            </div>
-
-            <div className="flex justify-between border-t border-slate-300 py-2 text-slate-700">
-              <span>TVA</span>
-              <span>{formatPrix(Number(devis.total_tva) || 0)}</span>
-            </div>
-
-            <div className="flex justify-between border-t border-slate-300 pt-3 text-xl font-bold text-slate-900">
-              <span>Total TTC</span>
-              <span>{formatPrix(Number(devis.total_ttc) || 0)}</span>
-            </div>
-          </div>
-        </div>
-
-        {devis.notes && (
-          <div className="mb-8 rounded-2xl border border-slate-200 p-5">
-            <h2 className="mb-2 text-lg font-semibold text-slate-900">
-              Notes
-            </h2>
-
-            <p className="whitespace-pre-line text-sm text-slate-600">
-              {devis.notes}
-            </p>
-          </div>
+          </section>
         )}
 
-        <div className="border-t border-slate-200 pt-6 text-sm text-slate-500">
-          <p>
-            Bon pour accord, précédé de la mention manuscrite “Bon pour accord”,
-            date et signature du client.
-          </p>
-
-          <div className="mt-10 h-24 rounded-2xl border border-dashed border-slate-300 p-4">
-            Signature client
-          </div>
-        </div>
-      </div>
+        <footer className="mt-10 border-t border-slate-200 pt-5 text-center text-xs text-slate-500">
+          {footer}
+        </footer>
+      </section>
     </main>
   );
 }

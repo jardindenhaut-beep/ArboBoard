@@ -77,8 +77,7 @@ const CONDITIONS_FACTURES_DEFAUT =
 const MENTION_RETARD_DEFAUT =
   "En cas de retard de paiement, des pénalités pourront être appliquées, ainsi qu’une indemnité forfaitaire de recouvrement de 40 € pour les professionnels.";
 
-const FOOTER_DOCUMENTS_DEFAUT =
-  "Merci pour votre confiance.";
+const FOOTER_DOCUMENTS_DEFAUT = "Merci pour votre confiance.";
 
 function formulaireDefaut(): FormulaireParametres {
   return {
@@ -162,6 +161,7 @@ export default function ParametresChefPage() {
     try {
       setChargement(true);
       setMessageErreur("");
+      setMessageSucces("");
 
       const resultat = await chargerContexteEntreprise();
 
@@ -271,10 +271,13 @@ export default function ParametresChefPage() {
     champ: keyof FormulaireParametres,
     valeur: string | boolean
   ) {
-    setFormulaire((ancien) => ({
-      ...ancien,
-      [champ]: valeur,
-    }));
+    setFormulaire(
+      (ancien) =>
+        ({
+          ...ancien,
+          [champ]: valeur,
+        } as FormulaireParametres)
+    );
   }
 
   async function enregistrerParametres() {
@@ -317,15 +320,39 @@ export default function ParametresChefPage() {
         afficher_logo_documents: formulaire.afficher_logo_documents,
       };
 
-      const { data, error } = await supabase
+      const { data: parametreExistant, error: erreurRecherche } = await supabase
         .from("entreprise_parametres")
-        .upsert(payload, { onConflict: "entreprise_id" })
-        .select("*")
-        .single();
+        .select("id, entreprise_id")
+        .eq("entreprise_id", entrepriseId)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (erreurRecherche) {
+        throw erreurRecherche;
+      }
 
-      setParametres(data as EntrepriseParametres);
+      if (parametreExistant) {
+        const { data, error } = await supabase
+          .from("entreprise_parametres")
+          .update(payload)
+          .eq("entreprise_id", entrepriseId)
+          .select("*")
+          .single();
+
+        if (error) throw error;
+
+        setParametres(data as EntrepriseParametres);
+      } else {
+        const { data, error } = await supabase
+          .from("entreprise_parametres")
+          .insert(payload)
+          .select("*")
+          .single();
+
+        if (error) throw error;
+
+        setParametres(data as EntrepriseParametres);
+      }
+
       setMessageSucces("Paramètres entreprise enregistrés avec succès.");
     } catch (error: any) {
       console.error("Erreur enregistrement paramètres :", error);
@@ -521,7 +548,10 @@ export default function ParametresChefPage() {
                   type="checkbox"
                   checked={formulaire.numerotation_devis_auto}
                   onChange={(event) =>
-                    modifierChamp("numerotation_devis_auto", event.target.checked)
+                    modifierChamp(
+                      "numerotation_devis_auto",
+                      event.target.checked
+                    )
                   }
                   className="h-4 w-4 rounded border-slate-300"
                 />
@@ -641,7 +671,10 @@ export default function ParametresChefPage() {
                   type="checkbox"
                   checked={formulaire.afficher_logo_documents}
                   onChange={(event) =>
-                    modifierChamp("afficher_logo_documents", event.target.checked)
+                    modifierChamp(
+                      "afficher_logo_documents",
+                      event.target.checked
+                    )
                   }
                   className="h-4 w-4 rounded border-slate-300"
                 />

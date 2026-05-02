@@ -34,8 +34,8 @@ type Devis = {
   total_ht: number | null;
   total_tva: number | null;
   total_ttc: number | null;
-  notes_internes: string | null;
   conditions: string | null;
+  notes_internes: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -60,6 +60,15 @@ type DevisAvecLignes = Devis & {
   lignes: LigneDevis[];
 };
 
+type EntrepriseParametres = {
+  tva_defaut?: number | null;
+  acompte_defaut?: number | null;
+  validite_devis_jours?: number | null;
+  prefixe_devis?: string | null;
+  numerotation_devis_auto?: boolean | null;
+  conditions_devis?: string | null;
+};
+
 type LigneFormulaire = {
   designation: string;
   description: string;
@@ -77,19 +86,13 @@ type FormulaireDevis = {
   statut: StatutDevis;
   date_devis: string;
   date_validite: string;
-  notes_internes: string;
   conditions: string;
+  notes_internes: string;
   lignes: LigneFormulaire[];
 };
 
-const LIGNE_VIDE: LigneFormulaire = {
-  designation: "",
-  description: "",
-  quantite: "1",
-  unite: "u",
-  prix_unitaire_ht: "0",
-  tva: "20",
-};
+const CONDITIONS_DEVIS_DEFAUT =
+  "Devis valable pendant la durée indiquée. Acompte de 30 % à la signature sauf indication contraire. Les travaux seront réalisés selon les conditions précisées dans le devis.";
 
 function dateDuJour() {
   return new Date().toISOString().slice(0, 10);
@@ -99,34 +102,6 @@ function dateDansJours(jours: number) {
   const date = new Date();
   date.setDate(date.getDate() + jours);
   return date.toISOString().slice(0, 10);
-}
-
-function genererNumeroDevis() {
-  const maintenant = new Date();
-  const annee = maintenant.getFullYear();
-  const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
-  const jour = String(maintenant.getDate()).padStart(2, "0");
-  const heures = String(maintenant.getHours()).padStart(2, "0");
-  const minutes = String(maintenant.getMinutes()).padStart(2, "0");
-  const secondes = String(maintenant.getSeconds()).padStart(2, "0");
-
-  return `DEV-${annee}${mois}${jour}-${heures}${minutes}${secondes}`;
-}
-
-function formulaireVide(): FormulaireDevis {
-  return {
-    client_id: "",
-    numero: genererNumeroDevis(),
-    objet: "",
-    description: "",
-    statut: "brouillon",
-    date_devis: dateDuJour(),
-    date_validite: dateDansJours(30),
-    notes_internes: "",
-    conditions:
-      "Devis valable jusqu’à la date indiquée. Acompte de 30 % à la signature sauf indication contraire.",
-    lignes: [{ ...LIGNE_VIDE }],
-  };
 }
 
 function nettoyerTexte(valeur: string) {
@@ -140,7 +115,9 @@ function nettoyerDate(valeur: string) {
 }
 
 function nombreDepuisTexte(valeur: string | number | null | undefined) {
-  if (typeof valeur === "number") return Number.isFinite(valeur) ? valeur : 0;
+  if (typeof valeur === "number") {
+    return Number.isFinite(valeur) ? valeur : 0;
+  }
 
   const texte = String(valeur || "")
     .replace(",", ".")
@@ -156,44 +133,6 @@ function arrondir2(nombre: number) {
   return Math.round((nombre + Number.EPSILON) * 100) / 100;
 }
 
-function calculerLigne(ligne: LigneFormulaire) {
-  const quantite = nombreDepuisTexte(ligne.quantite);
-  const prixUnitaire = nombreDepuisTexte(ligne.prix_unitaire_ht);
-  const tauxTva = nombreDepuisTexte(ligne.tva);
-
-  const totalHt = arrondir2(quantite * prixUnitaire);
-  const totalTva = arrondir2(totalHt * (tauxTva / 100));
-  const totalTtc = arrondir2(totalHt + totalTva);
-
-  return {
-    quantite,
-    prixUnitaire,
-    tauxTva,
-    totalHt,
-    totalTva,
-    totalTtc,
-  };
-}
-
-function calculerTotaux(lignes: LigneFormulaire[]) {
-  return lignes.reduce(
-    (acc, ligne) => {
-      const calcul = calculerLigne(ligne);
-
-      return {
-        totalHt: arrondir2(acc.totalHt + calcul.totalHt),
-        totalTva: arrondir2(acc.totalTva + calcul.totalTva),
-        totalTtc: arrondir2(acc.totalTtc + calcul.totalTtc),
-      };
-    },
-    {
-      totalHt: 0,
-      totalTva: 0,
-      totalTtc: 0,
-    }
-  );
-}
-
 function formatMontant(montant: number | null | undefined) {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -201,7 +140,7 @@ function formatMontant(montant: number | null | undefined) {
   }).format(Number(montant || 0));
 }
 
-function formatDate(date: string | null) {
+function formatDate(date: string | null | undefined) {
   if (!date) return "—";
 
   try {
@@ -244,18 +183,87 @@ function badgeStatut(statut: string | null | undefined) {
   if (statut === "accepte")
     return "bg-emerald-50 text-emerald-700 border-emerald-200";
   if (statut === "refuse") return "bg-red-50 text-red-700 border-red-200";
-  if (statut === "archive") return "bg-slate-100 text-slate-600 border-slate-200";
+  if (statut === "archive")
+    return "bg-slate-100 text-slate-600 border-slate-200";
   return "bg-amber-50 text-amber-700 border-amber-200";
+}
+
+function calculerLigne(ligne: LigneFormulaire) {
+  const quantite = nombreDepuisTexte(ligne.quantite);
+  const prixUnitaire = nombreDepuisTexte(ligne.prix_unitaire_ht);
+  const tauxTva = nombreDepuisTexte(ligne.tva);
+
+  const totalHt = arrondir2(quantite * prixUnitaire);
+  const totalTva = arrondir2(totalHt * (tauxTva / 100));
+  const totalTtc = arrondir2(totalHt + totalTva);
+
+  return {
+    quantite,
+    prixUnitaire,
+    tauxTva,
+    totalHt,
+    totalTva,
+    totalTtc,
+  };
+}
+
+function calculerTotaux(lignes: LigneFormulaire[]) {
+  return lignes.reduce(
+    (acc, ligne) => {
+      const calcul = calculerLigne(ligne);
+
+      return {
+        totalHt: arrondir2(acc.totalHt + calcul.totalHt),
+        totalTva: arrondir2(acc.totalTva + calcul.totalTva),
+        totalTtc: arrondir2(acc.totalTtc + calcul.totalTtc),
+      };
+    },
+    {
+      totalHt: 0,
+      totalTva: 0,
+      totalTtc: 0,
+    }
+  );
 }
 
 function ligneEstValide(ligne: LigneFormulaire) {
   return ligne.designation.trim().length > 0;
 }
 
+function ligneVide(tva = 20): LigneFormulaire {
+  return {
+    designation: "",
+    description: "",
+    quantite: "1",
+    unite: "u",
+    prix_unitaire_ht: "0",
+    tva: String(tva),
+  };
+}
+
+function formulaireVide(parametres: EntrepriseParametres | null): FormulaireDevis {
+  const tva = parametres?.tva_defaut ?? 20;
+  const validite = parametres?.validite_devis_jours ?? 30;
+
+  return {
+    client_id: "",
+    numero: "",
+    objet: "",
+    description: "",
+    statut: "brouillon",
+    date_devis: dateDuJour(),
+    date_validite: dateDansJours(validite),
+    conditions: parametres?.conditions_devis || CONDITIONS_DEVIS_DEFAUT,
+    notes_internes: "",
+    lignes: [ligneVide(tva)],
+  };
+}
+
 export default function DevisPage() {
   const [entrepriseId, setEntrepriseId] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [devis, setDevis] = useState<DevisAvecLignes[]>([]);
+  const [parametres, setParametres] = useState<EntrepriseParametres | null>(null);
 
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
@@ -265,7 +273,9 @@ export default function DevisPage() {
 
   const [modalOuverte, setModalOuverte] = useState(false);
   const [devisEdition, setDevisEdition] = useState<DevisAvecLignes | null>(null);
-  const [formulaire, setFormulaire] = useState<FormulaireDevis>(formulaireVide());
+  const [formulaire, setFormulaire] = useState<FormulaireDevis>(() =>
+    formulaireVide(null)
+  );
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
@@ -289,9 +299,11 @@ export default function DevisPage() {
         return;
       }
 
-      const idEntreprise = resultat.contexte.entreprise.id;
-
+      const idEntreprise = resultat.contexte.entreprise.id as string;
       setEntrepriseId(idEntreprise);
+
+      const params = await chargerParametres(idEntreprise);
+      setParametres(params);
 
       await Promise.all([chargerClients(idEntreprise), chargerDevis(idEntreprise)]);
     } catch (error) {
@@ -300,6 +312,23 @@ export default function DevisPage() {
     } finally {
       setChargement(false);
     }
+  }
+
+  async function chargerParametres(idEntreprise = entrepriseId) {
+    if (!idEntreprise) return null;
+
+    const { data, error } = await supabase
+      .from("entreprise_parametres")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Erreur chargement paramètres devis :", error);
+      return null;
+    }
+
+    return (data || null) as EntrepriseParametres | null;
   }
 
   async function chargerClients(idEntreprise = entrepriseId) {
@@ -370,14 +399,23 @@ export default function DevisPage() {
   }
 
   const statistiques = useMemo(() => {
+    const totalTtc = devis.reduce(
+      (total, item) => total + Number(item.total_ttc || 0),
+      0
+    );
+
+    const accepteTtc = devis
+      .filter((item) => item.statut === "accepte")
+      .reduce((total, item) => total + Number(item.total_ttc || 0), 0);
+
     return {
       total: devis.length,
       brouillons: devis.filter((item) => item.statut === "brouillon").length,
       envoyes: devis.filter((item) => item.statut === "envoye").length,
       acceptes: devis.filter((item) => item.statut === "accepte").length,
-      montantAccepte: devis
-        .filter((item) => item.statut === "accepte")
-        .reduce((total, item) => total + Number(item.total_ttc || 0), 0),
+      refuses: devis.filter((item) => item.statut === "refuse").length,
+      totalTtc,
+      accepteTtc,
     };
   }, [devis]);
 
@@ -385,17 +423,16 @@ export default function DevisPage() {
     const texte = recherche.trim().toLowerCase();
 
     return devis.filter((item) => {
-      const statutDevis = item.statut || "brouillon";
-      const correspondStatut =
-        filtreStatut === "tous" || statutDevis === filtreStatut;
+      const statut = item.statut || "brouillon";
+      const correspondStatut = filtreStatut === "tous" || statut === filtreStatut;
 
       const zoneRecherche = [
         item.numero,
         item.client_nom,
         item.objet,
         item.description,
-        item.notes_internes,
         item.conditions,
+        item.notes_internes,
       ]
         .filter(Boolean)
         .join(" ")
@@ -419,7 +456,7 @@ export default function DevisPage() {
 
   function ouvrirCreation() {
     setDevisEdition(null);
-    setFormulaire(formulaireVide());
+    setFormulaire(formulaireVide(parametres));
     setMessageErreur("");
     setMessageSucces("");
     setModalOuverte(true);
@@ -427,6 +464,8 @@ export default function DevisPage() {
 
   function ouvrirEdition(item: DevisAvecLignes) {
     setDevisEdition(item);
+
+    const tva = parametres?.tva_defaut ?? 20;
 
     const lignesFormulaire =
       item.lignes.length > 0
@@ -436,22 +475,22 @@ export default function DevisPage() {
             quantite: String(ligne.quantite ?? 1),
             unite: ligne.unite || "u",
             prix_unitaire_ht: String(ligne.prix_unitaire_ht ?? 0),
-            tva: String(ligne.tva ?? 20),
+            tva: String(ligne.tva ?? tva),
           }))
-        : [{ ...LIGNE_VIDE }];
+        : [ligneVide(tva)];
 
     setFormulaire({
       client_id: item.client_id || "",
-      numero: item.numero || genererNumeroDevis(),
+      numero: item.numero || "",
       objet: item.objet || "",
       description: item.description || "",
       statut: (item.statut as StatutDevis) || "brouillon",
       date_devis: item.date_devis || dateDuJour(),
-      date_validite: item.date_validite || dateDansJours(30),
+      date_validite:
+        item.date_validite ||
+        dateDansJours(parametres?.validite_devis_jours ?? 30),
+      conditions: item.conditions || parametres?.conditions_devis || CONDITIONS_DEVIS_DEFAUT,
       notes_internes: item.notes_internes || "",
-      conditions:
-        item.conditions ||
-        "Devis valable jusqu’à la date indiquée. Acompte de 30 % à la signature sauf indication contraire.",
       lignes: lignesFormulaire,
     });
 
@@ -465,24 +504,17 @@ export default function DevisPage() {
 
     setModalOuverte(false);
     setDevisEdition(null);
-    setFormulaire(formulaireVide());
+    setFormulaire(formulaireVide(parametres));
   }
 
-  function modifierChamp(
-    champ: keyof Omit<FormulaireDevis, "lignes">,
-    valeur: string
-  ) {
+  function modifierChamp(champ: keyof Omit<FormulaireDevis, "lignes">, valeur: string) {
     setFormulaire((ancien) => ({
       ...ancien,
       [champ]: valeur,
     }));
   }
 
-  function modifierLigne(
-    index: number,
-    champ: keyof LigneFormulaire,
-    valeur: string
-  ) {
+  function modifierLigne(index: number, champ: keyof LigneFormulaire, valeur: string) {
     setFormulaire((ancien) => ({
       ...ancien,
       lignes: ancien.lignes.map((ligne, ligneIndex) =>
@@ -499,15 +531,13 @@ export default function DevisPage() {
   function ajouterLigne() {
     setFormulaire((ancien) => ({
       ...ancien,
-      lignes: [...ancien.lignes, { ...LIGNE_VIDE }],
+      lignes: [...ancien.lignes, ligneVide(parametres?.tva_defaut ?? 20)],
     }));
   }
 
   function supprimerLigne(index: number) {
     setFormulaire((ancien) => {
-      if (ancien.lignes.length <= 1) {
-        return ancien;
-      }
+      if (ancien.lignes.length <= 1) return ancien;
 
       return {
         ...ancien,
@@ -519,6 +549,38 @@ export default function DevisPage() {
   function formulaireValide() {
     if (!formulaire.objet.trim()) return false;
     return formulaire.lignes.some((ligne) => ligneEstValide(ligne));
+  }
+
+  async function genererNumeroDevisSiBesoin() {
+    const numeroManuel = formulaire.numero.trim();
+
+    if (numeroManuel.length > 0) {
+      return numeroManuel;
+    }
+
+    if (parametres?.numerotation_devis_auto === false) {
+      const maintenant = new Date();
+      const annee = maintenant.getFullYear();
+      const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
+      const jour = String(maintenant.getDate()).padStart(2, "0");
+      const heures = String(maintenant.getHours()).padStart(2, "0");
+      const minutes = String(maintenant.getMinutes()).padStart(2, "0");
+      const secondes = String(maintenant.getSeconds()).padStart(2, "0");
+
+      return `DEV-${annee}${mois}${jour}-${heures}${minutes}${secondes}`;
+    }
+
+    const { data, error } = await supabase.rpc("generer_numero_devis_entreprise", {
+      p_entreprise_id: entrepriseId,
+    });
+
+    if (error) throw error;
+
+    if (!data || typeof data !== "string") {
+      throw new Error("Impossible de générer le numéro du devis.");
+    }
+
+    return data;
   }
 
   async function enregistrerDevis() {
@@ -540,16 +602,18 @@ export default function DevisPage() {
       setMessageSucces("");
 
       const clientSelectionne = trouverClient(formulaire.client_id);
-      const lignesValides = formulaire.lignes.filter((ligne) =>
-        ligneEstValide(ligne)
-      );
+      const lignesValides = formulaire.lignes.filter((ligne) => ligneEstValide(ligne));
       const totaux = calculerTotaux(lignesValides);
+
+      const numeroFinal = devisEdition
+        ? formulaire.numero.trim() || devisEdition.numero || ""
+        : await genererNumeroDevisSiBesoin();
 
       const payloadDevis = {
         entreprise_id: entrepriseId,
         client_id: formulaire.client_id || null,
         client_nom: clientSelectionne ? nomClient(clientSelectionne) : null,
-        numero: nettoyerTexte(formulaire.numero) || genererNumeroDevis(),
+        numero: numeroFinal,
         objet: nettoyerTexte(formulaire.objet),
         description: nettoyerTexte(formulaire.description),
         statut: formulaire.statut,
@@ -558,8 +622,8 @@ export default function DevisPage() {
         total_ht: totaux.totalHt,
         total_tva: totaux.totalTva,
         total_ttc: totaux.totalTtc,
-        notes_internes: nettoyerTexte(formulaire.notes_internes),
         conditions: nettoyerTexte(formulaire.conditions),
+        notes_internes: nettoyerTexte(formulaire.notes_internes),
       };
 
       let devisId = devisEdition?.id || "";
@@ -626,7 +690,9 @@ export default function DevisPage() {
       await chargerDevis(entrepriseId);
 
       setMessageSucces(
-        devisEdition ? "Devis modifié avec succès." : "Devis créé avec succès."
+        devisEdition
+          ? "Devis modifié avec succès."
+          : `Devis créé avec succès : ${numeroFinal}.`
       );
 
       fermerModal();
@@ -660,9 +726,7 @@ export default function DevisPage() {
       setMessageSucces(`Statut du devis mis à jour : ${libelleStatut(statut)}.`);
     } catch (error: any) {
       console.error("Erreur changement statut devis :", error);
-      setMessageErreur(
-        error?.message || "Impossible de modifier le statut du devis."
-      );
+      setMessageErreur(error?.message || "Impossible de modifier le statut du devis.");
     }
   }
 
@@ -672,7 +736,7 @@ export default function DevisPage() {
     const confirmation = window.confirm(
       `Suppression définitive du devis "${
         item.numero || item.objet || "sans numéro"
-      }". Cette action est irréversible. Continuer ?`
+      }". Continuer ?`
     );
 
     if (!confirmation) return;
@@ -713,8 +777,8 @@ export default function DevisPage() {
           <p className="text-sm font-medium text-emerald-700">Arboboard</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Devis</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Créez vos devis avec lignes détaillées, calcul automatique HT / TVA /
-            TTC et suivi des statuts commerciaux.
+            Créez vos devis, calculez les totaux automatiquement et suivez leur
+            avancement commercial.
           </p>
         </div>
 
@@ -738,7 +802,7 @@ export default function DevisPage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
           <p className="mt-2 text-2xl font-bold text-slate-950">
@@ -775,10 +839,19 @@ export default function DevisPage() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-slate-400">
-            CA accepté TTC
+            Total devis TTC
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {formatMontant(statistiques.montantAccepte)}
+          <p className="mt-2 text-xl font-bold text-slate-950">
+            {formatMontant(statistiques.totalTtc)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Accepté TTC
+          </p>
+          <p className="mt-2 text-xl font-bold text-slate-950">
+            {formatMontant(statistiques.accepteTtc)}
           </p>
         </div>
       </section>
@@ -813,9 +886,7 @@ export default function DevisPage() {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
               📝
             </div>
-            <p className="font-semibold text-slate-900">
-              Chargement des devis...
-            </p>
+            <p className="font-semibold text-slate-900">Chargement des devis...</p>
             <p className="mt-1 text-sm text-slate-500">
               Récupération des données depuis Supabase.
             </p>
@@ -827,7 +898,7 @@ export default function DevisPage() {
             </div>
             <p className="font-semibold text-slate-900">Aucun devis trouvé</p>
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre premier devis pour commencer le suivi commercial.
+              Créez votre premier devis avec numérotation automatique.
             </p>
 
             <button
@@ -847,9 +918,7 @@ export default function DevisPage() {
                   <th className="px-4 py-3 font-semibold">Dates</th>
                   <th className="px-4 py-3 font-semibold">Montants</th>
                   <th className="px-4 py-3 font-semibold">Statut</th>
-                  <th className="px-4 py-3 text-right font-semibold">
-                    Actions
-                  </th>
+                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
 
@@ -863,11 +932,6 @@ export default function DevisPage() {
                       <p className="mt-1 text-sm text-slate-700">
                         {item.objet || "Sans objet"}
                       </p>
-                      {item.description && (
-                        <p className="mt-1 max-w-md text-xs text-slate-500">
-                          {item.description}
-                        </p>
-                      )}
                     </td>
 
                     <td className="px-4 py-4 align-top">
@@ -905,6 +969,15 @@ export default function DevisPage() {
 
                     <td className="px-4 py-4 align-top">
                       <div className="flex flex-wrap justify-end gap-2">
+                        <a
+                          href={`/chef/devis/${item.id}/impression`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        >
+                          PDF
+                        </a>
+
                         <button
                           onClick={() => ouvrirEdition(item)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
@@ -958,8 +1031,9 @@ export default function DevisPage() {
                   {devisEdition ? "Modifier le devis" : "Créer un devis"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Ajoutez un client, les informations générales et les lignes du
-                  devis.
+                  {devisEdition
+                    ? "Le numéro existant est conservé."
+                    : "Le numéro sera généré automatiquement à l’enregistrement."}
                 </p>
               </div>
 
@@ -972,7 +1046,23 @@ export default function DevisPage() {
             </div>
 
             <div className="space-y-6 p-5">
-              <div className="grid gap-4 md:grid-cols-[1fr_220px_220px]">
+              <div className="grid gap-4 md:grid-cols-[260px_1fr_180px]">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Numéro
+                  </label>
+                  <input
+                    value={formulaire.numero}
+                    onChange={(event) => modifierChamp("numero", event.target.value)}
+                    placeholder={
+                      parametres?.numerotation_devis_auto === false
+                        ? "Numéro manuel"
+                        : "Auto à l’enregistrement"
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     Client
@@ -995,63 +1085,6 @@ export default function DevisPage() {
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Date devis
-                  </label>
-                  <input
-                    type="date"
-                    value={formulaire.date_devis}
-                    onChange={(event) =>
-                      modifierChamp("date_devis", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Date validité
-                  </label>
-                  <input
-                    type="date"
-                    value={formulaire.date_validite}
-                    onChange={(event) =>
-                      modifierChamp("date_validite", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-[220px_1fr_200px]">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Numéro
-                  </label>
-                  <input
-                    value={formulaire.numero}
-                    onChange={(event) =>
-                      modifierChamp("numero", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Objet du devis
-                  </label>
-                  <input
-                    value={formulaire.objet}
-                    onChange={(event) =>
-                      modifierChamp("objet", event.target.value)
-                    }
-                    placeholder="Ex : Taille de haies, élagage, création paysagère..."
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
                     Statut
                   </label>
                   <select
@@ -1070,9 +1103,51 @@ export default function DevisPage() {
                 </div>
               </div>
 
+              <div className="grid gap-4 md:grid-cols-[1fr_180px_180px]">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Objet
+                  </label>
+                  <input
+                    value={formulaire.objet}
+                    onChange={(event) => modifierChamp("objet", event.target.value)}
+                    placeholder="Ex : Taille de haies, élagage, entretien..."
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Date devis
+                  </label>
+                  <input
+                    type="date"
+                    value={formulaire.date_devis}
+                    onChange={(event) =>
+                      modifierChamp("date_devis", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Validité
+                  </label>
+                  <input
+                    type="date"
+                    value={formulaire.date_validite}
+                    onChange={(event) =>
+                      modifierChamp("date_validite", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Description générale
+                  Description
                 </label>
                 <textarea
                   value={formulaire.description}
@@ -1088,9 +1163,9 @@ export default function DevisPage() {
               <div className="rounded-3xl border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 p-4">
                   <div>
-                    <h3 className="font-bold text-slate-950">Lignes du devis</h3>
+                    <h3 className="font-bold text-slate-950">Lignes de devis</h3>
                     <p className="text-sm text-slate-500">
-                      Les totaux sont calculés automatiquement.
+                      Les totaux HT, TVA et TTC sont calculés automatiquement.
                     </p>
                   </div>
 
@@ -1120,11 +1195,7 @@ export default function DevisPage() {
                             <input
                               value={ligne.designation}
                               onChange={(event) =>
-                                modifierLigne(
-                                  index,
-                                  "designation",
-                                  event.target.value
-                                )
+                                modifierLigne(index, "designation", event.target.value)
                               }
                               placeholder="Ex : Taille de haie"
                               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
@@ -1258,7 +1329,7 @@ export default function DevisPage() {
                   onChange={(event) =>
                     modifierChamp("conditions", event.target.value)
                   }
-                  rows={3}
+                  rows={4}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>

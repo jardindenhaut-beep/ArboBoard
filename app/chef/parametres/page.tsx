@@ -4,29 +4,25 @@ import { useEffect, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 
+type Entreprise = {
+  id: string;
+  nom_entreprise?: string | null;
+  slug?: string | null;
+};
+
 type ProfilUtilisateur = {
   id: string;
-  email?: string | null;
   role?: string | null;
   statut?: string | null;
   entreprise_id?: string | null;
 };
 
-type Entreprise = {
-  id: string;
-  nom_entreprise?: string | null;
-  slug?: string | null;
-  email_contact?: string | null;
-  telephone?: string | null;
-};
-
 type EntrepriseParametres = {
-  id?: string | null;
-  entreprise_id: string;
+  id?: string | number | null;
+  entreprise_id?: string | null;
 
   tva_defaut?: number | null;
   acompte_defaut?: number | null;
-
   validite_devis_jours?: number | null;
   delai_paiement_jours?: number | null;
 
@@ -40,17 +36,19 @@ type EntrepriseParametres = {
   conditions_factures?: string | null;
   mention_retard?: string | null;
   footer_documents?: string | null;
-
   afficher_logo_documents?: boolean | null;
 
-  created_at?: string | null;
-  updated_at?: string | null;
+  email_objet_devis?: string | null;
+  email_message_devis?: string | null;
+  email_objet_facture?: string | null;
+  email_message_facture?: string | null;
+  email_copie_entreprise?: boolean | null;
+  email_copie_adresse?: string | null;
 };
 
 type FormulaireParametres = {
   tva_defaut: string;
   acompte_defaut: string;
-
   validite_devis_jours: string;
   delai_paiement_jours: string;
 
@@ -64,8 +62,14 @@ type FormulaireParametres = {
   conditions_factures: string;
   mention_retard: string;
   footer_documents: string;
-
   afficher_logo_documents: boolean;
+
+  email_objet_devis: string;
+  email_message_devis: string;
+  email_objet_facture: string;
+  email_message_facture: string;
+  email_copie_entreprise: boolean;
+  email_copie_adresse: string;
 };
 
 const CONDITIONS_DEVIS_DEFAUT =
@@ -79,11 +83,66 @@ const MENTION_RETARD_DEFAUT =
 
 const FOOTER_DOCUMENTS_DEFAUT = "Merci pour votre confiance.";
 
+const EMAIL_OBJET_DEVIS_DEFAUT = "Votre devis {numero} - {entreprise}";
+
+const EMAIL_MESSAGE_DEVIS_DEFAUT = `Bonjour,
+
+Veuillez trouver ci-dessous votre devis {numero}.
+
+Nous restons disponibles pour toute question ou précision.
+
+Cordialement,
+{entreprise}`;
+
+const EMAIL_OBJET_FACTURE_DEFAUT = "Votre facture {numero} - {entreprise}";
+
+const EMAIL_MESSAGE_FACTURE_DEFAUT = `Bonjour,
+
+Veuillez trouver ci-dessous votre facture {numero}.
+
+Nous vous remercions pour votre confiance.
+
+Cordialement,
+{entreprise}`;
+
+function valeurTexte(valeur: string | null | undefined, defaut = "") {
+  const texte = String(valeur || "").trim();
+  return texte.length > 0 ? texte : defaut;
+}
+
+function valeurNombreTexte(
+  valeur: number | string | null | undefined,
+  defaut: string
+) {
+  if (valeur === null || valeur === undefined || valeur === "") return defaut;
+  return String(valeur);
+}
+
+function nombreDepuisTexte(valeur: string, defaut: number) {
+  const nombre = Number.parseFloat(
+    String(valeur || "")
+      .replace(",", ".")
+      .replace(/\s/g, "")
+  );
+
+  return Number.isFinite(nombre) ? nombre : defaut;
+}
+
+function entierDepuisTexte(valeur: string, defaut: number) {
+  const nombre = Number.parseInt(
+    String(valeur || "")
+      .replace(/\s/g, "")
+      .trim(),
+    10
+  );
+
+  return Number.isFinite(nombre) ? nombre : defaut;
+}
+
 function formulaireDefaut(): FormulaireParametres {
   return {
     tva_defaut: "20",
     acompte_defaut: "30",
-
     validite_devis_jours: "30",
     delai_paiement_jours: "30",
 
@@ -97,59 +156,187 @@ function formulaireDefaut(): FormulaireParametres {
     conditions_factures: CONDITIONS_FACTURES_DEFAUT,
     mention_retard: MENTION_RETARD_DEFAUT,
     footer_documents: FOOTER_DOCUMENTS_DEFAUT,
-
     afficher_logo_documents: true,
+
+    email_objet_devis: EMAIL_OBJET_DEVIS_DEFAUT,
+    email_message_devis: EMAIL_MESSAGE_DEVIS_DEFAUT,
+    email_objet_facture: EMAIL_OBJET_FACTURE_DEFAUT,
+    email_message_facture: EMAIL_MESSAGE_FACTURE_DEFAUT,
+    email_copie_entreprise: false,
+    email_copie_adresse: "",
   };
 }
 
-function valeurTexte(valeur: string | null | undefined, defaut = "") {
-  return valeur ?? defaut;
+function formulaireDepuisParametres(
+  parametres: EntrepriseParametres | null
+): FormulaireParametres {
+  const defaut = formulaireDefaut();
+
+  if (!parametres) return defaut;
+
+  return {
+    tva_defaut: valeurNombreTexte(parametres.tva_defaut, defaut.tva_defaut),
+    acompte_defaut: valeurNombreTexte(
+      parametres.acompte_defaut,
+      defaut.acompte_defaut
+    ),
+    validite_devis_jours: valeurNombreTexte(
+      parametres.validite_devis_jours,
+      defaut.validite_devis_jours
+    ),
+    delai_paiement_jours: valeurNombreTexte(
+      parametres.delai_paiement_jours,
+      defaut.delai_paiement_jours
+    ),
+
+    prefixe_devis: valeurTexte(parametres.prefixe_devis, defaut.prefixe_devis),
+    prefixe_facture: valeurTexte(
+      parametres.prefixe_facture,
+      defaut.prefixe_facture
+    ),
+
+    numerotation_devis_auto:
+      parametres.numerotation_devis_auto === null ||
+      parametres.numerotation_devis_auto === undefined
+        ? defaut.numerotation_devis_auto
+        : Boolean(parametres.numerotation_devis_auto),
+
+    numerotation_factures_auto:
+      parametres.numerotation_factures_auto === null ||
+      parametres.numerotation_factures_auto === undefined
+        ? defaut.numerotation_factures_auto
+        : Boolean(parametres.numerotation_factures_auto),
+
+    conditions_devis: valeurTexte(
+      parametres.conditions_devis,
+      defaut.conditions_devis
+    ),
+    conditions_factures: valeurTexte(
+      parametres.conditions_factures,
+      defaut.conditions_factures
+    ),
+    mention_retard: valeurTexte(
+      parametres.mention_retard,
+      defaut.mention_retard
+    ),
+    footer_documents: valeurTexte(
+      parametres.footer_documents,
+      defaut.footer_documents
+    ),
+    afficher_logo_documents:
+      parametres.afficher_logo_documents === null ||
+      parametres.afficher_logo_documents === undefined
+        ? defaut.afficher_logo_documents
+        : Boolean(parametres.afficher_logo_documents),
+
+    email_objet_devis: valeurTexte(
+      parametres.email_objet_devis,
+      defaut.email_objet_devis
+    ),
+    email_message_devis: valeurTexte(
+      parametres.email_message_devis,
+      defaut.email_message_devis
+    ),
+    email_objet_facture: valeurTexte(
+      parametres.email_objet_facture,
+      defaut.email_objet_facture
+    ),
+    email_message_facture: valeurTexte(
+      parametres.email_message_facture,
+      defaut.email_message_facture
+    ),
+    email_copie_entreprise:
+      parametres.email_copie_entreprise === null ||
+      parametres.email_copie_entreprise === undefined
+        ? defaut.email_copie_entreprise
+        : Boolean(parametres.email_copie_entreprise),
+    email_copie_adresse: valeurTexte(parametres.email_copie_adresse, ""),
+  };
 }
 
-function nombreVersTexte(valeur: number | null | undefined, defaut: string) {
-  if (valeur === null || valeur === undefined) return defaut;
-  return String(valeur);
+function construirePayload(formulaire: FormulaireParametres) {
+  return {
+    tva_defaut: nombreDepuisTexte(formulaire.tva_defaut, 20),
+    acompte_defaut: nombreDepuisTexte(formulaire.acompte_defaut, 30),
+    validite_devis_jours: entierDepuisTexte(
+      formulaire.validite_devis_jours,
+      30
+    ),
+    delai_paiement_jours: entierDepuisTexte(
+      formulaire.delai_paiement_jours,
+      30
+    ),
+
+    prefixe_devis: valeurTexte(formulaire.prefixe_devis, "DEV"),
+    prefixe_facture: valeurTexte(formulaire.prefixe_facture, "FAC"),
+
+    numerotation_devis_auto: formulaire.numerotation_devis_auto,
+    numerotation_factures_auto: formulaire.numerotation_factures_auto,
+
+    conditions_devis: formulaire.conditions_devis.trim(),
+    conditions_factures: formulaire.conditions_factures.trim(),
+    mention_retard: formulaire.mention_retard.trim(),
+    footer_documents: formulaire.footer_documents.trim(),
+    afficher_logo_documents: formulaire.afficher_logo_documents,
+
+    email_objet_devis: formulaire.email_objet_devis.trim(),
+    email_message_devis: formulaire.email_message_devis.trim(),
+    email_objet_facture: formulaire.email_objet_facture.trim(),
+    email_message_facture: formulaire.email_message_facture.trim(),
+    email_copie_entreprise: formulaire.email_copie_entreprise,
+    email_copie_adresse: formulaire.email_copie_adresse.trim() || null,
+  };
 }
 
-function nettoyerTexte(valeur: string) {
-  const texte = valeur.trim();
-  return texte.length > 0 ? texte : null;
-}
-
-function nombreDepuisTexte(valeur: string, defaut: number) {
-  const texte = String(valeur || "")
-    .replace(",", ".")
-    .replace(/\s/g, "")
-    .trim();
-
-  const nombre = Number.parseFloat(texte);
-
-  return Number.isFinite(nombre) ? nombre : defaut;
-}
-
-function entierDepuisTexte(valeur: string, defaut: number) {
-  const nombre = nombreDepuisTexte(valeur, defaut);
-  return Math.max(0, Math.round(nombre));
-}
-
-function formatPourcentage(valeur: string) {
-  return `${nombreDepuisTexte(valeur, 0)} %`;
+function BlocAideVariables() {
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+      <p className="font-bold">Variables disponibles dans les emails</p>
+      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+        <p>
+          <span className="font-semibold">{"{numero}"}</span> : numéro du
+          document
+        </p>
+        <p>
+          <span className="font-semibold">{"{entreprise}"}</span> : nom de
+          l’entreprise
+        </p>
+        <p>
+          <span className="font-semibold">{"{client}"}</span> : nom du client
+        </p>
+        <p>
+          <span className="font-semibold">{"{objet}"}</span> : objet du document
+        </p>
+        <p>
+          <span className="font-semibold">{"{total_ttc}"}</span> : total TTC
+        </p>
+        <p>
+          <span className="font-semibold">{"{date}"}</span> : date du document
+        </p>
+        <p>
+          <span className="font-semibold">{"{validite}"}</span> : validité du
+          devis
+        </p>
+        <p>
+          <span className="font-semibold">{"{echeance}"}</span> : échéance de
+          facture
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function ParametresChefPage() {
-  const [entrepriseId, setEntrepriseId] = useState("");
-  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
   const [entreprise, setEntreprise] = useState<Entreprise | null>(null);
-  const [parametres, setParametres] = useState<EntrepriseParametres | null>(
-    null
-  );
+  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
+  const [parametresExistants, setParametresExistants] =
+    useState<EntrepriseParametres | null>(null);
 
   const [formulaire, setFormulaire] =
     useState<FormulaireParametres>(formulaireDefaut);
 
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
-
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
@@ -171,172 +358,107 @@ export default function ParametresChefPage() {
         !resultat.contexte?.entreprise?.id
       ) {
         setMessageErreur(
-          "Impossible de charger vos paramètres. Veuillez vous reconnecter."
+          "Impossible de charger les paramètres. Veuillez vous reconnecter."
         );
         setChargement(false);
         return;
       }
 
-      const profilConnecte = resultat.contexte.profil as ProfilUtilisateur;
+      const profilCharge = resultat.contexte.profil as ProfilUtilisateur;
       const entrepriseChargee = resultat.contexte.entreprise as Entreprise;
-      const idEntreprise = entrepriseChargee.id;
 
-      if (profilConnecte.role !== "chef") {
+      if (profilCharge.role !== "chef") {
         setMessageErreur("Cette page est réservée au chef d’entreprise.");
         setChargement(false);
         return;
       }
 
-      setProfil(profilConnecte);
+      setProfil(profilCharge);
       setEntreprise(entrepriseChargee);
-      setEntrepriseId(idEntreprise);
 
-      await chargerParametres(idEntreprise);
-    } catch (error) {
+      const { data, error } = await supabase
+        .from("entreprise_parametres")
+        .select("*")
+        .eq("entreprise_id", entrepriseChargee.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const parametres = (data || null) as EntrepriseParametres | null;
+
+      setParametresExistants(parametres);
+      setFormulaire(formulaireDepuisParametres(parametres));
+    } catch (error: any) {
       console.error("Erreur chargement paramètres :", error);
-      setMessageErreur("Une erreur est survenue pendant le chargement.");
+      setMessageErreur(
+        error?.message || "Impossible de charger les paramètres."
+      );
     } finally {
       setChargement(false);
     }
   }
 
-  async function chargerParametres(idEntreprise = entrepriseId) {
-    if (!idEntreprise) return;
-
-    const { data, error } = await supabase
-      .from("entreprise_parametres")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Erreur chargement paramètres entreprise :", error);
-      setMessageErreur(
-        error.message || "Impossible de charger les paramètres entreprise."
-      );
-      return;
-    }
-
-    if (!data) {
-      setParametres(null);
-      setFormulaire(formulaireDefaut());
-      return;
-    }
-
-    const donnees = data as EntrepriseParametres;
-
-    setParametres(donnees);
-
-    setFormulaire({
-      tva_defaut: nombreVersTexte(donnees.tva_defaut, "20"),
-      acompte_defaut: nombreVersTexte(donnees.acompte_defaut, "30"),
-
-      validite_devis_jours: nombreVersTexte(
-        donnees.validite_devis_jours,
-        "30"
-      ),
-      delai_paiement_jours: nombreVersTexte(
-        donnees.delai_paiement_jours,
-        "30"
-      ),
-
-      prefixe_devis: valeurTexte(donnees.prefixe_devis, "DEV"),
-      prefixe_facture: valeurTexte(donnees.prefixe_facture, "FAC"),
-
-      numerotation_devis_auto: donnees.numerotation_devis_auto ?? true,
-      numerotation_factures_auto: donnees.numerotation_factures_auto ?? true,
-
-      conditions_devis: valeurTexte(
-        donnees.conditions_devis,
-        CONDITIONS_DEVIS_DEFAUT
-      ),
-      conditions_factures: valeurTexte(
-        donnees.conditions_factures,
-        CONDITIONS_FACTURES_DEFAUT
-      ),
-      mention_retard: valeurTexte(
-        donnees.mention_retard,
-        MENTION_RETARD_DEFAUT
-      ),
-      footer_documents: valeurTexte(
-        donnees.footer_documents,
-        FOOTER_DOCUMENTS_DEFAUT
-      ),
-
-      afficher_logo_documents: donnees.afficher_logo_documents ?? true,
-    });
-  }
-
-  function modifierChamp(
-    champ: keyof FormulaireParametres,
-    valeur: string | boolean
+  function modifierChamp<K extends keyof FormulaireParametres>(
+    champ: K,
+    valeur: FormulaireParametres[K]
   ) {
-    setFormulaire(
-      (ancien) =>
-        ({
-          ...ancien,
-          [champ]: valeur,
-        } as FormulaireParametres)
-    );
-  }
-async function enregistrerParametres() {
-  if (!entrepriseId) {
-    setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
-    return;
+    setFormulaire((ancien) => ({
+      ...ancien,
+      [champ]: valeur,
+    }));
   }
 
-  try {
-    setEnregistrement(true);
-    setMessageErreur("");
-    setMessageSucces("");
+  async function enregistrerParametres() {
+    if (!entreprise?.id || !profil?.id) {
+      setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
+      return;
+    }
 
-    const { data, error } = await supabase.rpc(
-      "enregistrer_parametres_entreprise",
-      {
-        p_entreprise_id: entrepriseId,
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
 
-        p_tva_defaut: nombreDepuisTexte(formulaire.tva_defaut, 20),
-        p_acompte_defaut: nombreDepuisTexte(formulaire.acompte_defaut, 30),
+      const payload = {
+        entreprise_id: entreprise.id,
+        ...construirePayload(formulaire),
+      };
 
-        p_validite_devis_jours: entierDepuisTexte(
-          formulaire.validite_devis_jours,
-          30
-        ),
-        p_delai_paiement_jours: entierDepuisTexte(
-          formulaire.delai_paiement_jours,
-          30
-        ),
+      if (parametresExistants?.entreprise_id) {
+        const { data, error } = await supabase
+          .from("entreprise_parametres")
+          .update(payload)
+          .eq("entreprise_id", entreprise.id)
+          .select("*")
+          .maybeSingle();
 
-        p_prefixe_devis: nettoyerTexte(formulaire.prefixe_devis) || "DEV",
-        p_prefixe_facture: nettoyerTexte(formulaire.prefixe_facture) || "FAC",
+        if (error) throw error;
 
-        p_numerotation_devis_auto: formulaire.numerotation_devis_auto,
-        p_numerotation_factures_auto: formulaire.numerotation_factures_auto,
+        setParametresExistants((data || payload) as EntrepriseParametres);
+      } else {
+        const { data, error } = await supabase
+          .from("entreprise_parametres")
+          .insert(payload)
+          .select("*")
+          .maybeSingle();
 
-        p_conditions_devis: nettoyerTexte(formulaire.conditions_devis),
-        p_conditions_factures: nettoyerTexte(formulaire.conditions_factures),
-        p_mention_retard: nettoyerTexte(formulaire.mention_retard),
-        p_footer_documents: nettoyerTexte(formulaire.footer_documents),
+        if (error) throw error;
 
-        p_afficher_logo_documents: formulaire.afficher_logo_documents,
+        setParametresExistants((data || payload) as EntrepriseParametres);
       }
-    );
 
-    if (error) throw error;
-
-    setParametres(data as EntrepriseParametres);
-    setMessageSucces("Paramètres entreprise enregistrés avec succès.");
-  } catch (error: any) {
-    console.error("Erreur enregistrement paramètres :", error);
-    setMessageErreur(
-      error?.message || "Impossible d’enregistrer les paramètres."
-    );
-  } finally {
-    setEnregistrement(false);
+      setMessageSucces("Paramètres enregistrés avec succès.");
+    } catch (error: any) {
+      console.error("Erreur enregistrement paramètres :", error);
+      setMessageErreur(
+        error?.message || "Impossible d’enregistrer les paramètres."
+      );
+    } finally {
+      setEnregistrement(false);
+    }
   }
-}
 
-  function reinitialiserTextes() {
+  function restaurerDocuments() {
     setFormulaire((ancien) => ({
       ...ancien,
       conditions_devis: CONDITIONS_DEVIS_DEFAUT,
@@ -345,7 +467,23 @@ async function enregistrerParametres() {
       footer_documents: FOOTER_DOCUMENTS_DEFAUT,
     }));
 
-    setMessageSucces("Textes par défaut restaurés. Pensez à enregistrer.");
+    setMessageSucces(
+      "Textes documents restaurés. Pensez à enregistrer les paramètres."
+    );
+  }
+
+  function restaurerEmails() {
+    setFormulaire((ancien) => ({
+      ...ancien,
+      email_objet_devis: EMAIL_OBJET_DEVIS_DEFAUT,
+      email_message_devis: EMAIL_MESSAGE_DEVIS_DEFAUT,
+      email_objet_facture: EMAIL_OBJET_FACTURE_DEFAUT,
+      email_message_facture: EMAIL_MESSAGE_FACTURE_DEFAUT,
+    }));
+
+    setMessageSucces(
+      "Modèles email restaurés. Pensez à enregistrer les paramètres."
+    );
   }
 
   if (chargement) {
@@ -359,7 +497,7 @@ async function enregistrerParametres() {
             Chargement des paramètres...
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Récupération des réglages entreprise.
+            Récupération de la configuration entreprise.
           </p>
         </div>
       </div>
@@ -370,13 +508,17 @@ async function enregistrerParametres() {
     <div className="space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-medium text-emerald-700">Arboboard</p>
-        <h1 className="mt-1 text-3xl font-bold text-slate-950">
-          Paramètres entreprise
-        </h1>
+        <h1 className="mt-1 text-3xl font-bold text-slate-950">Paramètres</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Configurez les valeurs par défaut utilisées pour vos devis, factures et
-          futurs documents PDF.
+          Configurez les réglages utilisés pour vos devis, factures, documents
+          PDF et emails clients.
         </p>
+
+        {entreprise?.nom_entreprise && (
+          <p className="mt-3 text-sm font-semibold text-slate-800">
+            Entreprise : {entreprise.nom_entreprise}
+          </p>
+        )}
       </section>
 
       {messageErreur && (
@@ -391,23 +533,22 @@ async function enregistrerParametres() {
         </div>
       )}
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
+      <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5">
               <h2 className="text-lg font-bold text-slate-950">
-                Réglages financiers
+                Réglages généraux
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Ces valeurs serviront de base pour la création des prochains
-                devis et factures.
+                Valeurs par défaut utilisées lors de la création des documents.
               </p>
             </div>
 
-            <div className="grid gap-5 p-5 md:grid-cols-2">
+            <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  TVA par défaut
+                  TVA par défaut %
                 </label>
                 <input
                   value={formulaire.tva_defaut}
@@ -417,14 +558,11 @@ async function enregistrerParametres() {
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   placeholder="20"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Exemple : 20 pour 20 %.
-                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Acompte par défaut
+                  Acompte par défaut %
                 </label>
                 <input
                   value={formulaire.acompte_defaut}
@@ -434,14 +572,11 @@ async function enregistrerParametres() {
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   placeholder="30"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Exemple : 30 pour 30 % à la signature.
-                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Validité devis
+                  Validité devis jours
                 </label>
                 <input
                   value={formulaire.validite_devis_jours}
@@ -451,14 +586,11 @@ async function enregistrerParametres() {
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   placeholder="30"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Durée en jours avant expiration du devis.
-                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Délai paiement facture
+                  Paiement facture jours
                 </label>
                 <input
                   value={formulaire.delai_paiement_jours}
@@ -468,9 +600,6 @@ async function enregistrerParametres() {
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   placeholder="30"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Nombre de jours avant échéance.
-                </p>
               </div>
             </div>
           </div>
@@ -478,87 +607,89 @@ async function enregistrerParametres() {
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5">
               <h2 className="text-lg font-bold text-slate-950">
-                Numérotation documents
+                Numérotation
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Ces préfixes seront utilisés pour la numérotation propre des
-                devis et factures.
+                Préfixes et génération automatique des numéros.
               </p>
             </div>
 
-            <div className="grid gap-5 p-5 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Préfixe devis
-                </label>
-                <input
-                  value={formulaire.prefixe_devis}
-                  onChange={(event) =>
-                    modifierChamp("prefixe_devis", event.target.value)
-                  }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  placeholder="DEV"
-                />
+            <div className="space-y-5 p-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Préfixe devis
+                  </label>
+                  <input
+                    value={formulaire.prefixe_devis}
+                    onChange={(event) =>
+                      modifierChamp("prefixe_devis", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="DEV"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Préfixe facture
+                  </label>
+                  <input
+                    value={formulaire.prefixe_facture}
+                    onChange={(event) =>
+                      modifierChamp("prefixe_facture", event.target.value)
+                    }
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="FAC"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Préfixe facture
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={formulaire.numerotation_devis_auto}
+                    onChange={(event) =>
+                      modifierChamp(
+                        "numerotation_devis_auto",
+                        event.target.checked
+                      )
+                    }
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span>
+                    <span className="block font-semibold text-slate-950">
+                      Numérotation devis automatique
+                    </span>
+                    <span className="mt-1 block text-sm text-slate-500">
+                      Génère un numéro à chaque nouveau devis.
+                    </span>
+                  </span>
                 </label>
-                <input
-                  value={formulaire.prefixe_facture}
-                  onChange={(event) =>
-                    modifierChamp("prefixe_facture", event.target.value)
-                  }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  placeholder="FAC"
-                />
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={formulaire.numerotation_factures_auto}
+                    onChange={(event) =>
+                      modifierChamp(
+                        "numerotation_factures_auto",
+                        event.target.checked
+                      )
+                    }
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span>
+                    <span className="block font-semibold text-slate-950">
+                      Numérotation factures automatique
+                    </span>
+                    <span className="mt-1 block text-sm text-slate-500">
+                      Génère un numéro à chaque nouvelle facture.
+                    </span>
+                  </span>
+                </label>
               </div>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4">
-                <input
-                  type="checkbox"
-                  checked={formulaire.numerotation_devis_auto}
-                  onChange={(event) =>
-                    modifierChamp(
-                      "numerotation_devis_auto",
-                      event.target.checked
-                    )
-                  }
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-800">
-                    Numérotation devis automatique
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    Exemple futur : {formulaire.prefixe_devis || "DEV"}-2026-0001
-                  </span>
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4">
-                <input
-                  type="checkbox"
-                  checked={formulaire.numerotation_factures_auto}
-                  onChange={(event) =>
-                    modifierChamp(
-                      "numerotation_factures_auto",
-                      event.target.checked
-                    )
-                  }
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-800">
-                    Numérotation factures automatique
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    Exemple futur : {formulaire.prefixe_facture || "FAC"}
-                    -2026-0001
-                  </span>
-                </span>
-              </label>
             </div>
           </div>
 
@@ -566,18 +697,19 @@ async function enregistrerParametres() {
             <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-950">
-                  Textes par défaut
+                  Textes documents PDF
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Ces textes seront réutilisés dans les PDF devis et factures.
+                  Conditions et mentions affichées dans les devis et factures.
                 </p>
               </div>
 
               <button
-                onClick={reinitialiserTextes}
+                type="button"
+                onClick={restaurerDocuments}
                 className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Restaurer textes
+                Restaurer
               </button>
             </div>
 
@@ -591,7 +723,7 @@ async function enregistrerParametres() {
                   onChange={(event) =>
                     modifierChamp("conditions_devis", event.target.value)
                   }
-                  rows={5}
+                  rows={4}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>
@@ -605,7 +737,7 @@ async function enregistrerParametres() {
                   onChange={(event) =>
                     modifierChamp("conditions_factures", event.target.value)
                   }
-                  rows={5}
+                  rows={4}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>
@@ -619,26 +751,25 @@ async function enregistrerParametres() {
                   onChange={(event) =>
                     modifierChamp("mention_retard", event.target.value)
                   }
-                  rows={4}
+                  rows={3}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Pied de page documents
+                  Footer documents
                 </label>
-                <textarea
+                <input
                   value={formulaire.footer_documents}
                   onChange={(event) =>
                     modifierChamp("footer_documents", event.target.value)
                   }
-                  rows={3}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4">
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
                 <input
                   type="checkbox"
                   checked={formulaire.afficher_logo_documents}
@@ -648,118 +779,162 @@ async function enregistrerParametres() {
                       event.target.checked
                     )
                   }
-                  className="h-4 w-4 rounded border-slate-300"
+                  className="mt-1 h-4 w-4"
                 />
                 <span>
-                  <span className="block text-sm font-semibold text-slate-800">
-                    Afficher le logo sur les documents
+                  <span className="block font-semibold text-slate-950">
+                    Afficher l’icône/logo dans les documents
                   </span>
-                  <span className="text-xs text-slate-500">
-                    Option préparée pour les futurs PDF.
+                  <span className="mt-1 block text-sm text-slate-500">
+                    Affiche l’icône verte dans les PDF devis et factures.
                   </span>
                 </span>
               </label>
             </div>
           </div>
 
-          <button
-            onClick={enregistrerParametres}
-            disabled={enregistrement}
-            className="w-full rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {enregistrement
-              ? "Enregistrement des paramètres..."
-              : "Enregistrer les paramètres entreprise"}
-          </button>
+          <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">
+                  Emails documents
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Modèles utilisés lors de l’envoi des devis et factures par
+                  email.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={restaurerEmails}
+                className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Restaurer
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <BlocAideVariables />
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Objet email devis
+                </label>
+                <input
+                  value={formulaire.email_objet_devis}
+                  onChange={(event) =>
+                    modifierChamp("email_objet_devis", event.target.value)
+                  }
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Message email devis
+                </label>
+                <textarea
+                  value={formulaire.email_message_devis}
+                  onChange={(event) =>
+                    modifierChamp("email_message_devis", event.target.value)
+                  }
+                  rows={7}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Objet email facture
+                </label>
+                <input
+                  value={formulaire.email_objet_facture}
+                  onChange={(event) =>
+                    modifierChamp("email_objet_facture", event.target.value)
+                  }
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Message email facture
+                </label>
+                <textarea
+                  value={formulaire.email_message_facture}
+                  onChange={(event) =>
+                    modifierChamp("email_message_facture", event.target.value)
+                  }
+                  rows={7}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 p-4 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={formulaire.email_copie_entreprise}
+                  onChange={(event) =>
+                    modifierChamp(
+                      "email_copie_entreprise",
+                      event.target.checked
+                    )
+                  }
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <span className="block font-semibold text-slate-950">
+                    Envoyer une copie à l’entreprise
+                  </span>
+                  <span className="mt-1 block text-sm text-slate-500">
+                    Envoie une copie des devis/factures envoyés à l’adresse
+                    ci-dessous.
+                  </span>
+                </span>
+              </label>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Email de copie
+                </label>
+                <input
+                  value={formulaire.email_copie_adresse}
+                  onChange={(event) =>
+                    modifierChamp("email_copie_adresse", event.target.value)
+                  }
+                  placeholder="contact@entreprise.fr"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <aside className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Entreprise</h2>
+          <div className="sticky top-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="font-bold text-slate-950">Enregistrement</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Après modification, clique sur le bouton ci-dessous pour appliquer
+              les changements.
+            </p>
 
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Nom</span>
-                <span className="font-semibold text-slate-950">
-                  {entreprise?.nom_entreprise || "—"}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Email</span>
-                <span className="font-semibold text-slate-950">
-                  {entreprise?.email_contact || "—"}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Téléphone</span>
-                <span className="font-semibold text-slate-950">
-                  {entreprise?.telephone || "—"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Résumé paramètres</h2>
-
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">TVA</span>
-                <span className="font-semibold text-slate-950">
-                  {formatPourcentage(formulaire.tva_defaut)}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Acompte</span>
-                <span className="font-semibold text-slate-950">
-                  {formatPourcentage(formulaire.acompte_defaut)}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Validité devis</span>
-                <span className="font-semibold text-slate-950">
-                  {entierDepuisTexte(formulaire.validite_devis_jours, 30)} jours
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Délai facture</span>
-                <span className="font-semibold text-slate-950">
-                  {entierDepuisTexte(formulaire.delai_paiement_jours, 30)} jours
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Préfixes</span>
-                <span className="font-semibold text-slate-950">
-                  {formulaire.prefixe_devis || "DEV"} /{" "}
-                  {formulaire.prefixe_facture || "FAC"}
-                </span>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={enregistrerParametres}
+              disabled={enregistrement}
+              className="mt-5 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {enregistrement ? "Enregistrement..." : "Enregistrer"}
+            </button>
           </div>
 
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
-            <p className="font-bold text-emerald-900">Important</p>
+            <p className="font-bold text-emerald-900">Conseil</p>
             <p className="mt-2 text-sm text-emerald-800">
-              Cette page prépare la génération propre des devis PDF et factures
-              PDF. Les paramètres seront utilisés dans les prochaines étapes.
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">État</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              {parametres
-                ? "Des paramètres existent déjà pour cette entreprise."
-                : "Aucun paramètre enregistré pour le moment. Les valeurs par défaut sont affichées."}
-            </p>
-            <p className="mt-2 text-xs text-slate-400">
-              Utilisateur : {profil?.email || "—"}
+              Les modèles email peuvent utiliser les variables affichées dans la
+              section Emails documents. Elles seront remplacées automatiquement
+              lors de l’envoi au client.
             </p>
           </div>
         </aside>

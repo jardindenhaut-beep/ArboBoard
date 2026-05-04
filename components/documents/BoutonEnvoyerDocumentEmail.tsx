@@ -23,19 +23,14 @@ export default function BoutonEnvoyerDocumentEmail({
   documentId,
   numero,
   defaultEmail,
-  defaultMessage,
   onEnvoye,
 }: Props) {
   const [modalOuverte, setModalOuverte] = useState(false);
   const [emailDestinataire, setEmailDestinataire] = useState(
     defaultEmail || ""
   );
-  const [message, setMessage] = useState(
-    defaultMessage ||
-      (typeDocument === "devis"
-        ? "Bonjour,\n\nVeuillez trouver ci-dessous votre devis.\n\nCordialement."
-        : "Bonjour,\n\nVeuillez trouver ci-dessous votre facture.\n\nCordialement.")
-  );
+
+  const [messagePersonnalise, setMessagePersonnalise] = useState("");
 
   const [chargement, setChargement] = useState(false);
   const [messageErreur, setMessageErreur] = useState("");
@@ -45,6 +40,7 @@ export default function BoutonEnvoyerDocumentEmail({
 
   function ouvrirModal() {
     setEmailDestinataire(defaultEmail || "");
+    setMessagePersonnalise("");
     setMessageErreur("");
     setMessageSucces("");
     setModalOuverte(true);
@@ -87,7 +83,7 @@ export default function BoutonEnvoyerDocumentEmail({
           typeDocument,
           documentId,
           emailDestinataire: emailNettoye,
-          message: message.trim(),
+          message: messagePersonnalise.trim(),
         }),
       });
 
@@ -183,14 +179,23 @@ export default function BoutonEnvoyerDocumentEmail({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Message accompagnant l’email
+                  Message personnalisé facultatif
                 </label>
                 <textarea
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
+                  value={messagePersonnalise}
+                  onChange={(event) =>
+                    setMessagePersonnalise(event.target.value)
+                  }
                   rows={6}
+                  placeholder={`Laissez vide pour utiliser automatiquement le modèle ${
+                    typeDocument === "devis" ? "devis" : "facture"
+                  } enregistré dans Paramètres.`}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
+                <p className="mt-1 text-xs text-slate-500">
+                  Si ce champ est vide, Arboboard utilise le modèle email défini
+                  dans Paramètres.
+                </p>
               </div>
             </div>
 

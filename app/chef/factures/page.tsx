@@ -238,7 +238,8 @@ function badgeStatut(statut: string | null | undefined) {
   if (statut === "en_retard") return "bg-red-50 text-red-700 border-red-200";
   if (statut === "annulee")
     return "bg-orange-50 text-orange-700 border-orange-200";
-  if (statut === "archive") return "bg-slate-100 text-slate-600 border-slate-200";
+  if (statut === "archive")
+    return "bg-slate-100 text-slate-600 border-slate-200";
   return "bg-amber-50 text-amber-700 border-amber-200";
 }
 
@@ -329,7 +330,9 @@ export default function FacturesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [devisAcceptes, setDevisAcceptes] = useState<DevisAvecLignes[]>([]);
   const [factures, setFactures] = useState<FactureAvecLignes[]>([]);
-  const [parametres, setParametres] = useState<EntrepriseParametres | null>(null);
+  const [parametres, setParametres] = useState<EntrepriseParametres | null>(
+    null
+  );
 
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
@@ -353,10 +356,44 @@ export default function FacturesPage() {
     initialiserPage();
   }, []);
 
+  async function synchroniserRetardsFactures() {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        return;
+      }
+
+      const response = await fetch("/api/factures/synchroniser-retards", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const resultat = await response.json().catch(() => null);
+
+      if (!response.ok || !resultat?.success) {
+        console.warn("Synchronisation retards non effectuée :", resultat);
+        return;
+      }
+
+      if (resultat.total && resultat.total > 0) {
+        setMessageSucces(resultat.message || "Factures en retard mises à jour.");
+      }
+    } catch (error) {
+      console.warn("Erreur synchronisation retards factures :", error);
+    }
+  }
+
   async function initialiserPage() {
     try {
       setChargement(true);
       setMessageErreur("");
+      setMessageSucces("");
 
       const resultat = await chargerContexteEntreprise();
 
@@ -373,6 +410,8 @@ export default function FacturesPage() {
 
       const params = await chargerParametres(idEntreprise);
       setParametres(params);
+
+      await synchroniserRetardsFactures();
 
       await Promise.all([
         chargerClients(idEntreprise),
@@ -534,6 +573,7 @@ export default function FacturesPage() {
       brouillons: factures.filter((item) => item.statut === "brouillon").length,
       envoyees: factures.filter((item) => item.statut === "envoyee").length,
       payees: factures.filter((item) => item.statut === "payee").length,
+      retards: factures.filter((item) => item.statut === "en_retard").length,
       chiffreAffairesPaye,
       resteAPayer,
     };
@@ -1004,12 +1044,24 @@ export default function FacturesPage() {
           </p>
         </div>
 
-        <button
-          onClick={ouvrirCreation}
-          className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          + Créer une facture
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={async () => {
+              await synchroniserRetardsFactures();
+              await chargerFactures(entrepriseId);
+            }}
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Synchroniser retards
+          </button>
+
+          <button
+            onClick={ouvrirCreation}
+            className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+          >
+            + Créer une facture
+          </button>
+        </div>
       </section>
 
       {messageErreur && (
@@ -1052,10 +1104,10 @@ export default function FacturesPage() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-slate-400">
-            Payées
+            Retards
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.payees}
+          <p className="mt-2 text-2xl font-bold text-red-600">
+            {statistiques.retards}
           </p>
         </div>
 
@@ -1169,7 +1221,7 @@ export default function FacturesPage() {
 
                       <td className="px-4 py-4 align-top">
                         <p className="font-medium text-slate-800">
-                          {item.client_nom || "—"}
+                          {item.client_nom || client?.email || "—"}
                         </p>
                       </td>
 
@@ -1189,6 +1241,9 @@ export default function FacturesPage() {
                           TTC : {formatMontant(item.total_ttc)}
                         </p>
                         <p className="text-xs text-slate-500">
+                          Payé : {formatMontant(item.montant_paye)}
+                        </p>
+                        <p className="text-xs font-semibold text-red-600">
                           Reste : {formatMontant(item.reste_a_payer)}
                         </p>
                       </td>
@@ -1224,25 +1279,31 @@ export default function FacturesPage() {
                             }.\n\nCordialement.`}
                             onEnvoye={() => chargerFactures(entrepriseId)}
                           />
+
                           <HistoriqueEmailsDocument
-  typeDocument="facture"
-  documentId={item.id}
-  numero={item.numero}
-/>
-<BoutonEncaisserFacture
-  factureId={item.id}
-  numero={item.numero}
-  statut={item.statut}
-  totalTtc={item.total_ttc}
-  montantPaye={item.montant_paye}
-  resteAPayer={item.reste_a_payer}
-  onEncaisse={() => chargerFactures(entrepriseId)}
-/>
-<HistoriquePaiementsFacture
-  factureId={item.id}
-  numero={item.numero}
-  onPaiementsModifies={() => chargerFactures(entrepriseId)}
-/>
+                            typeDocument="facture"
+                            documentId={item.id}
+                            numero={item.numero}
+                          />
+
+                          <BoutonEncaisserFacture
+                            factureId={item.id}
+                            numero={item.numero}
+                            statut={item.statut}
+                            totalTtc={item.total_ttc}
+                            montantPaye={item.montant_paye}
+                            resteAPayer={item.reste_a_payer}
+                            onEncaisse={() => chargerFactures(entrepriseId)}
+                          />
+
+                          <HistoriquePaiementsFacture
+                            factureId={item.id}
+                            numero={item.numero}
+                            onPaiementsModifies={() =>
+                              chargerFactures(entrepriseId)
+                            }
+                          />
+
                           <button
                             onClick={() => ouvrirEdition(item)}
                             className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
@@ -1265,7 +1326,9 @@ export default function FacturesPage() {
                           </button>
 
                           <button
-                            onClick={() => changerStatutFacture(item, "en_retard")}
+                            onClick={() =>
+                              changerStatutFacture(item, "en_retard")
+                            }
                             className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
                           >
                             Retard

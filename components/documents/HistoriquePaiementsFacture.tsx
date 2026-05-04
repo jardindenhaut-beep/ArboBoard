@@ -199,9 +199,11 @@ export default function HistoriquePaiementsFacture({
                 <h2 className="text-xl font-bold text-slate-950">
                   Historique des paiements
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
                   {numero ? `Facture ${numero}` : "Facture"}
                 </p>
+
                 <p className="mt-2 text-sm font-semibold text-emerald-700">
                   Total encaissé : {formatMontant(totalEncaisse)}
                 </p>
@@ -210,7 +212,8 @@ export default function HistoriquePaiementsFacture({
               <button
                 type="button"
                 onClick={fermerHistorique}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                disabled={!!suppressionId}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Fermer
               </button>

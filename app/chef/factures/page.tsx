@@ -5,6 +5,7 @@ import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
+import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
 
 type StatutFacture =
   | "brouillon"
@@ -1226,6 +1227,15 @@ export default function FacturesPage() {
   typeDocument="facture"
   documentId={item.id}
   numero={item.numero}
+/>
+<BoutonEncaisserFacture
+  factureId={item.id}
+  numero={item.numero}
+  statut={item.statut}
+  totalTtc={item.total_ttc}
+  montantPaye={item.montant_paye}
+  resteAPayer={item.reste_a_payer}
+  onEncaisse={() => chargerFactures(entrepriseId)}
 />
 
                           <button

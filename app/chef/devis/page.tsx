@@ -5,6 +5,7 @@ import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
+import BoutonFacturerDevis from "@/components/documents/BoutonFacturerDevis";
 
 type StatutDevis = "brouillon" | "envoye" | "accepte" | "refuse" | "archive";
 
@@ -998,6 +999,12 @@ export default function DevisPage() {
   typeDocument="devis"
   documentId={item.id}
   numero={item.numero}
+/>
+<BoutonFacturerDevis
+  devisId={item.id}
+  numero={item.numero}
+  statut={item.statut}
+  onFacture={() => chargerDevis(entrepriseId)}
 />
 
                           <button

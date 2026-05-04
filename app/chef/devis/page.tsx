@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
+import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
 
 type StatutDevis = "brouillon" | "envoye" | "accepte" | "refuse" | "archive";
 
@@ -993,6 +994,11 @@ export default function DevisPage() {
                             }.\n\nCordialement.`}
                             onEnvoye={() => chargerDevis(entrepriseId)}
                           />
+                          <HistoriqueEmailsDocument
+  typeDocument="devis"
+  documentId={item.id}
+  numero={item.numero}
+/>
 
                           <button
                             onClick={() => ouvrirEdition(item)}

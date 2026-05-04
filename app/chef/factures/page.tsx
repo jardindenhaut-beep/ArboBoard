@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
+import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
 
 type StatutFacture =
   | "brouillon"
@@ -1221,6 +1222,11 @@ export default function FacturesPage() {
                             }.\n\nCordialement.`}
                             onEnvoye={() => chargerFactures(entrepriseId)}
                           />
+                          <HistoriqueEmailsDocument
+  typeDocument="facture"
+  documentId={item.id}
+  numero={item.numero}
+/>
 
                           <button
                             onClick={() => ouvrirEdition(item)}

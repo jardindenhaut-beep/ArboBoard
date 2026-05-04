@@ -1241,6 +1241,7 @@ export default function FacturesPage() {
 <HistoriquePaiementsFacture
   factureId={item.id}
   numero={item.numero}
+  onPaiementsModifies={() => chargerFactures(entrepriseId)}
 />
                           <button
                             onClick={() => ouvrirEdition(item)}

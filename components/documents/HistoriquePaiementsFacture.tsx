@@ -19,6 +19,7 @@ type PaiementFacture = {
 type Props = {
   factureId: string;
   numero?: string | null;
+  onPaiementsModifies?: () => void | Promise<void>;
 };
 
 function formatMontant(montant: number | null | undefined) {
@@ -71,11 +72,14 @@ function libelleMode(mode: string | null | undefined) {
 export default function HistoriquePaiementsFacture({
   factureId,
   numero,
+  onPaiementsModifies,
 }: Props) {
   const [modalOuverte, setModalOuverte] = useState(false);
   const [chargement, setChargement] = useState(false);
+  const [suppressionId, setSuppressionId] = useState("");
   const [paiements, setPaiements] = useState<PaiementFacture[]>([]);
   const [messageErreur, setMessageErreur] = useState("");
+  const [messageSucces, setMessageSucces] = useState("");
 
   async function ouvrirHistorique() {
     setModalOuverte(true);
@@ -83,6 +87,7 @@ export default function HistoriquePaiementsFacture({
   }
 
   function fermerHistorique() {
+    if (suppressionId) return;
     setModalOuverte(false);
   }
 
@@ -90,6 +95,7 @@ export default function HistoriquePaiementsFacture({
     try {
       setChargement(true);
       setMessageErreur("");
+      setMessageSucces("");
 
       const { data, error } = await supabase
         .from("factures_paiements")
@@ -108,6 +114,65 @@ export default function HistoriquePaiementsFacture({
       );
     } finally {
       setChargement(false);
+    }
+  }
+
+  async function supprimerPaiement(paiement: PaiementFacture) {
+    const confirmation = window.confirm(
+      `Supprimer ce paiement de ${formatMontant(
+        paiement.montant
+      )} ? La facture sera recalculée automatiquement.`
+    );
+
+    if (!confirmation) return;
+
+    try {
+      setSuppressionId(paiement.id);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setMessageErreur("Session expirée. Veuillez vous reconnecter.");
+        return;
+      }
+
+      const response = await fetch("/api/factures/supprimer-paiement", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          paiementId: paiement.id,
+        }),
+      });
+
+      const resultat = await response.json().catch(() => null);
+
+      if (!response.ok || !resultat?.success) {
+        throw new Error(
+          resultat?.error || "Impossible de supprimer ce paiement."
+        );
+      }
+
+      setMessageSucces("Paiement supprimé avec succès.");
+
+      await chargerPaiements();
+
+      if (onPaiementsModifies) {
+        await onPaiementsModifies();
+      }
+    } catch (error: any) {
+      console.error("Erreur suppression paiement :", error);
+      setMessageErreur(
+        error?.message || "Impossible de supprimer ce paiement."
+      );
+    } finally {
+      setSuppressionId("");
     }
   }
 
@@ -155,6 +220,12 @@ export default function HistoriquePaiementsFacture({
               {messageErreur && (
                 <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {messageErreur}
+                </div>
+              )}
+
+              {messageSucces && (
+                <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {messageSucces}
                 </div>
               )}
 
@@ -206,9 +277,22 @@ export default function HistoriquePaiementsFacture({
                           </p>
                         </div>
 
-                        <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                          Encaissé
-                        </span>
+                        <div className="flex flex-col items-start gap-2 sm:items-end">
+                          <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            Encaissé
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => supprimerPaiement(paiement)}
+                            disabled={suppressionId === paiement.id}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {suppressionId === paiement.id
+                              ? "Suppression..."
+                              : "Supprimer"}
+                          </button>
+                        </div>
                       </div>
 
                       {paiement.reference_paiement && (
@@ -242,7 +326,7 @@ export default function HistoriquePaiementsFacture({
               <button
                 type="button"
                 onClick={chargerPaiements}
-                disabled={chargement}
+                disabled={chargement || !!suppressionId}
                 className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {chargement ? "Actualisation..." : "Actualiser"}

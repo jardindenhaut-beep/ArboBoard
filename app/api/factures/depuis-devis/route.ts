@@ -100,30 +100,48 @@ function calculerTotauxDepuisLignes(lignes: any[]) {
   );
 }
 
+function echapperRegex(valeur: string) {
+  return valeur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function genererNumeroFacture(params: {
   supabaseAdmin: any;
   entrepriseId: string;
+  prefixeFacture?: string | null;
 }) {
-  const { supabaseAdmin, entrepriseId } = params;
+  const { supabaseAdmin, entrepriseId, prefixeFacture } = params;
 
-  const { data, error } = await supabaseAdmin.rpc(
-    "generer_numero_facture_entreprise",
-    {
-      p_entreprise_id: entrepriseId,
-    }
-  );
+  const prefixe = String(prefixeFacture || "FAC").trim() || "FAC";
+  const annee = new Date().getFullYear();
+
+  const { data, error } = await supabaseAdmin
+    .from("factures")
+    .select("numero")
+    .eq("entreprise_id", entrepriseId)
+    .ilike("numero", `${prefixe}-${annee}-%`);
 
   if (error) {
-    throw new Error(
-      error.message || "Impossible de générer le numéro de facture."
-    );
+    throw new Error(error.message || "Impossible de lire les factures existantes.");
   }
 
-  if (!data || typeof data !== "string") {
-    throw new Error("Numéro de facture invalide.");
+  const regex = new RegExp(`^${echapperRegex(prefixe)}-${annee}-(\\d+)$`);
+  let max = 0;
+
+  for (const facture of data || []) {
+    const numero = String(facture.numero || "");
+    const match = numero.match(regex);
+
+    if (match?.[1]) {
+      const valeur = Number.parseInt(match[1], 10);
+      if (Number.isFinite(valeur) && valeur > max) {
+        max = valeur;
+      }
+    }
   }
 
-  return data;
+  const prochainNumero = String(max + 1).padStart(4, "0");
+
+  return `${prefixe}-${annee}-${prochainNumero}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -323,6 +341,7 @@ export async function POST(request: NextRequest) {
     const numeroFacture = await genererNumeroFacture({
       supabaseAdmin,
       entrepriseId,
+      prefixeFacture: parametres?.prefixe_facture || "FAC",
     });
 
     const payloadFacture = {
@@ -332,7 +351,9 @@ export async function POST(request: NextRequest) {
       devis_id: devis.id,
       numero: numeroFacture,
       objet: nettoyerTexte(
-        devis.objet ? `Facture - ${devis.objet}` : "Facture suite devis accepté"
+        devis.objet
+          ? `Facture - ${devis.objet}`
+          : "Facture suite devis accepté"
       ),
       description: nettoyerTexte(devis.description),
       type_facture: "simple",

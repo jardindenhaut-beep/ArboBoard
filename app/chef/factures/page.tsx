@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
 import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
+import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
 
 type StatutFacture =
   | "brouillon"
@@ -1237,7 +1238,10 @@ export default function FacturesPage() {
   resteAPayer={item.reste_a_payer}
   onEncaisse={() => chargerFactures(entrepriseId)}
 />
-
+<HistoriquePaiementsFacture
+  factureId={item.id}
+  numero={item.numero}
+/>
                           <button
                             onClick={() => ouvrirEdition(item)}
                             className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"

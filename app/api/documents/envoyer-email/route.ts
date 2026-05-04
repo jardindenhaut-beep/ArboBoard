@@ -77,7 +77,6 @@ function infosLegalesEntreprise(entreprise: any) {
 
   if (entreprise?.forme_juridique) infos.push(entreprise.forme_juridique);
   if (entreprise?.siret) infos.push(`SIRET : ${entreprise.siret}`);
-
   if (entreprise?.numero_tva) {
     infos.push(`TVA intracommunautaire : ${entreprise.numero_tva}`);
   }
@@ -96,6 +95,29 @@ function echapperHtml(valeur: unknown) {
 
 function texteAvecRetours(valeur: unknown) {
   return echapperHtml(valeur).replaceAll("\n", "<br />");
+}
+
+function appliquerVariablesModele(
+  modele: string,
+  params: {
+    numero: string;
+    entreprise: string;
+    client: string;
+    objet: string;
+    total_ttc: string;
+    date: string;
+    echeance_ou_validite: string;
+  }
+) {
+  return String(modele || "")
+    .replaceAll("{numero}", params.numero)
+    .replaceAll("{entreprise}", params.entreprise)
+    .replaceAll("{client}", params.client)
+    .replaceAll("{objet}", params.objet)
+    .replaceAll("{total_ttc}", params.total_ttc)
+    .replaceAll("{date}", params.date)
+    .replaceAll("{echeance}", params.echeance_ou_validite)
+    .replaceAll("{validite}", params.echeance_ou_validite);
 }
 
 function construireLignesHtml(lignes: any[]) {
@@ -153,14 +175,13 @@ function construireEmailHtml(params: {
   client: any;
   document: any;
   lignes: any[];
-  message?: string;
+  message: string;
 }) {
   const { typeDocument, entreprise, client, document, lignes, message } = params;
 
   const estDevis = typeDocument === "devis";
   const titreDocument = estDevis ? "Devis" : "Facture";
   const numero = document.numero || "sans numéro";
-
   const nomEntreprise =
     entreprise?.nom_entreprise || entreprise?.slug || "Votre entreprise";
 
@@ -242,15 +263,9 @@ function construireEmailHtml(params: {
                 Bonjour ${echapperHtml(nomDuClient)},
               </p>
 
-              ${
-                message
-                  ? `<p style="margin:0 0 18px;line-height:1.6;font-size:14px;color:#334155;">${texteAvecRetours(
-                      message
-                    )}</p>`
-                  : `<p style="margin:0 0 18px;line-height:1.6;font-size:14px;color:#334155;">
-                      Veuillez trouver ci-dessous votre ${titreDocument.toLowerCase()}.
-                    </p>`
-              }
+              <p style="margin:0 0 18px;line-height:1.6;font-size:14px;color:#334155;">
+                ${texteAvecRetours(message)}
+              </p>
 
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0;">
                 <div style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;">
@@ -367,7 +382,7 @@ function construireEmailTexte(params: {
   entreprise: any;
   client: any;
   document: any;
-  message?: string;
+  message: string;
 }) {
   const { typeDocument, entreprise, client, document, message } = params;
   const titre = typeDocument === "devis" ? "Devis" : "Facture";
@@ -378,7 +393,7 @@ ${entreprise?.nom_entreprise || entreprise?.slug || ""}
 
 Bonjour ${nomClient(client, document)},
 
-${message || `Veuillez trouver ci-dessous votre ${titre.toLowerCase()}.`}
+${message}
 
 Objet : ${document.objet || ""}
 Total TTC : ${formatMontant(document.total_ttc)}
@@ -481,7 +496,7 @@ export async function POST(request: NextRequest) {
     const typeDocument = nettoyerTexte(body.typeDocument) as TypeDocument;
     const documentId = nettoyerTexte(body.documentId);
     const emailDestinataireManuel = nettoyerTexte(body.emailDestinataire);
-    const message = nettoyerTexte(body.message);
+    const messageManuel = nettoyerTexte(body.message);
 
     if (typeDocument !== "devis" && typeDocument !== "facture") {
       return NextResponse.json(
@@ -538,6 +553,12 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    const { data: parametres } = await supabaseAdmin
+      .from("entreprise_parametres")
+      .select("*")
+      .eq("entreprise_id", entrepriseId)
+      .maybeSingle();
 
     const tableDocument = typeDocument === "devis" ? "devis" : "factures";
     const tableLignes =
@@ -600,14 +621,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sujet =
+    const nomEntreprise =
+      entreprise.nom_entreprise || entreprise.slug || "Arboboard";
+
+    const numero = document.numero || "";
+    const nomDuClient = nomClient(client, document);
+    const objetDocument = document.objet || "";
+    const totalTtc = formatMontant(document.total_ttc);
+
+    const dateDocument =
       typeDocument === "devis"
-        ? `Votre devis ${document.numero || ""} - ${
-            entreprise.nom_entreprise || "Arboboard"
-          }`
-        : `Votre facture ${document.numero || ""} - ${
-            entreprise.nom_entreprise || "Arboboard"
-          }`;
+        ? formatDate(document.date_devis)
+        : formatDate(document.date_facture);
+
+    const echeanceOuValidite =
+      typeDocument === "devis"
+        ? formatDate(document.date_validite)
+        : formatDate(document.date_echeance);
+
+    const modeleObjet =
+      typeDocument === "devis"
+        ? parametres?.email_objet_devis ||
+          "Votre devis {numero} - {entreprise}"
+        : parametres?.email_objet_facture ||
+          "Votre facture {numero} - {entreprise}";
+
+    const modeleMessage =
+      typeDocument === "devis"
+        ? parametres?.email_message_devis ||
+          "Veuillez trouver ci-dessous votre devis {numero}.\n\nCordialement,\n{entreprise}"
+        : parametres?.email_message_facture ||
+          "Veuillez trouver ci-dessous votre facture {numero}.\n\nCordialement,\n{entreprise}";
+
+    const variablesModele = {
+      numero,
+      entreprise: nomEntreprise,
+      client: nomDuClient,
+      objet: objetDocument,
+      total_ttc: totalTtc,
+      date: dateDocument,
+      echeance_ou_validite: echeanceOuValidite,
+    };
+
+    const sujet = appliquerVariablesModele(modeleObjet, variablesModele);
+
+    const messageFinal =
+      messageManuel ||
+      appliquerVariablesModele(modeleMessage, variablesModele);
 
     const html = construireEmailHtml({
       typeDocument,
@@ -615,7 +675,7 @@ export async function POST(request: NextRequest) {
       client,
       document,
       lignes: lignes || [],
-      message,
+      message: messageFinal,
     });
 
     const text = construireEmailTexte({
@@ -623,8 +683,30 @@ export async function POST(request: NextRequest) {
       entreprise,
       client,
       document,
-      message,
+      message: messageFinal,
     });
+
+    const cc: string[] = [];
+
+    if (
+      parametres?.email_copie_entreprise === true &&
+      parametres?.email_copie_adresse &&
+      emailValide(parametres.email_copie_adresse)
+    ) {
+      cc.push(parametres.email_copie_adresse);
+    }
+
+    const payloadResend: any = {
+      from: fromEmail,
+      to: [emailDestinataire],
+      subject: sujet,
+      html,
+      text,
+    };
+
+    if (cc.length > 0) {
+      payloadResend.cc = cc;
+    }
 
     const reponseResend = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -632,13 +714,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: [emailDestinataire],
-        subject: sujet,
-        html,
-        text,
-      }),
+      body: JSON.stringify(payloadResend),
     });
 
     const resultatResend = await reponseResend.json().catch(() => null);
@@ -656,7 +732,7 @@ export async function POST(request: NextRequest) {
         documentId,
         emailDestinataire,
         sujet,
-        message,
+        message: messageFinal,
         statut: "erreur",
         resendId: resultatResend?.id || null,
         erreur: erreurResend,
@@ -679,7 +755,7 @@ export async function POST(request: NextRequest) {
       documentId,
       emailDestinataire,
       sujet,
-      message,
+      message: messageFinal,
       statut: "envoye",
       resendId: resultatResend?.id || null,
       erreur: null,
@@ -709,6 +785,7 @@ export async function POST(request: NextRequest) {
       message: "Email envoyé avec succès.",
       resendId: resultatResend?.id || null,
       destinataire: emailDestinataire,
+      copie: cc,
     });
   } catch (error: any) {
     console.error("Erreur route envoyer-email :", error);

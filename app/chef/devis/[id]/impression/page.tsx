@@ -299,6 +299,27 @@ export default function ImpressionDevisPage() {
             background: white !important;
           }
 
+          .print-header-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 280px !important;
+            gap: 2rem !important;
+            align-items: start !important;
+          }
+
+          .print-info-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 2rem !important;
+            align-items: start !important;
+          }
+
+          .print-bottom-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 340px !important;
+            gap: 2rem !important;
+            align-items: start !important;
+          }
+
           main {
             margin: 0 !important;
             padding: 0 !important;
@@ -325,7 +346,7 @@ export default function ImpressionDevisPage() {
       </div>
 
       <section className="zone-impression mx-auto max-w-5xl rounded-3xl bg-white p-8 shadow-sm print:max-w-none print:rounded-none print:p-0 print:shadow-none">
-        <header className="grid gap-8 border-b border-slate-200 pb-8 md:grid-cols-[1fr_280px]">
+        <header className="print-header-grid grid gap-8 border-b border-slate-200 pb-8 md:grid-cols-[1fr_280px]">
           <div>
             <p className="text-2xl font-black tracking-tight text-slate-950">
               {entreprise.nom_entreprise || "Entreprise"}
@@ -381,7 +402,7 @@ export default function ImpressionDevisPage() {
           </div>
         </header>
 
-        <section className="grid gap-8 border-b border-slate-200 py-8 md:grid-cols-2">
+        <section className="print-info-grid grid gap-8 border-b border-slate-200 py-8 md:grid-cols-2">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
               Client
@@ -484,7 +505,7 @@ export default function ImpressionDevisPage() {
           </table>
         </section>
 
-        <section className="grid gap-8 border-t border-slate-200 pt-8 md:grid-cols-[1fr_340px]">
+        <section className="print-bottom-grid grid gap-8 border-t border-slate-200 pt-8 md:grid-cols-[1fr_340px]">
           <div className="space-y-5">
             {devis.conditions && (
               <div>

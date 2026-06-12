@@ -57,7 +57,6 @@ type Facture = {
   conditions: string | null;
   created_at: string | null;
   updated_at: string | null;
-
   est_avoir?: boolean | null;
   facture_origine_id?: string | null;
   motif_avoir?: string | null;
@@ -254,9 +253,7 @@ export default function ImpressionFacturePage() {
       }
     } catch (error: any) {
       console.error("Erreur chargement impression facture :", error);
-      setMessageErreur(
-        error?.message || "Impossible de charger le document."
-      );
+      setMessageErreur(error?.message || "Impossible de charger le document.");
     } finally {
       setChargement(false);
     }
@@ -311,17 +308,49 @@ export default function ImpressionFacturePage() {
     <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-950 print:bg-white print:px-0 print:py-0">
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
+
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
           .no-print {
             display: none !important;
           }
 
-          body {
+          body * {
+            visibility: hidden !important;
+          }
+
+          .zone-impression,
+          .zone-impression * {
+            visibility: visible !important;
+          }
+
+          .zone-impression {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
             background: white !important;
           }
 
-          @page {
-            size: A4;
-            margin: 12mm;
+          main {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
           }
         }
       `}</style>
@@ -343,7 +372,7 @@ export default function ImpressionFacturePage() {
         </button>
       </div>
 
-      <section className="mx-auto max-w-5xl rounded-3xl bg-white p-8 shadow-sm print:max-w-none print:rounded-none print:p-0 print:shadow-none">
+      <section className="zone-impression mx-auto max-w-5xl rounded-3xl bg-white p-8 shadow-sm print:max-w-none print:rounded-none print:p-0 print:shadow-none">
         <header className="grid gap-8 border-b border-slate-200 pb-8 md:grid-cols-[1fr_280px]">
           <div>
             <p className="text-2xl font-black tracking-tight text-slate-950">

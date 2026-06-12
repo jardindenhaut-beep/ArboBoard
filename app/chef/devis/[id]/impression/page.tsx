@@ -1,28 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 
 type Entreprise = {
   id: string;
   nom_entreprise?: string | null;
-  slug?: string | null;
   email_contact?: string | null;
   telephone?: string | null;
-
   adresse?: string | null;
   code_postal?: string | null;
   ville?: string | null;
   siret?: string | null;
   numero_tva?: string | null;
   forme_juridique?: string | null;
-
   assurance_nom?: string | null;
   assurance_numero_contrat?: string | null;
   assurance_zone_couverture?: string | null;
-
   mentions_legales_documents?: string | null;
 };
 
@@ -54,7 +50,8 @@ type Devis = {
   total_tva: number | null;
   total_ttc: number | null;
   conditions: string | null;
-  notes_internes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 type LigneDevis = {
@@ -73,23 +70,11 @@ type LigneDevis = {
   total_ttc: number | null;
 };
 
-type EntrepriseParametres = {
-  conditions_devis?: string | null;
-  footer_documents?: string | null;
-  afficher_logo_documents?: boolean | null;
-};
-
 function formatMontant(montant: number | null | undefined) {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "EUR",
   }).format(Number(montant || 0));
-}
-
-function formatNombre(nombre: number | null | undefined) {
-  return new Intl.NumberFormat("fr-FR", {
-    maximumFractionDigits: 2,
-  }).format(Number(nombre || 0));
 }
 
 function formatDate(date: string | null | undefined) {
@@ -107,42 +92,34 @@ function formatDate(date: string | null | undefined) {
 }
 
 function nomClient(client: Client | null, devis: Devis | null) {
-  if (client) {
-    if (client.type_client === "particulier") {
-      const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
-      return complet || "Client particulier";
-    }
+  if (devis?.client_nom) return devis.client_nom;
 
-    return (
-      client.entreprise ||
-      client.nom ||
-      `${client.prenom || ""} ${client.nom || ""}`.trim() ||
-      "Client professionnel"
-    );
+  if (!client) return "Client non renseigné";
+
+  if (client.type_client === "particulier") {
+    const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
+    return complet || "Client particulier";
   }
 
-  return devis?.client_nom || "Client non renseigné";
-}
-
-function adresseClient(client: Client | null) {
-  if (!client) return "Adresse non renseignée";
-
   return (
-    [client.adresse, client.code_postal, client.ville]
-      .filter(Boolean)
-      .join(", ") || "Adresse non renseignée"
+    client.entreprise ||
+    client.nom ||
+    `${client.prenom || ""} ${client.nom || ""}`.trim() ||
+    "Client professionnel"
   );
 }
 
-function adresseEntreprise(entreprise: Entreprise | null) {
-  if (!entreprise) return "";
-
-  return [entreprise.adresse, entreprise.code_postal, entreprise.ville]
+function adresseComplete(
+  adresse?: string | null,
+  codePostal?: string | null,
+  ville?: string | null
+) {
+  return [adresse, [codePostal, ville].filter(Boolean).join(" ")]
     .filter(Boolean)
-    .join(", ");
+    .join("\n");
 }
 
-function statutLisible(statut: string | null | undefined) {
+function libelleStatut(statut: string | null | undefined) {
   if (statut === "envoye") return "Envoyé";
   if (statut === "accepte") return "Accepté";
   if (statut === "refuse") return "Refusé";
@@ -150,139 +127,58 @@ function statutLisible(statut: string | null | undefined) {
   return "Brouillon";
 }
 
-function calculerTotaux(lignes: LigneDevis[], devis: Devis | null) {
-  const totalHtLignes = lignes.reduce(
-    (total, ligne) => total + Number(ligne.total_ht || 0),
-    0
-  );
-
-  const totalTvaLignes = lignes.reduce(
-    (total, ligne) => total + Number(ligne.total_tva || 0),
-    0
-  );
-
-  const totalTtcLignes = lignes.reduce(
-    (total, ligne) => total + Number(ligne.total_ttc || 0),
-    0
-  );
-
-  return {
-    totalHt: devis?.total_ht ?? totalHtLignes,
-    totalTva: devis?.total_tva ?? totalTvaLignes,
-    totalTtc: devis?.total_ttc ?? totalTtcLignes,
-  };
-}
-
-function infosLegalesEntreprise(entreprise: Entreprise | null) {
-  if (!entreprise) return [];
-
-  const infos: string[] = [];
-
-  if (entreprise.forme_juridique) {
-    infos.push(entreprise.forme_juridique);
-  }
-
-  if (entreprise.siret) {
-    infos.push(`SIRET : ${entreprise.siret}`);
-  }
-
-  if (entreprise.numero_tva) {
-    infos.push(`TVA intracommunautaire : ${entreprise.numero_tva}`);
-  }
-
-  return infos;
-}
-
-function infosAssuranceEntreprise(entreprise: Entreprise | null) {
-  if (!entreprise) return [];
-
-  const infos: string[] = [];
-
-  if (entreprise.assurance_nom) {
-    infos.push(`Assurance : ${entreprise.assurance_nom}`);
-  }
-
-  if (entreprise.assurance_numero_contrat) {
-    infos.push(`Contrat : ${entreprise.assurance_numero_contrat}`);
-  }
-
-  if (entreprise.assurance_zone_couverture) {
-    infos.push(`Zone de couverture : ${entreprise.assurance_zone_couverture}`);
-  }
-
-  return infos;
-}
-
 export default function ImpressionDevisPage() {
   const params = useParams();
-  const router = useRouter();
-
-  const devisId =
-    typeof params.id === "string"
-      ? params.id
-      : Array.isArray(params.id)
-      ? params.id[0]
-      : "";
-
-  const [entreprise, setEntreprise] = useState<Entreprise | null>(null);
-  const [client, setClient] = useState<Client | null>(null);
-  const [devis, setDevis] = useState<Devis | null>(null);
-  const [lignes, setLignes] = useState<LigneDevis[]>([]);
-  const [parametres, setParametres] = useState<EntrepriseParametres | null>(
-    null
-  );
+  const devisId = String(params?.id || "");
 
   const [chargement, setChargement] = useState(true);
   const [messageErreur, setMessageErreur] = useState("");
 
-  useEffect(() => {
-    chargerDocument();
-  }, []);
+  const [entreprise, setEntreprise] = useState<Entreprise | null>(null);
+  const [devis, setDevis] = useState<Devis | null>(null);
+  const [client, setClient] = useState<Client | null>(null);
+  const [lignes, setLignes] = useState<LigneDevis[]>([]);
 
-  async function chargerDocument() {
+  useEffect(() => {
+    chargerPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devisId]);
+
+  async function chargerPage() {
     try {
       setChargement(true);
       setMessageErreur("");
 
       if (!devisId) {
-        setMessageErreur("Identifiant du devis introuvable.");
-        setChargement(false);
+        setMessageErreur("Identifiant de devis manquant.");
         return;
       }
 
       const resultat = await chargerContexteEntreprise();
 
-      if (
-        resultat.erreur ||
-        !resultat.contexte?.profil ||
-        !resultat.contexte?.entreprise?.id
-      ) {
+      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
         setMessageErreur(
           "Impossible de charger votre entreprise. Veuillez vous reconnecter."
         );
-        setChargement(false);
         return;
       }
 
-      if (resultat.contexte.profil.role !== "chef") {
-        setMessageErreur("Cette page est réservée au chef d’entreprise.");
-        setChargement(false);
-        return;
-      }
-
-      const entrepriseChargee = resultat.contexte.entreprise as Entreprise;
-      const idEntreprise = entrepriseChargee.id;
-
-      setEntreprise(entrepriseChargee);
+      const entrepriseCourante = resultat.contexte.entreprise as Entreprise;
+      setEntreprise(entrepriseCourante);
 
       const { data: devisData, error: devisError } = await supabase
         .from("devis")
         .select("*")
         .eq("id", devisId)
-        .eq("entreprise_id", idEntreprise)
-        .single();
+        .eq("entreprise_id", entrepriseCourante.id)
+        .maybeSingle();
 
       if (devisError) throw devisError;
+
+      if (!devisData) {
+        setMessageErreur("Devis introuvable.");
+        return;
+      }
 
       const devisCharge = devisData as Devis;
       setDevis(devisCharge);
@@ -291,7 +187,7 @@ export default function ImpressionDevisPage() {
         .from("devis_lignes")
         .select("*")
         .eq("devis_id", devisId)
-        .eq("entreprise_id", idEntreprise)
+        .eq("entreprise_id", entrepriseCourante.id)
         .order("ordre", { ascending: true });
 
       if (lignesError) throw lignesError;
@@ -303,359 +199,361 @@ export default function ImpressionDevisPage() {
           .from("clients")
           .select("*")
           .eq("id", devisCharge.client_id)
-          .eq("entreprise_id", idEntreprise)
+          .eq("entreprise_id", entrepriseCourante.id)
           .maybeSingle();
 
-        if (!clientError && clientData) {
-          setClient(clientData as Client);
-        }
-      }
+        if (clientError) throw clientError;
 
-      const { data: parametresData, error: parametresError } = await supabase
-        .from("entreprise_parametres")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .maybeSingle();
-
-      if (!parametresError && parametresData) {
-        setParametres(parametresData as EntrepriseParametres);
+        setClient((clientData || null) as Client | null);
       }
     } catch (error: any) {
-      console.error("Erreur impression devis :", error);
-      setMessageErreur(
-        error?.message || "Impossible de charger l’aperçu du devis."
-      );
+      console.error("Erreur chargement impression devis :", error);
+      setMessageErreur(error?.message || "Impossible de charger le document.");
     } finally {
       setChargement(false);
     }
   }
 
-  const totaux = useMemo(() => calculerTotaux(lignes, devis), [lignes, devis]);
-
   if (chargement) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
         <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
-            📝
-          </div>
           <p className="text-lg font-bold text-slate-950">
             Chargement du devis...
           </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Préparation de l’aperçu imprimable.
+          <p className="mt-2 text-sm text-slate-500">
+            Préparation de l’impression.
           </p>
         </div>
-      </div>
+      </main>
     );
   }
 
-  if (messageErreur || !devis) {
+  if (messageErreur || !devis || !entreprise) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-        <div className="max-w-lg rounded-3xl bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-red-50 text-3xl">
-            ⚠️
-          </div>
-          <p className="text-lg font-bold text-slate-950">
+      <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
+        <div className="max-w-xl rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-lg font-bold text-red-700">
             Impossible d’afficher le devis
           </p>
           <p className="mt-2 text-sm text-slate-600">
-            {messageErreur || "Devis introuvable."}
+            {messageErreur || "Document introuvable."}
           </p>
-
-          <button
-            onClick={() => router.push("/chef/devis")}
-            className="mt-5 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
-          >
-            Retour aux devis
-          </button>
         </div>
-      </div>
+      </main>
     );
   }
 
-  const conditions =
-    devis.conditions ||
-    parametres?.conditions_devis ||
-    "Devis valable pendant la durée indiquée.";
+  const adresseEntreprise = adresseComplete(
+    entreprise.adresse,
+    entreprise.code_postal,
+    entreprise.ville
+  );
 
-  const footer =
-    parametres?.footer_documents || "Merci pour votre confiance.";
-
-  const mentionsLegales =
-    entreprise?.mentions_legales_documents ||
-    "Entreprise assurée pour les travaux réalisés selon les garanties du contrat d’assurance en vigueur.";
-
-  const infosLegales = infosLegalesEntreprise(entreprise);
-  const infosAssurance = infosAssuranceEntreprise(entreprise);
-  const adressePro = adresseEntreprise(entreprise);
+  const adresseClient = adresseComplete(
+    client?.adresse,
+    client?.code_postal,
+    client?.ville
+  );
 
   return (
-    <main className="min-h-screen bg-slate-100 p-6 print:bg-white print:p-0">
-      <div className="mx-auto mb-6 flex max-w-5xl items-center justify-between print:hidden">
-        <button
-          onClick={() => router.push("/chef/devis")}
+    <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-950 print:bg-white print:px-0 print:py-0">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
+
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .zone-impression,
+          .zone-impression * {
+            visibility: visible !important;
+          }
+
+          .zone-impression {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: white !important;
+          }
+
+          main {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+        }
+      `}</style>
+
+      <div className="no-print mx-auto mb-6 flex max-w-5xl justify-between gap-3">
+        <a
+          href="/chef/devis"
           className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
         >
-          ← Retour aux devis
-        </button>
+          Retour devis
+        </a>
 
         <button
+          type="button"
           onClick={() => window.print()}
           className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
         >
-          Imprimer / Enregistrer en PDF
+          Imprimer / PDF
         </button>
       </div>
 
-      <section className="mx-auto max-w-5xl bg-white p-10 shadow-sm print:max-w-none print:p-8 print:shadow-none">
-        <header className="flex flex-col gap-8 border-b border-slate-200 pb-8 sm:flex-row sm:items-start sm:justify-between">
+      <section className="zone-impression mx-auto max-w-5xl rounded-3xl bg-white p-8 shadow-sm print:max-w-none print:rounded-none print:p-0 print:shadow-none">
+        <header className="grid gap-8 border-b border-slate-200 pb-8 md:grid-cols-[1fr_280px]">
           <div>
-            <div className="flex items-start gap-3">
-              {parametres?.afficher_logo_documents !== false && (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
-                  🌿
-                </div>
+            <p className="text-2xl font-black tracking-tight text-slate-950">
+              {entreprise.nom_entreprise || "Entreprise"}
+            </p>
+
+            {entreprise.forme_juridique && (
+              <p className="mt-1 text-sm text-slate-600">
+                {entreprise.forme_juridique}
+              </p>
+            )}
+
+            {adresseEntreprise && (
+              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
+                {adresseEntreprise}
+              </p>
+            )}
+
+            <div className="mt-3 space-y-1 text-sm text-slate-700">
+              {entreprise.telephone && <p>Tél. : {entreprise.telephone}</p>}
+              {entreprise.email_contact && (
+                <p>Email : {entreprise.email_contact}</p>
               )}
-
-              <div>
-                <p className="text-xl font-bold text-slate-950">
-                  {entreprise?.nom_entreprise ||
-                    entreprise?.slug ||
-                    "Votre entreprise"}
-                </p>
-
-                {adressePro && (
-                  <p className="mt-1 text-sm text-slate-500">{adressePro}</p>
-                )}
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {entreprise?.email_contact || "Email non renseigné"}
-                </p>
-
-                <p className="text-sm text-slate-500">
-                  {entreprise?.telephone || "Téléphone non renseigné"}
-                </p>
-
-                {infosLegales.length > 0 && (
-                  <div className="mt-2 space-y-0.5 text-xs text-slate-500">
-                    {infosLegales.map((info) => (
-                      <p key={info}>{info}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {entreprise.siret && <p>SIRET : {entreprise.siret}</p>}
+              {entreprise.numero_tva && (
+                <p>TVA intracommunautaire : {entreprise.numero_tva}</p>
+              )}
             </div>
           </div>
 
-          <div className="text-left sm:text-right">
-            <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
-              Devis
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-3xl font-black tracking-tight text-slate-950">
+              DEVIS
             </p>
-            <h1 className="mt-1 text-3xl font-bold text-slate-950">
+
+            <p className="mt-2 text-sm font-semibold text-slate-700">
               {devis.numero || "Sans numéro"}
-            </h1>
-            <p className="mt-2 text-sm text-slate-500">
-              Statut : {statutLisible(devis.statut)}
             </p>
+
+            <div className="mt-5 space-y-2 text-sm text-slate-700">
+              <p>
+                <span className="font-semibold">Date :</span>{" "}
+                {formatDate(devis.date_devis)}
+              </p>
+              <p>
+                <span className="font-semibold">Validité :</span>{" "}
+                {formatDate(devis.date_validite)}
+              </p>
+              <p>
+                <span className="font-semibold">Statut :</span>{" "}
+                {libelleStatut(devis.statut)}
+              </p>
+            </div>
           </div>
         </header>
 
         <section className="grid gap-8 border-b border-slate-200 py-8 md:grid-cols-2">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
               Client
             </p>
+
             <p className="mt-2 text-lg font-bold text-slate-950">
               {nomClient(client, devis)}
             </p>
-            <p className="mt-1 text-sm text-slate-600">
-              {adresseClient(client)}
-            </p>
-            {client?.email && (
-              <p className="mt-1 text-sm text-slate-600">{client.email}</p>
+
+            {adresseClient && (
+              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
+                {adresseClient}
+              </p>
             )}
-            {client?.telephone && (
-              <p className="mt-1 text-sm text-slate-600">{client.telephone}</p>
-            )}
+
+            <div className="mt-3 space-y-1 text-sm text-slate-700">
+              {client?.email && <p>Email : {client.email}</p>}
+              {client?.telephone && <p>Tél. : {client.telephone}</p>}
+            </div>
           </div>
 
-          <div className="md:text-right">
-            <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-              Informations
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Objet
             </p>
-            <div className="mt-2 space-y-1 text-sm text-slate-600">
-              <p>
-                <span className="font-semibold text-slate-800">
-                  Date devis :
-                </span>{" "}
-                {formatDate(devis.date_devis)}
+
+            <p className="mt-2 text-lg font-bold text-slate-950">
+              {devis.objet || "Sans objet"}
+            </p>
+
+            {devis.description && (
+              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
+                {devis.description}
               </p>
-              <p>
-                <span className="font-semibold text-slate-800">
-                  Valable jusqu’au :
-                </span>{" "}
-                {formatDate(devis.date_validite)}
-              </p>
-            </div>
+            )}
           </div>
         </section>
 
         <section className="py-8">
-          <h2 className="text-xl font-bold text-slate-950">
-            {devis.objet || "Objet non renseigné"}
-          </h2>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-300 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-3 font-bold">Désignation</th>
+                <th className="px-3 py-3 text-right font-bold">Qté</th>
+                <th className="px-3 py-3 text-right font-bold">Unité</th>
+                <th className="px-3 py-3 text-right font-bold">PU HT</th>
+                <th className="px-3 py-3 text-right font-bold">TVA</th>
+                <th className="px-3 py-3 text-right font-bold">Total HT</th>
+              </tr>
+            </thead>
 
-          {devis.description && (
-            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-700">
-              {devis.description}
-            </p>
-          )}
-        </section>
-
-        <section>
-          <div className="overflow-hidden rounded-2xl border border-slate-200">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <tbody>
+              {lignes.length === 0 ? (
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Désignation</th>
-                  <th className="px-4 py-3 text-right font-semibold">Qté</th>
-                  <th className="px-4 py-3 text-right font-semibold">Unité</th>
-                  <th className="px-4 py-3 text-right font-semibold">PU HT</th>
-                  <th className="px-4 py-3 text-right font-semibold">TVA</th>
-                  <th className="px-4 py-3 text-right font-semibold">
-                    Total TTC
-                  </th>
+                  <td
+                    colSpan={6}
+                    className="border-b border-slate-200 px-3 py-6 text-center text-slate-500"
+                  >
+                    Aucune ligne renseignée.
+                  </td>
                 </tr>
-              </thead>
+              ) : (
+                lignes.map((ligne) => (
+                  <tr key={ligne.id} className="border-b border-slate-200">
+                    <td className="px-3 py-4 align-top">
+                      <p className="font-semibold text-slate-950">
+                        {ligne.designation || "Ligne sans désignation"}
+                      </p>
 
-              <tbody className="divide-y divide-slate-100">
-                {lignes.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-6 text-center text-slate-500"
-                    >
-                      Aucune ligne renseignée.
+                      {ligne.description && (
+                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                          {ligne.description}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-4 text-right align-top">
+                      {Number(ligne.quantite || 0).toLocaleString("fr-FR")}
+                    </td>
+
+                    <td className="px-3 py-4 text-right align-top">
+                      {ligne.unite || "u"}
+                    </td>
+
+                    <td className="px-3 py-4 text-right align-top">
+                      {formatMontant(ligne.prix_unitaire_ht)}
+                    </td>
+
+                    <td className="px-3 py-4 text-right align-top">
+                      {Number(ligne.tva || 0).toLocaleString("fr-FR")} %
+                    </td>
+
+                    <td className="px-3 py-4 text-right align-top font-semibold">
+                      {formatMontant(ligne.total_ht)}
                     </td>
                   </tr>
-                ) : (
-                  lignes.map((ligne) => (
-                    <tr key={ligne.id}>
-                      <td className="px-4 py-4 align-top">
-                        <p className="font-semibold text-slate-900">
-                          {ligne.designation || "Ligne sans désignation"}
-                        </p>
-                        {ligne.description && (
-                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-500">
-                            {ligne.description}
-                          </p>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-4 text-right align-top text-slate-700">
-                        {formatNombre(ligne.quantite)}
-                      </td>
-
-                      <td className="px-4 py-4 text-right align-top text-slate-700">
-                        {ligne.unite || "u"}
-                      </td>
-
-                      <td className="px-4 py-4 text-right align-top text-slate-700">
-                        {formatMontant(ligne.prix_unitaire_ht)}
-                      </td>
-
-                      <td className="px-4 py-4 text-right align-top text-slate-700">
-                        {formatNombre(ligne.tva)} %
-                      </td>
-
-                      <td className="px-4 py-4 text-right align-top font-semibold text-slate-950">
-                        {formatMontant(ligne.total_ttc)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </section>
 
-        <section className="mt-8 flex justify-end">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 p-5">
+        <section className="grid gap-8 border-t border-slate-200 pt-8 md:grid-cols-[1fr_340px]">
+          <div className="space-y-5">
+            {devis.conditions && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Conditions
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+                  {devis.conditions}
+                </p>
+              </div>
+            )}
+
+            {entreprise.assurance_nom && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Assurance professionnelle
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  {entreprise.assurance_nom}
+                  {entreprise.assurance_numero_contrat
+                    ? ` — Contrat n° ${entreprise.assurance_numero_contrat}`
+                    : ""}
+                  {entreprise.assurance_zone_couverture
+                    ? ` — Zone : ${entreprise.assurance_zone_couverture}`
+                    : ""}
+                </p>
+              </div>
+            )}
+
+            {entreprise.mentions_legales_documents && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Mentions légales
+                </p>
+                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                  {entreprise.mentions_legales_documents}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Total HT</span>
-                <span className="font-semibold text-slate-950">
-                  {formatMontant(totaux.totalHt)}
+                <span className="font-semibold">
+                  {formatMontant(devis.total_ht)}
                 </span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-slate-500">Total TVA</span>
-                <span className="font-semibold text-slate-950">
-                  {formatMontant(totaux.totalTva)}
+                <span className="font-semibold">
+                  {formatMontant(devis.total_tva)}
                 </span>
               </div>
 
               <div className="flex justify-between border-t border-slate-200 pt-3 text-lg">
-                <span className="font-bold text-slate-950">Total TTC</span>
-                <span className="font-bold text-slate-950">
-                  {formatMontant(totaux.totalTtc)}
+                <span className="font-black text-slate-950">Total TTC</span>
+                <span className="font-black text-slate-950">
+                  {formatMontant(devis.total_ttc)}
                 </span>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="mt-10 grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 p-5">
-            <p className="text-sm font-bold text-slate-950">
-              Conditions du devis
-            </p>
-            <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
-              {conditions}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 p-5">
-            <p className="text-sm font-bold text-slate-950">Bon pour accord</p>
-            <div className="mt-8 h-20 rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-400">
-              Date, nom, signature précédée de la mention “Bon pour accord”.
-            </div>
-          </div>
-        </section>
-
-        {(infosAssurance.length > 0 || mentionsLegales) && (
-          <section className="mt-8 rounded-2xl border border-slate-200 p-5">
-            {infosAssurance.length > 0 && (
-              <div>
-                <p className="text-sm font-bold text-slate-950">
-                  Assurance professionnelle
-                </p>
-                <div className="mt-2 space-y-1 text-xs text-slate-600">
-                  {infosAssurance.map((info) => (
-                    <p key={info}>{info}</p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {mentionsLegales && (
-              <div className={infosAssurance.length > 0 ? "mt-4" : ""}>
-                <p className="text-sm font-bold text-slate-950">
-                  Mentions légales
-                </p>
-                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
-                  {mentionsLegales}
-                </p>
-              </div>
-            )}
-          </section>
-        )}
-
         <footer className="mt-10 border-t border-slate-200 pt-5 text-center text-xs text-slate-500">
-          {footer}
+          <p>Document généré par Arboboard.</p>
         </footer>
       </section>
     </main>

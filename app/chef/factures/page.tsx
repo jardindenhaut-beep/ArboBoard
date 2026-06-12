@@ -8,6 +8,7 @@ import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDoc
 import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
 import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
 import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFacture";
+import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
 
 type StatutFacture =
   | "brouillon"
@@ -1386,6 +1387,11 @@ export default function FacturesPage() {
                             estAvoir={estAvoir}
                             avoirAnnuleFacture={item.avoir_annule_facture}
                             onAvoirCree={() => chargerFactures(entrepriseId)}
+                          />
+
+                          <HistoriqueAvoirsFacture
+                            factureId={item.id}
+                            numero={item.numero}
                           />
 
                           {!estAvoir && item.statut === "brouillon" && (

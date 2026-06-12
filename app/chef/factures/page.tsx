@@ -1341,22 +1341,22 @@ export default function FacturesPage() {
                             PDF
                           </a>
 
-                          <BoutonEnvoyerDocumentEmail
-                            typeDocument="facture"
-                            documentId={item.id}
-                            numero={item.numero}
-                            defaultEmail={client?.email || ""}
-                            defaultMessage={`Bonjour,\n\nVeuillez trouver ci-dessous votre facture ${
-                              item.numero || ""
-                            }.\n\nCordialement.`}
-                            onEnvoye={() => chargerFactures(entrepriseId)}
-                          />
+                         <BoutonEnvoyerDocumentEmail
+  typeDocument="facture"
+  documentId={item.id}
+  numero={item.numero}
+  defaultEmail={client?.email || ""}
+  defaultMessage={`Bonjour,\n\nVeuillez trouver ci-dessous votre facture ${
+    item.numero || ""
+  }.\n\nCordialement.`}
+  onEnvoye={() => chargerFactures(entrepriseId)}
+/>
 
-                          <HistoriqueEmailsDocument
-                            typeDocument="facture"
-                            documentId={item.id}
-                            numero={item.numero}
-                          />
+<HistoriqueEmailsDocument
+  typeDocument="facture"
+  documentId={item.id}
+  numero={item.numero}
+/>
 
                           {!estAvoir && (
                             <>

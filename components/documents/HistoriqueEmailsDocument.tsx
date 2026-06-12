@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type TypeDocument = "devis" | "facture";
+type TypeDocument = "devis" | "facture" | "avoir";
 
 type EmailEnvoye = {
   id: string;
@@ -27,6 +27,12 @@ type Props = {
   numero?: string | null;
 };
 
+function libelleDocument(typeDocument: TypeDocument) {
+  if (typeDocument === "devis") return "devis";
+  if (typeDocument === "avoir") return "avoir";
+  return "facture";
+}
+
 function formatDateHeure(date: string | null | undefined) {
   if (!date) return "—";
 
@@ -41,12 +47,6 @@ function formatDateHeure(date: string | null | undefined) {
   } catch {
     return "—";
   }
-}
-
-function libelleStatut(statut: string | null | undefined) {
-  if (statut === "envoye") return "Envoyé";
-  if (statut === "erreur") return "Erreur";
-  return statut || "—";
 }
 
 function badgeStatut(statut: string | null | undefined) {
@@ -71,8 +71,6 @@ export default function HistoriqueEmailsDocument({
   const [emails, setEmails] = useState<EmailEnvoye[]>([]);
   const [messageErreur, setMessageErreur] = useState("");
 
-  const libelleDocument = typeDocument === "devis" ? "devis" : "facture";
-
   async function ouvrirHistorique() {
     setModalOuverte(true);
     await chargerHistorique();
@@ -92,7 +90,7 @@ export default function HistoriqueEmailsDocument({
         .select("*")
         .eq("type_document", typeDocument)
         .eq("document_id", documentId)
-        .order("envoye_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -114,7 +112,7 @@ export default function HistoriqueEmailsDocument({
         onClick={ouvrirHistorique}
         className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
       >
-        Historique
+        Emails
       </button>
 
       {modalOuverte && (
@@ -127,8 +125,8 @@ export default function HistoriqueEmailsDocument({
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {numero
-                    ? `${libelleDocument.toUpperCase()} ${numero}`
-                    : `Historique de ce ${libelleDocument}`}
+                    ? `${libelleDocument(typeDocument)} ${numero}`
+                    : libelleDocument(typeDocument)}
                 </p>
               </div>
 
@@ -160,13 +158,13 @@ export default function HistoriqueEmailsDocument({
               ) : emails.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl">
-                    📩
+                    ✉️
                   </div>
                   <p className="font-semibold text-slate-900">
                     Aucun email envoyé
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    L’historique apparaîtra ici après un premier envoi.
+                    Les envois apparaîtront ici.
                   </p>
                 </div>
               ) : (
@@ -178,16 +176,17 @@ export default function HistoriqueEmailsDocument({
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="font-semibold text-slate-950">
-                            {email.email_destinataire || "Email non renseigné"}
+                          <p className="font-bold text-slate-950">
+                            {email.sujet || "Sans sujet"}
                           </p>
-
                           <p className="mt-1 text-sm text-slate-600">
-                            {email.sujet || "Sujet non renseigné"}
+                            À : {email.email_destinataire || "—"}
                           </p>
-
                           <p className="mt-1 text-xs text-slate-500">
-                            Envoyé le : {formatDateHeure(email.envoye_at)}
+                            Envoyé le :{" "}
+                            {formatDateHeure(
+                              email.envoye_at || email.created_at
+                            )}
                           </p>
                         </div>
 
@@ -196,7 +195,11 @@ export default function HistoriqueEmailsDocument({
                             email.statut
                           )}`}
                         >
-                          {libelleStatut(email.statut)}
+                          {email.statut === "envoye"
+                            ? "Envoyé"
+                            : email.statut === "erreur"
+                            ? "Erreur"
+                            : "Inconnu"}
                         </span>
                       </div>
 
@@ -211,16 +214,21 @@ export default function HistoriqueEmailsDocument({
                         </div>
                       )}
 
-                      {email.resend_id && (
-                        <p className="mt-3 text-xs text-slate-500">
-                          ID Resend : {email.resend_id}
-                        </p>
+                      {email.erreur && (
+                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
+                            Erreur
+                          </p>
+                          <p className="mt-1 whitespace-pre-line text-sm text-red-700">
+                            {email.erreur}
+                          </p>
+                        </div>
                       )}
 
-                      {email.erreur && (
-                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                          {email.erreur}
-                        </div>
+                      {email.resend_id && (
+                        <p className="mt-3 text-xs text-slate-400">
+                          Resend ID : {email.resend_id}
+                        </p>
                       )}
                     </div>
                   ))}

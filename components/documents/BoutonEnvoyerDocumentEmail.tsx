@@ -3,19 +3,59 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type TypeDocument = "devis" | "facture";
+type TypeDocument = "devis" | "facture" | "avoir";
 
 type Props = {
   typeDocument: TypeDocument;
   documentId: string;
   numero?: string | null;
   defaultEmail?: string | null;
-  defaultMessage?: string;
+  defaultMessage?: string | null;
   onEnvoye?: () => void | Promise<void>;
 };
 
-function emailValide(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+function libelleDocument(typeDocument: TypeDocument) {
+  if (typeDocument === "devis") return "devis";
+  if (typeDocument === "avoir") return "avoir";
+  return "facture";
+}
+
+function titreDocument(typeDocument: TypeDocument) {
+  if (typeDocument === "devis") return "Devis";
+  if (typeDocument === "avoir") return "Avoir";
+  return "Facture";
+}
+
+function texteBouton(typeDocument: TypeDocument) {
+  if (typeDocument === "devis") return "Envoyer devis";
+  if (typeDocument === "avoir") return "Envoyer avoir";
+  return "Envoyer facture";
+}
+
+function messageParDefaut(typeDocument: TypeDocument, numero?: string | null) {
+  if (typeDocument === "devis") {
+    return `Bonjour,
+
+Veuillez trouver ci-dessous votre devis ${numero || ""}.
+
+Cordialement.`;
+  }
+
+  if (typeDocument === "avoir") {
+    return `Bonjour,
+
+Veuillez trouver ci-dessous votre avoir ${numero || ""}.
+
+Cet avoir vient rectifier ou annuler une facture précédemment émise.
+
+Cordialement.`;
+  }
+
+  return `Bonjour,
+
+Veuillez trouver ci-dessous votre facture ${numero || ""}.
+
+Cordialement.`;
 }
 
 export default function BoutonEnvoyerDocumentEmail({
@@ -23,24 +63,21 @@ export default function BoutonEnvoyerDocumentEmail({
   documentId,
   numero,
   defaultEmail,
+  defaultMessage,
   onEnvoye,
 }: Props) {
   const [modalOuverte, setModalOuverte] = useState(false);
-  const [emailDestinataire, setEmailDestinataire] = useState(
-    defaultEmail || ""
-  );
-
-  const [messagePersonnalise, setMessagePersonnalise] = useState("");
-
   const [chargement, setChargement] = useState(false);
+  const [email, setEmail] = useState(defaultEmail || "");
+  const [message, setMessage] = useState(
+    defaultMessage || messageParDefaut(typeDocument, numero)
+  );
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
-  const libelleDocument = typeDocument === "devis" ? "devis" : "facture";
-
   function ouvrirModal() {
-    setEmailDestinataire(defaultEmail || "");
-    setMessagePersonnalise("");
+    setEmail(defaultEmail || "");
+    setMessage(defaultMessage || messageParDefaut(typeDocument, numero));
     setMessageErreur("");
     setMessageSucces("");
     setModalOuverte(true);
@@ -57,10 +94,10 @@ export default function BoutonEnvoyerDocumentEmail({
       setMessageErreur("");
       setMessageSucces("");
 
-      const emailNettoye = emailDestinataire.trim();
+      const emailNettoye = email.trim().toLowerCase();
 
-      if (!emailNettoye || !emailValide(emailNettoye)) {
-        setMessageErreur("Renseignez une adresse email valide.");
+      if (!emailNettoye) {
+        setMessageErreur("Veuillez renseigner une adresse email.");
         return;
       }
 
@@ -82,8 +119,8 @@ export default function BoutonEnvoyerDocumentEmail({
         body: JSON.stringify({
           typeDocument,
           documentId,
-          emailDestinataire: emailNettoye,
-          message: messagePersonnalise.trim(),
+          email: emailNettoye,
+          message,
         }),
       });
 
@@ -91,11 +128,14 @@ export default function BoutonEnvoyerDocumentEmail({
 
       if (!response.ok || !resultat?.success) {
         throw new Error(
-          resultat?.error || "Impossible d’envoyer l’email pour le moment."
+          resultat?.error || `Impossible d’envoyer le ${libelleDocument(typeDocument)}.`
         );
       }
 
-      setMessageSucces(`Email envoyé avec succès à ${emailNettoye}.`);
+      setMessageSucces(
+        resultat.message ||
+          `${titreDocument(typeDocument)} envoyé par email avec succès.`
+      );
 
       if (onEnvoye) {
         await onEnvoye();
@@ -107,7 +147,8 @@ export default function BoutonEnvoyerDocumentEmail({
     } catch (error: any) {
       console.error("Erreur envoi email document :", error);
       setMessageErreur(
-        error?.message || "Impossible d’envoyer l’email pour le moment."
+        error?.message ||
+          `Impossible d’envoyer le ${libelleDocument(typeDocument)}.`
       );
     } finally {
       setChargement(false);
@@ -121,28 +162,29 @@ export default function BoutonEnvoyerDocumentEmail({
         onClick={ouvrirModal}
         className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
       >
-        Email
+        {texteBouton(typeDocument)}
       </button>
 
       {modalOuverte && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="w-full max-w-xl rounded-3xl bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 p-5">
               <div>
                 <h2 className="text-xl font-bold text-slate-950">
-                  Envoyer le {libelleDocument} par email
+                  Envoyer {libelleDocument(typeDocument)} par email
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {numero
-                    ? `${libelleDocument.toUpperCase()} ${numero}`
-                    : `Envoyer ce ${libelleDocument}`}
+                    ? `${titreDocument(typeDocument)} ${numero}`
+                    : titreDocument(typeDocument)}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={fermerModal}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                disabled={chargement}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Fermer
               </button>
@@ -163,38 +205,30 @@ export default function BoutonEnvoyerDocumentEmail({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Email du client
+                  Email destinataire
                 </label>
                 <input
-                  value={emailDestinataire}
-                  onChange={(event) => setEmailDestinataire(event.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="client@email.fr"
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Si le client n’a pas d’email enregistré, vous pouvez le saisir
-                  manuellement ici.
-                </p>
               </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Message personnalisé facultatif
+                  Message
                 </label>
                 <textarea
-                  value={messagePersonnalise}
-                  onChange={(event) =>
-                    setMessagePersonnalise(event.target.value)
-                  }
-                  rows={6}
-                  placeholder={`Laissez vide pour utiliser automatiquement le modèle ${
-                    typeDocument === "devis" ? "devis" : "facture"
-                  } enregistré dans Paramètres.`}
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  rows={8}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Si ce champ est vide, Arboboard utilise le modèle email défini
-                  dans Paramètres.
+                <p className="mt-2 text-xs text-slate-500">
+                  Le document sera envoyé avec un aperçu du contenu et un lien
+                  vers le PDF.
                 </p>
               </div>
             </div>
@@ -213,9 +247,11 @@ export default function BoutonEnvoyerDocumentEmail({
                 type="button"
                 onClick={envoyerEmail}
                 disabled={chargement}
-                className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {chargement ? "Envoi en cours..." : "Envoyer l’email"}
+                {chargement
+                  ? "Envoi..."
+                  : `Envoyer ${libelleDocument(typeDocument)}`}
               </button>
             </div>
           </div>

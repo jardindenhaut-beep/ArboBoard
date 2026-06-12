@@ -7,6 +7,7 @@ import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocu
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
 import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
 import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
+import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFacture";
 
 type StatutFacture =
   | "brouillon"
@@ -88,6 +89,12 @@ type Facture = {
   conditions: string | null;
   created_at: string | null;
   updated_at: string | null;
+
+  est_avoir: boolean | null;
+  facture_origine_id: string | null;
+  motif_avoir: string | null;
+  avoir_annule_facture: boolean | null;
+  date_creation_avoir: string | null;
 };
 
 type LigneFacture = {
@@ -246,6 +253,7 @@ function badgeStatut(statut: string | null | undefined) {
 function libelleTypeFacture(type: string | null | undefined) {
   if (type === "acompte") return "Acompte";
   if (type === "solde") return "Solde";
+  if (type === "avoir") return "Avoir";
   return "Simple";
 }
 
@@ -561,11 +569,21 @@ export default function FacturesPage() {
 
   const statistiques = useMemo(() => {
     const chiffreAffairesPaye = factures
-      .filter((item) => item.statut === "payee")
+      .filter((item) => item.statut === "payee" && !item.est_avoir)
       .reduce((total, item) => total + Number(item.total_ttc || 0), 0);
 
+    const totalAvoirs = factures
+      .filter((item) => item.est_avoir || item.type_facture === "avoir")
+      .reduce((total, item) => total + Math.abs(Number(item.total_ttc || 0)), 0);
+
     const resteAPayer = factures
-      .filter((item) => item.statut !== "payee" && item.statut !== "annulee")
+      .filter(
+        (item) =>
+          item.statut !== "payee" &&
+          item.statut !== "annulee" &&
+          item.statut !== "archive" &&
+          !item.est_avoir
+      )
       .reduce((total, item) => total + Number(item.reste_a_payer || 0), 0);
 
     return {
@@ -574,7 +592,11 @@ export default function FacturesPage() {
       envoyees: factures.filter((item) => item.statut === "envoyee").length,
       payees: factures.filter((item) => item.statut === "payee").length,
       retards: factures.filter((item) => item.statut === "en_retard").length,
+      avoirs: factures.filter(
+        (item) => item.est_avoir || item.type_facture === "avoir"
+      ).length,
       chiffreAffairesPaye,
+      totalAvoirs,
       resteAPayer,
     };
   }, [factures]);
@@ -594,6 +616,7 @@ export default function FacturesPage() {
         item.description,
         item.notes_internes,
         item.conditions,
+        item.motif_avoir,
       ]
         .filter(Boolean)
         .join(" ")
@@ -629,6 +652,20 @@ export default function FacturesPage() {
   }
 
   function ouvrirEdition(item: FactureAvecLignes) {
+    if (item.est_avoir || item.type_facture === "avoir") {
+      setMessageErreur(
+        "Un avoir généré automatiquement ne doit pas être modifié ici."
+      );
+      return;
+    }
+
+    if (item.statut !== "brouillon") {
+      setMessageErreur(
+        "Une facture déjà envoyée, payée, en retard ou annulée ne doit pas être modifiée. Créez un avoir si elle contient une erreur."
+      );
+      return;
+    }
+
     setFactureEdition(item);
 
     const tva = parametres?.tva_defaut ?? 20;
@@ -871,6 +908,12 @@ export default function FacturesPage() {
       let factureId = factureEdition?.id || "";
 
       if (factureEdition) {
+        if (factureEdition.statut !== "brouillon") {
+          throw new Error(
+            "Seules les factures brouillons peuvent être modifiées."
+          );
+        }
+
         const { error } = await supabase
           .from("factures")
           .update(payloadFacture)
@@ -935,7 +978,7 @@ export default function FacturesPage() {
 
       setMessageSucces(
         factureEdition
-          ? "Facture modifiée avec succès."
+          ? "Facture brouillon modifiée avec succès."
           : `Facture créée avec succès : ${numeroFinal}.`
       );
 
@@ -955,6 +998,11 @@ export default function FacturesPage() {
     statut: StatutFacture
   ) {
     if (!entrepriseId) return;
+
+    if (item.est_avoir || item.type_facture === "avoir") {
+      setMessageErreur("Le statut d’un avoir ne doit pas être modifié ici.");
+      return;
+    }
 
     try {
       setMessageErreur("");
@@ -992,13 +1040,13 @@ export default function FacturesPage() {
     }
   }
 
-  async function supprimerFacture(item: FactureAvecLignes) {
+  async function archiverFacture(item: FactureAvecLignes) {
     if (!entrepriseId) return;
 
     const confirmation = window.confirm(
-      `Suppression définitive de la facture "${
+      `Archiver la facture "${
         item.numero || item.objet || "sans numéro"
-      }". Cette action est irréversible. Continuer ?`
+      }" ? Elle ne sera pas supprimée.`
     );
 
     if (!confirmation) return;
@@ -1007,28 +1055,21 @@ export default function FacturesPage() {
       setMessageErreur("");
       setMessageSucces("");
 
-      const { error: lignesError } = await supabase
-        .from("factures_lignes")
-        .delete()
-        .eq("facture_id", item.id)
-        .eq("entreprise_id", entrepriseId);
-
-      if (lignesError) throw lignesError;
-
       const { error } = await supabase
         .from("factures")
-        .delete()
+        .update({
+          statut: "archive",
+        })
         .eq("id", item.id)
         .eq("entreprise_id", entrepriseId);
 
       if (error) throw error;
 
       await chargerFactures(entrepriseId);
-
-      setMessageSucces("Facture supprimée définitivement.");
+      setMessageSucces("Facture archivée avec succès.");
     } catch (error: any) {
-      console.error("Erreur suppression facture :", error);
-      setMessageErreur(error?.message || "Impossible de supprimer cette facture.");
+      console.error("Erreur archivage facture :", error);
+      setMessageErreur(error?.message || "Impossible d’archiver cette facture.");
     }
   }
 
@@ -1040,7 +1081,8 @@ export default function FacturesPage() {
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Factures</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
             Créez vos factures avec numérotation automatique, suivez les
-            paiements, les échéances et les montants restants à encaisser.
+            paiements, les échéances, les avoirs et les montants restants à
+            encaisser.
           </p>
         </div>
 
@@ -1076,7 +1118,7 @@ export default function FacturesPage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
           <p className="mt-2 text-2xl font-bold text-slate-950">
@@ -1108,6 +1150,18 @@ export default function FacturesPage() {
           </p>
           <p className="mt-2 text-2xl font-bold text-red-600">
             {statistiques.retards}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Avoirs
+          </p>
+          <p className="mt-2 text-2xl font-bold text-purple-600">
+            {statistiques.avoirs}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {formatMontant(statistiques.totalAvoirs)}
           </p>
         </div>
 
@@ -1173,7 +1227,9 @@ export default function FacturesPage() {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
               🧾
             </div>
-            <p className="font-semibold text-slate-900">Aucune facture trouvée</p>
+            <p className="font-semibold text-slate-900">
+              Aucune facture trouvée
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               Créez votre première facture avec numérotation automatique.
             </p>
@@ -1187,7 +1243,7 @@ export default function FacturesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[1150px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Facture</th>
@@ -1204,6 +1260,8 @@ export default function FacturesPage() {
               <tbody className="divide-y divide-slate-100">
                 {facturesFiltrees.map((item) => {
                   const client = trouverClient(item.client_id);
+                  const estAvoir =
+                    !!item.est_avoir || item.type_facture === "avoir";
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/70">
@@ -1217,6 +1275,11 @@ export default function FacturesPage() {
                         <p className="mt-1 text-xs text-slate-500">
                           Type : {libelleTypeFacture(item.type_facture)}
                         </p>
+                        {item.facture_origine_id && (
+                          <p className="mt-1 text-xs text-purple-600">
+                            Avoir lié à une facture d’origine
+                          </p>
+                        )}
                       </td>
 
                       <td className="px-4 py-4 align-top">
@@ -1237,15 +1300,23 @@ export default function FacturesPage() {
                         <p className="text-xs text-slate-500">
                           TVA : {formatMontant(item.total_tva)}
                         </p>
-                        <p className="font-semibold text-slate-950">
+                        <p
+                          className={`font-semibold ${
+                            estAvoir ? "text-purple-700" : "text-slate-950"
+                          }`}
+                        >
                           TTC : {formatMontant(item.total_ttc)}
                         </p>
-                        <p className="text-xs text-slate-500">
-                          Payé : {formatMontant(item.montant_paye)}
-                        </p>
-                        <p className="text-xs font-semibold text-red-600">
-                          Reste : {formatMontant(item.reste_a_payer)}
-                        </p>
+                        {!estAvoir && (
+                          <>
+                            <p className="text-xs text-slate-500">
+                              Payé : {formatMontant(item.montant_paye)}
+                            </p>
+                            <p className="text-xs font-semibold text-red-600">
+                              Reste : {formatMontant(item.reste_a_payer)}
+                            </p>
+                          </>
+                        )}
                       </td>
 
                       <td className="px-4 py-4 align-top">
@@ -1286,60 +1357,83 @@ export default function FacturesPage() {
                             numero={item.numero}
                           />
 
-                          <BoutonEncaisserFacture
+                          {!estAvoir && (
+                            <>
+                              <BoutonEncaisserFacture
+                                factureId={item.id}
+                                numero={item.numero}
+                                statut={item.statut}
+                                totalTtc={item.total_ttc}
+                                montantPaye={item.montant_paye}
+                                resteAPayer={item.reste_a_payer}
+                                onEncaisse={() => chargerFactures(entrepriseId)}
+                              />
+
+                              <HistoriquePaiementsFacture
+                                factureId={item.id}
+                                numero={item.numero}
+                                onPaiementsModifies={() =>
+                                  chargerFactures(entrepriseId)
+                                }
+                              />
+                            </>
+                          )}
+
+                          <BoutonCreerAvoirFacture
                             factureId={item.id}
                             numero={item.numero}
                             statut={item.statut}
-                            totalTtc={item.total_ttc}
-                            montantPaye={item.montant_paye}
-                            resteAPayer={item.reste_a_payer}
-                            onEncaisse={() => chargerFactures(entrepriseId)}
+                            estAvoir={estAvoir}
+                            avoirAnnuleFacture={item.avoir_annule_facture}
+                            onAvoirCree={() => chargerFactures(entrepriseId)}
                           />
 
-                          <HistoriquePaiementsFacture
-                            factureId={item.id}
-                            numero={item.numero}
-                            onPaiementsModifies={() =>
-                              chargerFactures(entrepriseId)
-                            }
-                          />
+                          {!estAvoir && item.statut === "brouillon" && (
+                            <button
+                              onClick={() => ouvrirEdition(item)}
+                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              Modifier
+                            </button>
+                          )}
 
-                          <button
-                            onClick={() => ouvrirEdition(item)}
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            Modifier
-                          </button>
+                          {!estAvoir && item.statut !== "archive" && (
+                            <>
+                              <button
+                                onClick={() =>
+                                  changerStatutFacture(item, "envoyee")
+                                }
+                                className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                              >
+                                Envoyée
+                              </button>
 
-                          <button
-                            onClick={() => changerStatutFacture(item, "envoyee")}
-                            className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                          >
-                            Envoyée
-                          </button>
+                              <button
+                                onClick={() =>
+                                  changerStatutFacture(item, "payee")
+                                }
+                                className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                              >
+                                Payée
+                              </button>
 
-                          <button
-                            onClick={() => changerStatutFacture(item, "payee")}
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          >
-                            Payée
-                          </button>
+                              <button
+                                onClick={() =>
+                                  changerStatutFacture(item, "en_retard")
+                                }
+                                className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                              >
+                                Retard
+                              </button>
 
-                          <button
-                            onClick={() =>
-                              changerStatutFacture(item, "en_retard")
-                            }
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Retard
-                          </button>
-
-                          <button
-                            onClick={() => supprimerFacture(item)}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Supprimer
-                          </button>
+                              <button
+                                onClick={() => archiverFacture(item)}
+                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                              >
+                                Archiver
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1361,7 +1455,7 @@ export default function FacturesPage() {
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {factureEdition
-                    ? "Le numéro existant est conservé."
+                    ? "Seules les factures brouillons peuvent être modifiées."
                     : "Le numéro sera généré automatiquement à l’enregistrement."}
                 </p>
               </div>
@@ -1389,7 +1483,8 @@ export default function FacturesPage() {
                     <option value="">Aucun devis sélectionné</option>
                     {devisAcceptes.map((devis) => (
                       <option key={devis.id} value={devis.id}>
-                        {devis.numero || "Devis"} — {devis.client_nom || "Client"} —{" "}
+                        {devis.numero || "Devis"} —{" "}
+                        {devis.client_nom || "Client"} —{" "}
                         {formatMontant(devis.total_ttc)}
                       </option>
                     ))}
@@ -1687,7 +1782,7 @@ export default function FacturesPage() {
                             disabled={formulaire.lignes.length <= 1}
                             className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            Supprimer
+                            Supprimer ligne
                           </button>
                         </div>
                       </div>
@@ -1784,7 +1879,7 @@ export default function FacturesPage() {
                 {enregistrement
                   ? "Enregistrement..."
                   : factureEdition
-                  ? "Modifier la facture"
+                  ? "Modifier le brouillon"
                   : "Créer la facture"}
               </button>
             </div>

@@ -994,55 +994,69 @@ export default function FacturesPage() {
     }
   }
 
-  async function changerStatutFacture(
-    item: FactureAvecLignes,
-    statut: StatutFacture
-  ) {
+  async function marquerFactureEnvoyee(item: FactureAvecLignes) {
     if (!entrepriseId) return;
 
     if (item.est_avoir || item.type_facture === "avoir") {
-      setMessageErreur("Le statut d’un avoir ne doit pas être modifié ici.");
+      setMessageErreur("Un avoir ne doit pas être marqué comme facture envoyée.");
       return;
     }
+
+    if (item.statut !== "brouillon") {
+      setMessageErreur(
+        "Seule une facture brouillon peut être marquée manuellement comme envoyée."
+      );
+      return;
+    }
+
+    const confirmation = window.confirm(
+      `Marquer la facture "${
+        item.numero || item.objet || "sans numéro"
+      }" comme envoyée ? Elle ne pourra plus être modifiée directement.`
+    );
+
+    if (!confirmation) return;
 
     try {
       setMessageErreur("");
       setMessageSucces("");
 
-      const payload =
-        statut === "payee"
-          ? {
-              statut,
-              montant_paye: Number(item.total_ttc || 0),
-              reste_a_payer: 0,
-            }
-          : {
-              statut,
-            };
-
       const { error } = await supabase
         .from("factures")
-        .update(payload)
+        .update({
+          statut: "envoyee",
+        })
         .eq("id", item.id)
-        .eq("entreprise_id", entrepriseId);
+        .eq("entreprise_id", entrepriseId)
+        .eq("statut", "brouillon");
 
       if (error) throw error;
 
       await chargerFactures(entrepriseId);
 
       setMessageSucces(
-        `Statut de la facture mis à jour : ${libelleStatut(statut)}.`
+        "Facture marquée comme envoyée. Elle ne peut plus être modifiée directement."
       );
     } catch (error: any) {
-      console.error("Erreur changement statut facture :", error);
+      console.error("Erreur marquage facture envoyée :", error);
       setMessageErreur(
-        error?.message || "Impossible de modifier le statut de la facture."
+        error?.message || "Impossible de marquer cette facture comme envoyée."
       );
     }
   }
 
   async function archiverFacture(item: FactureAvecLignes) {
     if (!entrepriseId) return;
+
+    if (item.est_avoir || item.type_facture === "avoir") {
+      setMessageErreur("Un avoir ne doit pas être archivé depuis cette action.");
+      return;
+    }
+
+    if (item.statut !== "payee") {
+      setMessageErreur("Seule une facture payée peut être archivée.");
+      return;
+    }
 
     const confirmation = window.confirm(
       `Archiver la facture "${
@@ -1062,7 +1076,8 @@ export default function FacturesPage() {
           statut: "archive",
         })
         .eq("id", item.id)
-        .eq("entreprise_id", entrepriseId);
+        .eq("entreprise_id", entrepriseId)
+        .eq("statut", "payee");
 
       if (error) throw error;
 
@@ -1264,6 +1279,13 @@ export default function FacturesPage() {
                   const estAvoir =
                     !!item.est_avoir || item.type_facture === "avoir";
 
+                  const estBrouillon = item.statut === "brouillon";
+                  const estEnvoyeeOuRetard =
+                    item.statut === "envoyee" || item.statut === "en_retard";
+                  const estPayee = item.statut === "payee";
+                  const estAnnulee = item.statut === "annulee";
+                  const estArchive = item.statut === "archive";
+
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/70">
                       <td className="px-4 py-4 align-top">
@@ -1341,52 +1363,27 @@ export default function FacturesPage() {
                             PDF
                           </a>
 
-                         <BoutonEnvoyerDocumentEmail
-  typeDocument="facture"
-  documentId={item.id}
-  numero={item.numero}
-  defaultEmail={client?.email || ""}
-  defaultMessage={`Bonjour,\n\nVeuillez trouver ci-dessous votre facture ${
-    item.numero || ""
-  }.\n\nCordialement.`}
-  onEnvoye={() => chargerFactures(entrepriseId)}
-/>
-
-<HistoriqueEmailsDocument
-  typeDocument="facture"
-  documentId={item.id}
-  numero={item.numero}
-/>
-
-                          {!estAvoir && (
-                            <>
-                              <BoutonEncaisserFacture
-                                factureId={item.id}
-                                numero={item.numero}
-                                statut={item.statut}
-                                totalTtc={item.total_ttc}
-                                montantPaye={item.montant_paye}
-                                resteAPayer={item.reste_a_payer}
-                                onEncaisse={() => chargerFactures(entrepriseId)}
-                              />
-
-                              <HistoriquePaiementsFacture
-                                factureId={item.id}
-                                numero={item.numero}
-                                onPaiementsModifies={() =>
-                                  chargerFactures(entrepriseId)
-                                }
-                              />
-                            </>
-                          )}
-
-                          <BoutonCreerAvoirFacture
-                            factureId={item.id}
+                          <BoutonEnvoyerDocumentEmail
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={item.id}
                             numero={item.numero}
-                            statut={item.statut}
-                            estAvoir={estAvoir}
-                            avoirAnnuleFacture={item.avoir_annule_facture}
-                            onAvoirCree={() => chargerFactures(entrepriseId)}
+                            defaultEmail={client?.email || ""}
+                            defaultMessage={
+                              estAvoir
+                                ? `Bonjour,\n\nVeuillez trouver ci-dessous votre avoir ${
+                                    item.numero || ""
+                                  }.\n\nCet avoir vient rectifier ou annuler une facture précédemment émise.\n\nCordialement.`
+                                : `Bonjour,\n\nVeuillez trouver ci-dessous votre facture ${
+                                    item.numero || ""
+                                  }.\n\nCordialement.`
+                            }
+                            onEnvoye={() => chargerFactures(entrepriseId)}
+                          />
+
+                          <HistoriqueEmailsDocument
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={item.id}
+                            numero={item.numero}
                           />
 
                           <HistoriqueAvoirsFacture
@@ -1394,50 +1391,73 @@ export default function FacturesPage() {
                             numero={item.numero}
                           />
 
-                          {!estAvoir && item.statut === "brouillon" && (
-                            <button
-                              onClick={() => ouvrirEdition(item)}
-                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                            >
-                              Modifier
-                            </button>
-                          )}
-
-                          {!estAvoir && item.statut !== "archive" && (
+                          {!estAvoir && !estAnnulee && !estArchive && (
                             <>
-                              <button
-                                onClick={() =>
-                                  changerStatutFacture(item, "envoyee")
-                                }
-                                className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                              >
-                                Envoyée
-                              </button>
+                              {(estEnvoyeeOuRetard || estPayee) && (
+                                <HistoriquePaiementsFacture
+                                  factureId={item.id}
+                                  numero={item.numero}
+                                  onPaiementsModifies={() =>
+                                    chargerFactures(entrepriseId)
+                                  }
+                                />
+                              )}
 
-                              <button
-                                onClick={() =>
-                                  changerStatutFacture(item, "payee")
-                                }
-                                className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                              >
-                                Payée
-                              </button>
+                              {estEnvoyeeOuRetard && (
+                                <BoutonEncaisserFacture
+                                  factureId={item.id}
+                                  numero={item.numero}
+                                  statut={item.statut}
+                                  totalTtc={item.total_ttc}
+                                  montantPaye={item.montant_paye}
+                                  resteAPayer={item.reste_a_payer}
+                                  onEncaisse={() =>
+                                    chargerFactures(entrepriseId)
+                                  }
+                                />
+                              )}
 
-                              <button
-                                onClick={() =>
-                                  changerStatutFacture(item, "en_retard")
-                                }
-                                className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                              >
-                                Retard
-                              </button>
+                              {(estEnvoyeeOuRetard || estPayee) && (
+                                <BoutonCreerAvoirFacture
+                                  factureId={item.id}
+                                  numero={item.numero}
+                                  statut={item.statut}
+                                  estAvoir={estAvoir}
+                                  avoirAnnuleFacture={
+                                    item.avoir_annule_facture
+                                  }
+                                  onAvoirCree={() =>
+                                    chargerFactures(entrepriseId)
+                                  }
+                                />
+                              )}
 
-                              <button
-                                onClick={() => archiverFacture(item)}
-                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                              >
-                                Archiver
-                              </button>
+                              {estBrouillon && (
+                                <>
+                                  <button
+                                    onClick={() => ouvrirEdition(item)}
+                                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Modifier
+                                  </button>
+
+                                  <button
+                                    onClick={() => marquerFactureEnvoyee(item)}
+                                    className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                                  >
+                                    Marquer envoyée
+                                  </button>
+                                </>
+                              )}
+
+                              {estPayee && (
+                                <button
+                                  onClick={() => archiverFacture(item)}
+                                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                                >
+                                  Archiver
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -1894,4 +1914,4 @@ export default function FacturesPage() {
       )}
     </div>
   );
-}
+} 

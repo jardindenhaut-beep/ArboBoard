@@ -9,6 +9,7 @@ import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFactur
 import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
 import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFacture";
 import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
+import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 
 type StatutFacture =
   | "brouillon"
@@ -185,7 +186,6 @@ function nombreDepuisTexte(valeur: string | number | null | undefined) {
     .trim();
 
   const nombre = Number.parseFloat(texte);
-
   return Number.isFinite(nombre) ? nombre : 0;
 }
 
@@ -1417,6 +1417,20 @@ export default function FacturesPage() {
                                 />
                               )}
 
+                              {estEnvoyeeOuRetard &&
+                                Number(item.reste_a_payer || 0) > 0 && (
+                                  <BoutonRelancerFacture
+                                    factureId={item.id}
+                                    numero={item.numero}
+                                    defaultEmail={client?.email || ""}
+                                    resteAPayer={item.reste_a_payer}
+                                    dateEcheance={item.date_echeance}
+                                    onRelanceEnvoyee={() =>
+                                      chargerFactures(entrepriseId)
+                                    }
+                                  />
+                                )}
+
                               {(estEnvoyeeOuRetard || estPayee) && (
                                 <BoutonCreerAvoirFacture
                                   factureId={item.id}
@@ -1601,10 +1615,6 @@ export default function FacturesPage() {
                   >
                     <option value="brouillon">Brouillon</option>
                     <option value="envoyee">Envoyée</option>
-                    <option value="payee">Payée</option>
-                    <option value="en_retard">En retard</option>
-                    <option value="annulee">Annulée</option>
-                    <option value="archive">Archivée</option>
                   </select>
                 </div>
               </div>
@@ -1914,4 +1924,4 @@ export default function FacturesPage() {
       )}
     </div>
   );
-} 
+}

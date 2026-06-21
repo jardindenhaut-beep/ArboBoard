@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  genererPdfDocument,
+  type TypeDocumentPdf,
+} from "@/lib/documents/genererPdfDocument";
+
+export const runtime = "nodejs";
 
 type TypeDocumentDemande = "devis" | "facture" | "avoir";
 
@@ -120,7 +126,7 @@ function messageParDefaut(typeDocument: TypeDocumentDemande, numero: string) {
   if (typeDocument === "devis") {
     return `Bonjour,
 
-Veuillez trouver ci-dessous le récapitulatif de votre devis ${numero}.
+Veuillez trouver ci-joint votre devis ${numero} au format PDF.
 
 Cordialement.`;
   }
@@ -128,7 +134,7 @@ Cordialement.`;
   if (typeDocument === "avoir") {
     return `Bonjour,
 
-Veuillez trouver ci-dessous le récapitulatif de votre avoir ${numero}.
+Veuillez trouver ci-joint votre avoir ${numero} au format PDF.
 
 Cet avoir vient rectifier ou annuler une facture précédemment émise.
 
@@ -137,7 +143,7 @@ Cordialement.`;
 
   return `Bonjour,
 
-Veuillez trouver ci-dessous le récapitulatif de votre facture ${numero}.
+Veuillez trouver ci-joint votre facture ${numero} au format PDF.
 
 Cordialement.`;
 }
@@ -162,9 +168,17 @@ function construireHtmlEmail(params: {
   lignes: any[];
   sujet: string;
   message: string;
+  nomPieceJointe: string;
 }) {
-  const { typeDocument, entreprise, document, client, lignes, message } =
-    params;
+  const {
+    typeDocument,
+    entreprise,
+    document,
+    client,
+    lignes,
+    message,
+    nomPieceJointe,
+  } = params;
 
   const estAvoir = typeDocument === "avoir";
   const nomEntreprise =
@@ -259,6 +273,15 @@ function construireHtmlEmail(params: {
         <div style="padding:28px;">
           <div style="font-size:15px;line-height:1.7;color:#334155;">
             ${nl2br(message)}
+          </div>
+
+          <div style="margin-top:20px;padding:14px 16px;border:1px solid #dbeafe;background:#eff6ff;border-radius:16px;color:#1e40af;">
+            <p style="margin:0;font-size:14px;font-weight:700;">Pièce jointe</p>
+            <p style="margin:6px 0 0 0;font-size:14px;">
+              Le PDF est joint à cet email : <strong>${echapperHtml(
+                nomPieceJointe
+              )}</strong>
+            </p>
           </div>
 
           ${blocAvoir}
@@ -389,6 +412,10 @@ async function envoyerAvecResend(params: {
   cc?: string[];
   subject: string;
   html: string;
+  attachments?: {
+    filename: string;
+    content: string;
+  }[];
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
@@ -407,6 +434,10 @@ async function envoyerAvecResend(params: {
 
   if (params.cc && params.cc.length > 0) {
     payload.cc = params.cc;
+  }
+
+  if (params.attachments && params.attachments.length > 0) {
+    payload.attachments = params.attachments;
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -585,6 +616,7 @@ export async function POST(request: NextRequest) {
     let document: any = null;
     let lignes: any[] = [];
     let typeDocumentFinal: TypeDocumentDemande = typeDemande;
+    let factureOrigine: any = null;
 
     if (typeDemande === "devis") {
       const { data, error } = await supabaseAdmin
@@ -656,6 +688,19 @@ export async function POST(request: NextRequest) {
       if (lignesError) throw lignesError;
 
       lignes = lignesData || [];
+
+      if (estAvoir && document.facture_origine_id) {
+        const { data: origineData, error: origineError } = await supabaseAdmin
+          .from("factures")
+          .select("id, numero, date_facture, total_ttc")
+          .eq("id", document.facture_origine_id)
+          .eq("entreprise_id", entrepriseId)
+          .maybeSingle();
+
+        if (origineError) throw origineError;
+
+        factureOrigine = origineData || null;
+      }
     }
 
     let client: any = null;
@@ -722,6 +767,25 @@ export async function POST(request: NextRequest) {
       variables
     );
 
+    historiqueBase = {
+      entreprise_id: entrepriseId,
+      type_document: typeDocumentFinal,
+      document_id: documentId,
+      email_destinataire: emailDestinataire,
+      sujet: sujetFinal,
+      message: messageFinal,
+      envoye_par: user.id,
+    };
+
+    const pieceJointePdf = await genererPdfDocument({
+      typeDocument: typeDocumentFinal as TypeDocumentPdf,
+      entreprise,
+      document,
+      client,
+      lignes,
+      factureOrigine,
+    });
+
     const html = construireHtmlEmail({
       typeDocument: typeDocumentFinal,
       entreprise,
@@ -730,6 +794,7 @@ export async function POST(request: NextRequest) {
       lignes,
       sujet: sujetFinal,
       message: messageFinal,
+      nomPieceJointe: pieceJointePdf.filename,
     });
 
     const cc: string[] = [];
@@ -748,21 +813,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    historiqueBase = {
-      entreprise_id: entrepriseId,
-      type_document: typeDocumentFinal,
-      document_id: documentId,
-      email_destinataire: emailDestinataire,
-      sujet: sujetFinal,
-      message: messageFinal,
-      envoye_par: user.id,
-    };
-
     const resultatResend = await envoyerAvecResend({
       to: emailDestinataire,
       cc,
       subject: sujetFinal,
       html,
+      attachments: [
+        {
+          filename: pieceJointePdf.filename,
+          content: pieceJointePdf.content,
+        },
+      ],
     });
 
     if (typeDocumentFinal === "devis") {
@@ -801,12 +862,13 @@ export async function POST(request: NextRequest) {
       success: true,
       typeDocument: typeDocumentFinal,
       resendId: resultatResend?.id || null,
+      pieceJointe: pieceJointePdf.filename,
       message:
         typeDocumentFinal === "avoir"
-          ? "Avoir envoyé par email avec succès."
+          ? "Avoir envoyé par email avec PDF en pièce jointe."
           : typeDocumentFinal === "devis"
-          ? "Devis envoyé par email avec succès."
-          : "Facture envoyée par email avec succès.",
+          ? "Devis envoyé par email avec PDF en pièce jointe."
+          : "Facture envoyée par email avec PDF en pièce jointe.",
     });
   } catch (error: any) {
     console.error("Erreur envoi email document :", error);

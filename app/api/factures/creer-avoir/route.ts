@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function creerSupabaseAdmin() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function creerSupabaseAdmin(): any {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -14,69 +17,160 @@ function creerSupabaseAdmin() {
       persistSession: false,
       autoRefreshToken: false,
     },
-  });
+  }) as any;
 }
 
-function dateDuJour() {
+function dateJourIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function arrondir2(nombre: number) {
-  return Math.round((nombre + Number.EPSILON) * 100) / 100;
+function maintenantIso() {
+  return new Date().toISOString();
 }
 
 function nombre(valeur: unknown) {
-  const n = Number(valeur || 0);
-  return Number.isFinite(n) ? n : 0;
+  const resultat = Number(valeur || 0);
+  return Number.isFinite(resultat) ? resultat : 0;
 }
 
-function texteOuNull(valeur: unknown) {
-  const texte = String(valeur || "").trim();
-  return texte.length > 0 ? texte : null;
+function texte(valeur: unknown, defaut = "") {
+  const resultat = String(valeur ?? "").trim();
+  return resultat.length > 0 ? resultat : defaut;
 }
 
-async function genererNumeroAvoir(
-  supabaseAdmin: ReturnType<typeof creerSupabaseAdmin>,
-  entrepriseId: string
-) {
-  const annee = new Date().getFullYear();
-  const prefixe = `AV-${annee}`;
+function lireBooleen(valeur: unknown, defaut: boolean) {
+  if (typeof valeur === "boolean") return valeur;
 
-  const { data, error } = await supabaseAdmin
-    .from("factures")
-    .select("numero")
-    .eq("entreprise_id", entrepriseId)
-    .eq("est_avoir", true)
-    .like("numero", `${prefixe}-%`);
+  if (typeof valeur === "string") {
+    const normalise = valeur.trim().toLowerCase();
 
-  if (error) {
-    throw error;
+    if (["true", "1", "oui", "yes"].includes(normalise)) return true;
+    if (["false", "0", "non", "no"].includes(normalise)) return false;
   }
 
-  const regex = new RegExp(`^${prefixe}-(\\d+)$`);
+  return defaut;
+}
 
-  const maxNumero = (data || []).reduce((max: number, item: any) => {
-    const numero = String(item.numero || "");
-    const match = numero.match(regex);
+function factureEstAvoir(facture: any) {
+  return !!facture?.est_avoir || String(facture?.type_facture || "") === "avoir";
+}
 
-    if (!match) return max;
+function construireLignesAvoir({
+  lignesOrigine,
+  factureOrigine,
+  avoirId,
+  entrepriseId,
+}: {
+  lignesOrigine: any[];
+  factureOrigine: any;
+  avoirId: string;
+  entrepriseId: string;
+}) {
+  const maintenant = maintenantIso();
 
-    const valeur = Number.parseInt(match[1], 10);
+  if (Array.isArray(lignesOrigine) && lignesOrigine.length > 0) {
+    return lignesOrigine.map((ligne, index) => ({
+      entreprise_id: entrepriseId,
+      facture_id: avoirId,
+      designation: texte(ligne.designation, "Avoir"),
+      description: ligne.description || null,
+      quantite: nombre(ligne.quantite) || 1,
+      unite: texte(ligne.unite, "u"),
+      prix_unitaire_ht: nombre(ligne.prix_unitaire_ht),
+      tva: nombre(ligne.tva),
+      total_ht: nombre(ligne.total_ht),
+      ordre: ligne.ordre ?? index + 1,
+      created_at: maintenant,
+      updated_at: maintenant,
+    }));
+  }
 
-    if (!Number.isFinite(valeur)) return max;
+  return [
+    {
+      entreprise_id: entrepriseId,
+      facture_id: avoirId,
+      designation: `Avoir sur facture ${texte(
+        factureOrigine.numero,
+        "sans numéro"
+      )}`,
+      description: factureOrigine.objet || null,
+      quantite: 1,
+      unite: "u",
+      prix_unitaire_ht: nombre(factureOrigine.total_ht),
+      tva: nombre(factureOrigine.total_tva) > 0 ? 20 : 0,
+      total_ht: nombre(factureOrigine.total_ht),
+      ordre: 1,
+      created_at: maintenant,
+      updated_at: maintenant,
+    },
+  ];
+}
 
-    return Math.max(max, valeur);
-  }, 0);
+async function enregistrerHistoriqueAvoir({
+  supabaseAdmin,
+  entrepriseId,
+  factureOrigine,
+  avoir,
+  motifAvoir,
+}: {
+  supabaseAdmin: any;
+  entrepriseId: string;
+  factureOrigine: any;
+  avoir: any;
+  motifAvoir: string;
+}) {
+  const maintenant = maintenantIso();
 
-  const prochainNumero = String(maxNumero + 1).padStart(4, "0");
+  const essais: any[] = [
+    {
+      entreprise_id: entrepriseId,
+      facture_origine_id: factureOrigine.id,
+      avoir_id: avoir.id,
+      montant_ht: nombre(avoir.total_ht),
+      montant_tva: nombre(avoir.total_tva),
+      montant_ttc: nombre(avoir.total_ttc),
+      motif: motifAvoir,
+      created_at: maintenant,
+    },
+    {
+      entreprise_id: entrepriseId,
+      facture_id: factureOrigine.id,
+      avoir_id: avoir.id,
+      montant_ht: nombre(avoir.total_ht),
+      montant_tva: nombre(avoir.total_tva),
+      montant_ttc: nombre(avoir.total_ttc),
+      motif: motifAvoir,
+      created_at: maintenant,
+    },
+    {
+      entreprise_id: entrepriseId,
+      facture_id: factureOrigine.id,
+      avoir_facture_id: avoir.id,
+      montant_avoir: nombre(avoir.total_ttc),
+      motif: motifAvoir,
+      created_at: maintenant,
+    },
+  ];
 
-  return `${prefixe}-${prochainNumero}`;
+  for (const payload of essais) {
+    const { error } = await (supabaseAdmin as any)
+      .from("factures_avoirs")
+      .insert(payload as any);
+
+    if (!error) {
+      return;
+    }
+  }
+
+  console.warn(
+    "Historique factures_avoirs non enregistré. L’avoir reste bien créé dans la table factures."
+  );
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const supabaseAdmin = creerSupabaseAdmin();
+  const supabaseAdmin = creerSupabaseAdmin();
 
+  try {
     const authorization = request.headers.get("authorization") || "";
     const token = authorization.replace("Bearer ", "").trim();
 
@@ -107,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, entreprise_id, role, statut")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -139,24 +233,35 @@ export async function POST(request: NextRequest) {
       factureId?: string;
       facture_id?: string;
       motif?: string;
+      motifAvoir?: string;
+      motif_avoir?: string;
+      avoirAnnuleFacture?: boolean | string;
+      avoir_annule_facture?: boolean | string;
     };
 
-    const factureId = String(body.factureId || body.facture_id || "").trim();
-    const motif =
-      String(body.motif || "").trim() ||
-      "Avoir établi suite à une erreur ou une annulation de facture.";
+    const entrepriseId = profil.entreprise_id as string;
+    const factureId = texte(body.factureId || body.facture_id);
+
+    const motifAvoir =
+      texte(body.motifAvoir) ||
+      texte(body.motif_avoir) ||
+      texte(body.motif) ||
+      "Avoir établi suite à l’annulation de la facture.";
+
+    const avoirAnnuleFacture = lireBooleen(
+      body.avoirAnnuleFacture ?? body.avoir_annule_facture,
+      true
+    );
 
     if (!factureId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Identifiant de facture manquant.",
+          error: "Identifiant de la facture manquant.",
         },
         { status: 400 }
       );
     }
-
-    const entrepriseId = profil.entreprise_id as string;
 
     const { data: factureOrigine, error: factureError } = await supabaseAdmin
       .from("factures")
@@ -165,61 +270,59 @@ export async function POST(request: NextRequest) {
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
 
-    if (factureError) {
-      throw factureError;
-    }
+    if (factureError) throw factureError;
 
     if (!factureOrigine) {
       return NextResponse.json(
         {
           success: false,
-          error: "Facture d’origine introuvable.",
+          error: "Facture introuvable.",
         },
         { status: 404 }
       );
     }
 
-    if (factureOrigine.est_avoir || factureOrigine.type_facture === "avoir") {
+    if (factureEstAvoir(factureOrigine)) {
       return NextResponse.json(
         {
           success: false,
-          error: "Impossible de créer un avoir depuis un autre avoir.",
+          error: "Impossible de créer un avoir à partir d’un avoir.",
         },
         { status: 400 }
       );
     }
 
-    if (factureOrigine.avoir_annule_facture) {
+    if (
+      factureOrigine.avoir_annule_facture ||
+      factureOrigine.statut === "annulee"
+    ) {
       return NextResponse.json(
         {
           success: false,
-          error: "Cette facture possède déjà un avoir d’annulation.",
+          error: "Cette facture est déjà annulée par un avoir.",
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
-    const { data: avoirExistant, error: avoirExistantError } =
+    const { data: avoirsExistants, error: avoirsExistantsError } =
       await supabaseAdmin
-        .from("factures_avoirs")
-        .select("id, numero_avoir")
+        .from("factures")
+        .select("id, numero")
         .eq("entreprise_id", entrepriseId)
         .eq("facture_origine_id", factureId)
-        .maybeSingle();
+        .or("est_avoir.eq.true,type_facture.eq.avoir")
+        .limit(1);
 
-    if (avoirExistantError) {
-      throw avoirExistantError;
-    }
+    if (avoirsExistantsError) throw avoirsExistantsError;
 
-    if (avoirExistant) {
+    if (avoirsExistants && avoirsExistants.length > 0) {
       return NextResponse.json(
         {
           success: false,
-          error: `Un avoir existe déjà pour cette facture : ${
-            avoirExistant.numero_avoir || "avoir sans numéro"
-          }.`,
+          error: `Un avoir existe déjà pour cette facture : ${avoirsExistants[0].numero}.`,
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -230,213 +333,165 @@ export async function POST(request: NextRequest) {
       .eq("entreprise_id", entrepriseId)
       .order("ordre", { ascending: true });
 
-    if (lignesError) {
-      throw lignesError;
-    }
+    if (lignesError) throw lignesError;
 
-    const lignes = lignesOrigine || [];
-
-    const totalHtOrigine = arrondir2(
-      Math.abs(
-        nombre(factureOrigine.total_ht) ||
-          lignes.reduce(
-            (total: number, ligne: any) => total + Math.abs(nombre(ligne.total_ht)),
-            0
-          )
-      )
+    const { data: numeroAvoir, error: numeroError } = await supabaseAdmin.rpc(
+      "generer_numero_document",
+      {
+        p_entreprise_id: entrepriseId,
+        p_type_document: "avoir",
+      }
     );
 
-    const totalTvaOrigine = arrondir2(
-      Math.abs(
-        nombre(factureOrigine.total_tva) ||
-          lignes.reduce(
-            (total: number, ligne: any) =>
-              total + Math.abs(nombre(ligne.total_tva)),
-            0
-          )
-      )
-    );
+    if (numeroError) throw numeroError;
 
-    const totalTtcOrigine = arrondir2(
-      Math.abs(
-        nombre(factureOrigine.total_ttc) ||
-          lignes.reduce(
-            (total: number, ligne: any) =>
-              total + Math.abs(nombre(ligne.total_ttc)),
-            0
-          )
-      )
-    );
-
-    if (totalTtcOrigine <= 0) {
+    if (!numeroAvoir) {
       return NextResponse.json(
         {
           success: false,
-          error: "Impossible de créer un avoir sur une facture à 0 €.",
+          error: "Impossible de générer le numéro de l’avoir.",
         },
-        { status: 400 }
+        { status: 500 }
       );
     }
 
-    const numeroAvoir = await genererNumeroAvoir(supabaseAdmin, entrepriseId);
-    const aujourdHui = dateDuJour();
-    const maintenant = new Date().toISOString();
-    const numeroOrigine = factureOrigine.numero || "facture sans numéro";
+    const dateJour = dateJourIso();
+    const maintenant = maintenantIso();
 
-    const payloadFactureAvoir = {
+    const payloadAvoir: any = {
       entreprise_id: entrepriseId,
       client_id: factureOrigine.client_id || null,
-      client_nom: factureOrigine.client_nom || null,
       devis_id: factureOrigine.devis_id || null,
 
       numero: numeroAvoir,
-      objet: `Avoir sur facture ${numeroOrigine}`,
-      description: `Avoir établi en référence à la facture ${numeroOrigine}.\n\nMotif : ${motif}`,
-
+      statut: "brouillon",
       type_facture: "avoir",
-      statut: "payee",
-
-      date_facture: aujourdHui,
-      date_echeance: aujourdHui,
-
-      total_ht: -totalHtOrigine,
-      total_tva: -totalTvaOrigine,
-      total_ttc: -totalTtcOrigine,
-
-      montant_paye: 0,
-      reste_a_payer: 0,
-
-      notes_internes: `Avoir généré automatiquement depuis la facture ${numeroOrigine}.`,
-      conditions: `Avoir établi en référence à la facture ${numeroOrigine}.`,
 
       est_avoir: true,
       facture_origine_id: factureOrigine.id,
-      motif_avoir: motif,
-      avoir_annule_facture: true,
+      motif_avoir: motifAvoir,
+      avoir_annule_facture: avoirAnnuleFacture,
       date_creation_avoir: maintenant,
+
+      date_facture: dateJour,
+      date_echeance: dateJour,
+
+      objet: `Avoir sur facture ${texte(
+        factureOrigine.numero,
+        "sans numéro"
+      )}`,
+      description: `Avoir établi en référence à la facture ${texte(
+        factureOrigine.numero,
+        "sans numéro"
+      )}. ${motifAvoir}`,
+
+      total_ht: nombre(factureOrigine.total_ht),
+      total_tva: nombre(factureOrigine.total_tva),
+      total_ttc: nombre(factureOrigine.total_ttc),
+
+      montant_paye: nombre(factureOrigine.total_ttc),
+      reste_a_payer: 0,
+
+      conditions: factureOrigine.conditions || null,
+
+      created_at: maintenant,
+      updated_at: maintenant,
     };
 
-    const { data: factureAvoir, error: insertAvoirError } = await supabaseAdmin
+    const { data: avoirCree, error: creationAvoirError } = await supabaseAdmin
       .from("factures")
-      .insert(payloadFactureAvoir)
-      .select("id, numero")
+      .insert(payloadAvoir as any)
+      .select("*")
       .single();
 
-    if (insertAvoirError) {
-      throw insertAvoirError;
+    if (creationAvoirError) throw creationAvoirError;
+
+    const lignesAvoir = construireLignesAvoir({
+      lignesOrigine: lignesOrigine || [],
+      factureOrigine,
+      avoirId: avoirCree.id,
+      entrepriseId,
+    });
+
+    if (lignesAvoir.length > 0) {
+      const { error: insertionLignesError } = await supabaseAdmin
+        .from("factures_lignes")
+        .insert(lignesAvoir as any);
+
+      if (insertionLignesError) throw insertionLignesError;
     }
 
-    if (!factureAvoir?.id) {
-      throw new Error("Impossible de récupérer l’identifiant de l’avoir créé.");
-    }
-
-    const factureAvoirId = factureAvoir.id as string;
-
-    let lignesAvoirPayload: any[] = [];
-
-    if (lignes.length > 0) {
-      lignesAvoirPayload = lignes.map((ligne: any, index: number) => {
-        const quantite = Math.abs(nombre(ligne.quantite)) || 1;
-        const prixUnitaireHt = -Math.abs(nombre(ligne.prix_unitaire_ht));
-        const totalHt = -Math.abs(nombre(ligne.total_ht));
-        const totalTva = -Math.abs(nombre(ligne.total_tva));
-        const totalTtc = -Math.abs(nombre(ligne.total_ttc));
-
-        return {
-          facture_id: factureAvoirId,
-          entreprise_id: entrepriseId,
-          ordre: index + 1,
-          designation: ligne.designation
-            ? `Avoir - ${ligne.designation}`
-            : `Avoir - ligne ${index + 1}`,
-          description:
-            ligne.description ||
-            `Annulation de la ligne issue de la facture ${numeroOrigine}.`,
-          quantite,
-          unite: ligne.unite || "u",
-          prix_unitaire_ht: prixUnitaireHt,
-          tva: nombre(ligne.tva),
-          total_ht: totalHt,
-          total_tva: totalTva,
-          total_ttc: totalTtc,
-        };
-      });
-    } else {
-      const tauxTva =
-        totalHtOrigine > 0
-          ? arrondir2((totalTvaOrigine / totalHtOrigine) * 100)
-          : 0;
-
-      lignesAvoirPayload = [
-        {
-          facture_id: factureAvoirId,
-          entreprise_id: entrepriseId,
-          ordre: 1,
-          designation: `Avoir total sur facture ${numeroOrigine}`,
-          description: motif,
-          quantite: 1,
-          unite: "forfait",
-          prix_unitaire_ht: -totalHtOrigine,
-          tva: tauxTva,
-          total_ht: -totalHtOrigine,
-          total_tva: -totalTvaOrigine,
-          total_ttc: -totalTtcOrigine,
-        },
-      ];
-    }
-
-    const { error: insertLignesError } = await supabaseAdmin
-      .from("factures_lignes")
-      .insert(lignesAvoirPayload);
-
-    if (insertLignesError) {
-      throw insertLignesError;
-    }
-
-    const { error: updateOrigineError } = await supabaseAdmin
+    const { error: updateAvoirError } = await supabaseAdmin
       .from("factures")
       .update({
-        statut: "annulee",
-        reste_a_payer: 0,
-        avoir_annule_facture: true,
-        date_creation_avoir: maintenant,
-      })
-      .eq("id", factureOrigine.id)
+        statut: "payee",
+        updated_at: maintenantIso(),
+      } as any)
+      .eq("id", avoirCree.id)
       .eq("entreprise_id", entrepriseId);
 
-    if (updateOrigineError) {
-      throw updateOrigineError;
+    if (updateAvoirError) throw updateAvoirError;
+
+    const { data: avoirFinal, error: relectureAvoirError } = await supabaseAdmin
+      .from("factures")
+      .select("*")
+      .eq("id", avoirCree.id)
+      .eq("entreprise_id", entrepriseId)
+      .maybeSingle();
+
+    if (relectureAvoirError) throw relectureAvoirError;
+
+    const avoirRetour = avoirFinal || avoirCree;
+
+    if (avoirAnnuleFacture) {
+      const { error: updateFactureOrigineError } = await supabaseAdmin
+        .from("factures")
+        .update({
+          statut: "annulee",
+          avoir_annule_facture: true,
+          date_creation_avoir: maintenantIso(),
+          reste_a_payer: 0,
+          updated_at: maintenantIso(),
+        } as any)
+        .eq("id", factureOrigine.id)
+        .eq("entreprise_id", entrepriseId);
+
+      if (updateFactureOrigineError) throw updateFactureOrigineError;
+    } else {
+      const { error: updateFactureOrigineError } = await supabaseAdmin
+        .from("factures")
+        .update({
+          avoir_annule_facture: false,
+          date_creation_avoir: maintenantIso(),
+          updated_at: maintenantIso(),
+        } as any)
+        .eq("id", factureOrigine.id)
+        .eq("entreprise_id", entrepriseId);
+
+      if (updateFactureOrigineError) throw updateFactureOrigineError;
     }
 
-    const { error: historiqueError } = await supabaseAdmin
-      .from("factures_avoirs")
-      .insert({
-        entreprise_id: entrepriseId,
-        facture_origine_id: factureOrigine.id,
-        facture_avoir_id: factureAvoirId,
-        numero_facture_origine: factureOrigine.numero || null,
-        numero_avoir: numeroAvoir,
-        motif,
-        montant_ht: totalHtOrigine,
-        montant_tva: totalTvaOrigine,
-        montant_ttc: totalTtcOrigine,
-        avoir_total: true,
-        cree_par: user.id,
-      });
-
-    if (historiqueError) {
-      throw historiqueError;
-    }
+    await enregistrerHistoriqueAvoir({
+      supabaseAdmin: supabaseAdmin as any,
+      entrepriseId,
+      factureOrigine,
+      avoir: avoirRetour,
+      motifAvoir,
+    });
 
     return NextResponse.json({
       success: true,
+      message: `Avoir ${numeroAvoir} créé avec succès.`,
+      avoir: avoirRetour,
+      data: avoirRetour,
+      avoirId: avoirRetour.id,
+      avoir_id: avoirRetour.id,
+      numero: numeroAvoir,
       factureOrigineId: factureOrigine.id,
-      factureAvoirId,
-      numeroAvoir,
-      message: `Avoir ${numeroAvoir} créé avec succès depuis la facture ${numeroOrigine}.`,
+      facture_origine_id: factureOrigine.id,
     });
   } catch (error: any) {
-    console.error("Erreur création avoir facture :", error);
+    console.error("Erreur création avoir :", error);
 
     return NextResponse.json(
       {

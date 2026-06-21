@@ -33,6 +33,65 @@ function libelleDocument(typeDocument: TypeDocument) {
   return "facture";
 }
 
+function libelleDocumentMaj(typeDocument: string | null | undefined) {
+  if (typeDocument === "devis") return "Devis";
+  if (typeDocument === "avoir") return "Avoir";
+  if (typeDocument === "facture") return "Facture";
+  return "Document";
+}
+
+function estRelance(email: EmailEnvoye) {
+  const sujet = String(email.sujet || "").toLowerCase();
+  return sujet.includes("relance facture") || sujet.includes("relance");
+}
+
+function badgeStatut(statut: string | null | undefined) {
+  if (statut === "envoye") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (statut === "erreur") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function badgeType(email: EmailEnvoye) {
+  if (estRelance(email)) {
+    return {
+      texte: "Relance",
+      classe: "border-orange-200 bg-orange-50 text-orange-700",
+    };
+  }
+
+  if (email.type_document === "devis") {
+    return {
+      texte: "Devis",
+      classe: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (email.type_document === "avoir") {
+    return {
+      texte: "Avoir",
+      classe: "border-purple-200 bg-purple-50 text-purple-700",
+    };
+  }
+
+  if (email.type_document === "facture") {
+    return {
+      texte: "Facture",
+      classe: "border-blue-200 bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    texte: "Document",
+    classe: "border-slate-200 bg-slate-50 text-slate-600",
+  };
+}
+
 function formatDateHeure(date: string | null | undefined) {
   if (!date) return "—";
 
@@ -47,18 +106,6 @@ function formatDateHeure(date: string | null | undefined) {
   } catch {
     return "—";
   }
-}
-
-function badgeStatut(statut: string | null | undefined) {
-  if (statut === "envoye") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (statut === "erreur") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
 export default function HistoriqueEmailsDocument({
@@ -123,6 +170,7 @@ export default function HistoriqueEmailsDocument({
                 <h2 className="text-xl font-bold text-slate-950">
                   Historique des emails
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
                   {numero
                     ? `${libelleDocument(typeDocument)} ${numero}`
@@ -160,78 +208,122 @@ export default function HistoriqueEmailsDocument({
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl">
                     ✉️
                   </div>
+
                   <p className="font-semibold text-slate-900">
                     Aucun email envoyé
                   </p>
+
                   <p className="mt-1 text-sm text-slate-500">
                     Les envois apparaîtront ici.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {emails.map((email) => (
-                    <div
-                      key={email.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-4"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-bold text-slate-950">
-                            {email.sujet || "Sans sujet"}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            À : {email.email_destinataire || "—"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Envoyé le :{" "}
-                            {formatDateHeure(
-                              email.envoye_at || email.created_at
-                            )}
-                          </p>
+                  {emails.map((email) => {
+                    const typeBadge = badgeType(email);
+                    const relance = estRelance(email);
+                    const envoye = email.statut === "envoye";
+
+                    return (
+                      <div
+                        key={email.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="mb-2 flex flex-wrap gap-2">
+                              <span
+                                className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${typeBadge.classe}`}
+                              >
+                                {typeBadge.texte}
+                              </span>
+
+                              <span
+                                className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
+                                  email.statut
+                                )}`}
+                              >
+                                {email.statut === "envoye"
+                                  ? "Envoyé"
+                                  : email.statut === "erreur"
+                                  ? "Erreur"
+                                  : "Inconnu"}
+                              </span>
+
+                              {envoye && (
+                                <span className="inline-flex w-fit rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                  PDF joint
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="font-bold text-slate-950">
+                              {email.sujet || "Sans sujet"}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-600">
+                              À : {email.email_destinataire || "—"}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              Envoyé le :{" "}
+                              {formatDateHeure(
+                                email.envoye_at || email.created_at
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                            {relance
+                              ? "Relance facture"
+                              : libelleDocumentMaj(email.type_document)}
+                          </div>
                         </div>
 
-                        <span
-                          className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-                            email.statut
-                          )}`}
-                        >
-                          {email.statut === "envoye"
-                            ? "Envoyé"
-                            : email.statut === "erreur"
-                            ? "Erreur"
-                            : "Inconnu"}
-                        </span>
+                        {envoye && (
+                          <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                              Pièce jointe
+                            </p>
+                            <p className="mt-1 text-sm text-blue-800">
+                              Le PDF du document a été envoyé en pièce jointe de
+                              cet email.
+                            </p>
+                          </div>
+                        )}
+
+                        {email.message && (
+                          <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              Message
+                            </p>
+
+                            <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+                              {email.message}
+                            </p>
+                          </div>
+                        )}
+
+                        {email.erreur && (
+                          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
+                              Erreur
+                            </p>
+
+                            <p className="mt-1 whitespace-pre-line text-sm text-red-700">
+                              {email.erreur}
+                            </p>
+                          </div>
+                        )}
+
+                        {email.resend_id && (
+                          <p className="mt-3 text-xs text-slate-400">
+                            Resend ID : {email.resend_id}
+                          </p>
+                        )}
                       </div>
-
-                      {email.message && (
-                        <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Message
-                          </p>
-                          <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                            {email.message}
-                          </p>
-                        </div>
-                      )}
-
-                      {email.erreur && (
-                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-red-500">
-                            Erreur
-                          </p>
-                          <p className="mt-1 whitespace-pre-line text-sm text-red-700">
-                            {email.erreur}
-                          </p>
-                        </div>
-                      )}
-
-                      {email.resend_id && (
-                        <p className="mt-3 text-xs text-slate-400">
-                          Resend ID : {email.resend_id}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

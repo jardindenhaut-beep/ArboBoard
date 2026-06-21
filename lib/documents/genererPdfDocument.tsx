@@ -25,7 +25,7 @@ type PieceJointePdf = {
   buffer: Buffer;
 };
 
-function texte(valeur: unknown, defaut = "—") {
+function texte(valeur: unknown, defaut = "-") {
   const resultat = String(valeur ?? "").trim();
   return resultat.length > 0 ? resultat : defaut;
 }
@@ -37,10 +37,16 @@ function formatMontant(montant: unknown) {
   }).format(Number(montant || 0));
 }
 
+function formatNombre(nombre: unknown) {
+  return Number(nombre || 0).toLocaleString("fr-FR", {
+    maximumFractionDigits: 2,
+  });
+}
+
 function formatDate(date: unknown) {
   const valeur = String(date || "").trim();
 
-  if (!valeur) return "—";
+  if (!valeur) return "-";
 
   try {
     return new Intl.DateTimeFormat("fr-FR", {
@@ -49,7 +55,7 @@ function formatDate(date: unknown) {
       year: "numeric",
     }).format(new Date(`${valeur.slice(0, 10)}T00:00:00`));
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -112,6 +118,24 @@ function libelleTypeFacture(type: string | null | undefined) {
   return "Facture";
 }
 
+function couleurDocument(typeDocument: TypeDocumentPdf) {
+  if (typeDocument === "devis") return "#047857";
+  if (typeDocument === "avoir") return "#7e22ce";
+  return "#1d4ed8";
+}
+
+function fondDocument(typeDocument: TypeDocumentPdf) {
+  if (typeDocument === "devis") return "#ecfdf5";
+  if (typeDocument === "avoir") return "#faf5ff";
+  return "#eff6ff";
+}
+
+function bordureDocument(typeDocument: TypeDocumentPdf) {
+  if (typeDocument === "devis") return "#a7f3d0";
+  if (typeDocument === "avoir") return "#e9d5ff";
+  return "#bfdbfe";
+}
+
 function nomFichierPdf(typeDocument: TypeDocumentPdf, document: any) {
   const numero = texte(document?.numero, `${typeDocument}-${Date.now()}`);
 
@@ -150,104 +174,155 @@ async function renduPdfEnBuffer(element: React.ReactElement<any>) {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 34,
-    fontSize: 10,
+    paddingTop: 28,
+    paddingRight: 32,
+    paddingBottom: 34,
+    paddingLeft: 32,
+    fontSize: 9,
     fontFamily: "Helvetica",
     color: "#0f172a",
     backgroundColor: "#ffffff",
   },
 
+  topBar: {
+    height: 6,
+    marginBottom: 18,
+    borderRadius: 999,
+  },
+
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 24,
-    paddingBottom: 22,
+    paddingBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
     borderBottomStyle: "solid",
   },
 
-  entrepriseBloc: {
-    flexGrow: 1,
-    paddingRight: 20,
+  entrepriseCol: {
+    width: "58%",
+    paddingRight: 18,
+  },
+
+  documentCol: {
+    width: "38%",
   },
 
   entrepriseNom: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: "bold",
+    color: "#0f172a",
     marginBottom: 5,
   },
 
-  textePetit: {
+  entrepriseInfos: {
+    fontSize: 8.5,
+    lineHeight: 1.45,
+    color: "#475569",
+  },
+
+  documentCard: {
+    padding: 14,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderRadius: 12,
+  },
+
+  documentLabel: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#64748b",
+    marginBottom: 4,
+  },
+
+  documentTitle: {
+    fontSize: 26,
+    fontWeight: "bold",
+    marginBottom: 6,
+  },
+
+  documentNumero: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 10,
+  },
+
+  miniRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+
+  miniLabel: {
+    fontSize: 8,
+    color: "#64748b",
+  },
+
+  miniValue: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    textAlign: "right",
+  },
+
+  sectionInfos: {
+    flexDirection: "row",
+    paddingTop: 18,
+    paddingBottom: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    borderBottomStyle: "solid",
+  },
+
+  blocClient: {
+    width: "50%",
+    paddingRight: 16,
+  },
+
+  blocObjet: {
+    width: "50%",
+    paddingLeft: 16,
+    borderLeftWidth: 1,
+    borderLeftColor: "#e2e8f0",
+    borderLeftStyle: "solid",
+  },
+
+  labelSection: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#94a3b8",
+    marginBottom: 7,
+  },
+
+  titreBloc: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+
+  texteNormal: {
     fontSize: 9,
     lineHeight: 1.45,
     color: "#334155",
   },
 
-  texteNormal: {
-    fontSize: 10,
+  textePetit: {
+    fontSize: 8,
+    lineHeight: 1.4,
+    color: "#64748b",
+  },
+
+  objetTexte: {
+    fontSize: 9,
     lineHeight: 1.5,
     color: "#334155",
   },
 
-  documentBox: {
-    width: 180,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderStyle: "solid",
-    borderRadius: 12,
-    backgroundColor: "#f8fafc",
-  },
-
-  titreDoc: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-
-  numeroDoc: {
-    fontSize: 10,
-    fontWeight: "bold",
-    marginBottom: 13,
-  },
-
-  sectionDeuxColonnes: {
-    flexDirection: "row",
-    gap: 28,
-    paddingVertical: 22,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    borderBottomStyle: "solid",
-  },
-
-  colonne: {
-    flex: 1,
-  },
-
-  label: {
-    fontSize: 8,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    color: "#94a3b8",
-    marginBottom: 8,
-  },
-
-  titreBloc: {
-    fontSize: 12,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-
-  description: {
-    fontSize: 10,
-    lineHeight: 1.55,
-    color: "#334155",
-  },
-
   avoirBox: {
-    marginTop: 18,
-    padding: 14,
+    marginTop: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: "#e9d5ff",
     borderStyle: "solid",
@@ -259,25 +334,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "bold",
     color: "#6b21a8",
-    marginBottom: 7,
+    marginBottom: 5,
   },
 
   avoirTexte: {
-    fontSize: 10,
+    fontSize: 9,
     lineHeight: 1.45,
     color: "#581c87",
   },
 
-  table: {
-    marginTop: 22,
+  tableWrap: {
+    marginTop: 18,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#cbd5e1",
     borderStyle: "solid",
+    borderRadius: 8,
   },
 
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f1f5f9",
     borderBottomWidth: 1,
     borderBottomColor: "#cbd5e1",
     borderBottomStyle: "solid",
@@ -288,141 +364,626 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
     borderBottomStyle: "solid",
+    minHeight: 34,
   },
 
   thDesignation: {
-    width: "38%",
-    padding: 8,
-    fontSize: 8,
+    width: "36%",
+    padding: 7,
+    fontSize: 7.5,
     fontWeight: "bold",
-    color: "#475569",
-    textTransform: "uppercase",
+    color: "#334155",
   },
 
-  thSmall: {
-    width: "12%",
-    padding: 8,
-    fontSize: 8,
+  thQty: {
+    width: "9%",
+    padding: 7,
+    fontSize: 7.5,
     fontWeight: "bold",
-    color: "#475569",
-    textTransform: "uppercase",
+    color: "#334155",
     textAlign: "right",
   },
 
-  thMontant: {
-    width: "14%",
-    padding: 8,
-    fontSize: 8,
+  thUnite: {
+    width: "9%",
+    padding: 7,
+    fontSize: 7.5,
     fontWeight: "bold",
-    color: "#475569",
-    textTransform: "uppercase",
+    color: "#334155",
+    textAlign: "right",
+  },
+
+  thPu: {
+    width: "14%",
+    padding: 7,
+    fontSize: 7.5,
+    fontWeight: "bold",
+    color: "#334155",
+    textAlign: "right",
+  },
+
+  thTva: {
+    width: "10%",
+    padding: 7,
+    fontSize: 7.5,
+    fontWeight: "bold",
+    color: "#334155",
+    textAlign: "right",
+  },
+
+  thTotal: {
+    width: "22%",
+    padding: 7,
+    fontSize: 7.5,
+    fontWeight: "bold",
+    color: "#334155",
     textAlign: "right",
   },
 
   tdDesignation: {
-    width: "38%",
-    padding: 8,
+    width: "36%",
+    padding: 7,
   },
 
-  tdSmall: {
-    width: "12%",
-    padding: 8,
+  tdQty: {
+    width: "9%",
+    padding: 7,
+    fontSize: 8.5,
+    color: "#334155",
     textAlign: "right",
   },
 
-  tdMontant: {
+  tdUnite: {
+    width: "9%",
+    padding: 7,
+    fontSize: 8.5,
+    color: "#334155",
+    textAlign: "right",
+  },
+
+  tdPu: {
     width: "14%",
-    padding: 8,
+    padding: 7,
+    fontSize: 8.5,
+    color: "#334155",
     textAlign: "right",
+  },
+
+  tdTva: {
+    width: "10%",
+    padding: 7,
+    fontSize: 8.5,
+    color: "#334155",
+    textAlign: "right",
+  },
+
+  tdTotal: {
+    width: "22%",
+    padding: 7,
+    fontSize: 8.5,
     fontWeight: "bold",
+    color: "#0f172a",
+    textAlign: "right",
   },
 
   ligneDesignation: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "bold",
+    color: "#0f172a",
     marginBottom: 3,
   },
 
   ligneDescription: {
-    fontSize: 8,
+    fontSize: 7.5,
     lineHeight: 1.35,
-    color: "#475569",
+    color: "#64748b",
   },
 
-  basPage: {
+  bottomArea: {
     flexDirection: "row",
-    gap: 28,
-    marginTop: 22,
-    paddingTop: 22,
+    marginTop: 18,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
     borderTopStyle: "solid",
   },
 
-  blocConditions: {
-    flex: 1,
+  leftBottom: {
+    width: "58%",
+    paddingRight: 18,
   },
 
-  blocTotaux: {
-    width: 210,
-    padding: 14,
+  rightBottom: {
+    width: "42%",
+  },
+
+  totalCard: {
+    padding: 13,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#cbd5e1",
     borderStyle: "solid",
     borderRadius: 12,
     backgroundColor: "#f8fafc",
   },
 
-  totalLigne: {
+  totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 7,
   },
 
   totalLabel: {
+    fontSize: 9,
     color: "#64748b",
   },
 
-  totalValeur: {
+  totalValue: {
+    fontSize: 9,
     fontWeight: "bold",
+    color: "#0f172a",
+    textAlign: "right",
   },
 
   totalFinal: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingTop: 9,
-    marginTop: 3,
+    marginTop: 4,
     borderTopWidth: 1,
     borderTopColor: "#cbd5e1",
     borderTopStyle: "solid",
   },
 
   totalFinalLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "bold",
+    color: "#0f172a",
   },
 
-  totalFinalValeur: {
-    fontSize: 13,
+  totalFinalValue: {
+    fontSize: 12,
     fontWeight: "bold",
+    textAlign: "right",
   },
 
-  reste: {
-    color: "#dc2626",
-    fontWeight: "bold",
-  },
-
-  footer: {
-    marginTop: 28,
-    paddingTop: 14,
+  paiementBox: {
+    marginTop: 10,
+    paddingTop: 9,
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
     borderTopStyle: "solid",
-    textAlign: "center",
+  },
+
+  resteValue: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#dc2626",
+    textAlign: "right",
+  },
+
+  conditionsBox: {
+    marginBottom: 12,
+  },
+
+  conditionsTitle: {
     fontSize: 8,
-    color: "#64748b",
+    fontWeight: "bold",
+    color: "#94a3b8",
+    marginBottom: 5,
+  },
+
+  conditionsText: {
+    fontSize: 8,
+    lineHeight: 1.4,
+    color: "#475569",
+  },
+
+  signatureArea: {
+    marginTop: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderStyle: "solid",
+    borderRadius: 10,
+    backgroundColor: "#f8fafc",
+  },
+
+  signatureTitle: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#475569",
+    marginBottom: 6,
+  },
+
+  signatureLine: {
+    height: 34,
+    borderBottomWidth: 1,
+    borderBottomColor: "#cbd5e1",
+    borderBottomStyle: "solid",
+  },
+
+  footer: {
+    position: "absolute",
+    left: 32,
+    right: 32,
+    bottom: 18,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    borderTopStyle: "solid",
+    fontSize: 7,
+    color: "#94a3b8",
+    textAlign: "center",
   },
 });
+
+function BlocEntreprise({ entreprise }: { entreprise: any }) {
+  const adresseEntreprise = adresseComplete(
+    entreprise?.adresse,
+    entreprise?.code_postal,
+    entreprise?.ville
+  );
+
+  return (
+    <View style={styles.entrepriseCol}>
+      <Text style={styles.entrepriseNom}>
+        {texte(entreprise?.nom_entreprise, "Entreprise")}
+      </Text>
+
+      {entreprise?.forme_juridique ? (
+        <Text style={styles.entrepriseInfos}>{entreprise.forme_juridique}</Text>
+      ) : null}
+
+      {adresseEntreprise ? (
+        <Text style={[styles.entrepriseInfos, { marginTop: 7 }]}>
+          {adresseEntreprise}
+        </Text>
+      ) : null}
+
+      <View style={{ marginTop: 8 }}>
+        {entreprise?.telephone ? (
+          <Text style={styles.entrepriseInfos}>
+            Téléphone : {entreprise.telephone}
+          </Text>
+        ) : null}
+
+        {entreprise?.email_contact ? (
+          <Text style={styles.entrepriseInfos}>
+            Email : {entreprise.email_contact}
+          </Text>
+        ) : null}
+
+        {entreprise?.siret ? (
+          <Text style={styles.entrepriseInfos}>SIRET : {entreprise.siret}</Text>
+        ) : null}
+
+        {entreprise?.numero_tva ? (
+          <Text style={styles.entrepriseInfos}>
+            TVA intracommunautaire : {entreprise.numero_tva}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function BlocDocument({
+  typeDocument,
+  document,
+}: {
+  typeDocument: TypeDocumentPdf;
+  document: any;
+}) {
+  const estDevis = typeDocument === "devis";
+  const estAvoir = typeDocument === "avoir";
+  const couleur = couleurDocument(typeDocument);
+
+  const dateDocument = estDevis
+    ? document?.date_devis
+    : document?.date_facture;
+
+  return (
+    <View
+      style={[
+        styles.documentCard,
+        {
+          backgroundColor: fondDocument(typeDocument),
+          borderColor: bordureDocument(typeDocument),
+        },
+      ]}
+    >
+      <Text style={styles.documentLabel}>DOCUMENT</Text>
+
+      <Text style={[styles.documentTitle, { color: couleur }]}>
+        {titreDocument(typeDocument)}
+      </Text>
+
+      <Text style={styles.documentNumero}>
+        N° {texte(document?.numero, "Sans numéro")}
+      </Text>
+
+      <View style={styles.miniRow}>
+        <Text style={styles.miniLabel}>Type</Text>
+        <Text style={styles.miniValue}>
+          {estDevis
+            ? "Devis"
+            : estAvoir
+            ? "Avoir"
+            : libelleTypeFacture(document?.type_facture)}
+        </Text>
+      </View>
+
+      <View style={styles.miniRow}>
+        <Text style={styles.miniLabel}>Date</Text>
+        <Text style={styles.miniValue}>{formatDate(dateDocument)}</Text>
+      </View>
+
+      {estDevis ? (
+        <View style={styles.miniRow}>
+          <Text style={styles.miniLabel}>Validité</Text>
+          <Text style={styles.miniValue}>
+            {formatDate(document?.date_validite)}
+          </Text>
+        </View>
+      ) : !estAvoir ? (
+        <View style={styles.miniRow}>
+          <Text style={styles.miniLabel}>Échéance</Text>
+          <Text style={styles.miniValue}>
+            {formatDate(document?.date_echeance)}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={styles.miniRow}>
+        <Text style={styles.miniLabel}>Statut</Text>
+        <Text style={styles.miniValue}>{libelleStatut(document?.statut)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function BlocClientEtObjet({
+  typeDocument,
+  document,
+  client,
+}: {
+  typeDocument: TypeDocumentPdf;
+  document: any;
+  client: any;
+}) {
+  const adresseClient = adresseComplete(
+    client?.adresse,
+    client?.code_postal,
+    client?.ville
+  );
+
+  return (
+    <View style={styles.sectionInfos}>
+      <View style={styles.blocClient}>
+        <Text style={styles.labelSection}>CLIENT</Text>
+
+        <Text style={styles.titreBloc}>{nomClient(client, document)}</Text>
+
+        {adresseClient ? (
+          <Text style={styles.texteNormal}>{adresseClient}</Text>
+        ) : null}
+
+        {client?.email ? (
+          <Text style={[styles.textePetit, { marginTop: 7 }]}>
+            Email : {client.email}
+          </Text>
+        ) : null}
+
+        {client?.telephone ? (
+          <Text style={styles.textePetit}>Téléphone : {client.telephone}</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.blocObjet}>
+        <Text style={styles.labelSection}>OBJET DU {titreDocument(typeDocument)}</Text>
+
+        <Text style={styles.titreBloc}>
+          {texte(document?.objet, "Sans objet")}
+        </Text>
+
+        {document?.description ? (
+          <Text style={styles.objetTexte}>{document.description}</Text>
+        ) : (
+          <Text style={styles.textePetit}>Aucune description renseignée.</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function BlocAvoir({
+  document,
+  factureOrigine,
+}: {
+  document: any;
+  factureOrigine?: any | null;
+}) {
+  return (
+    <View style={styles.avoirBox}>
+      <Text style={styles.avoirTitre}>Informations liées à l’avoir</Text>
+
+      {factureOrigine ? (
+        <Text style={styles.avoirTexte}>
+          Cet avoir est établi en référence à la facture{" "}
+          {texte(factureOrigine.numero, "sans numéro")} du{" "}
+          {formatDate(factureOrigine.date_facture)}.
+        </Text>
+      ) : (
+        <Text style={styles.avoirTexte}>
+          Cet avoir est établi en référence à une facture précédemment émise.
+        </Text>
+      )}
+
+      {document?.motif_avoir ? (
+        <Text style={[styles.avoirTexte, { marginTop: 5 }]}>
+          Motif : {document.motif_avoir}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function TableauLignes({ lignes = [] }: { lignes?: any[] }) {
+  return (
+    <View style={styles.tableWrap}>
+      <View style={styles.tableHeader}>
+        <Text style={styles.thDesignation}>Désignation</Text>
+        <Text style={styles.thQty}>Qté</Text>
+        <Text style={styles.thUnite}>Unité</Text>
+        <Text style={styles.thPu}>PU HT</Text>
+        <Text style={styles.thTva}>TVA</Text>
+        <Text style={styles.thTotal}>Total HT</Text>
+      </View>
+
+      {lignes.length === 0 ? (
+        <View style={styles.tableRow}>
+          <Text style={[styles.tdDesignation, { width: "100%" }]}>
+            Aucune ligne renseignée.
+          </Text>
+        </View>
+      ) : (
+        lignes.map((ligne, index) => (
+          <View key={ligne.id || index} style={styles.tableRow} wrap={false}>
+            <View style={styles.tdDesignation}>
+              <Text style={styles.ligneDesignation}>
+                {texte(ligne.designation, "Ligne sans désignation")}
+              </Text>
+
+              {ligne.description ? (
+                <Text style={styles.ligneDescription}>{ligne.description}</Text>
+              ) : null}
+            </View>
+
+            <Text style={styles.tdQty}>{formatNombre(ligne.quantite)}</Text>
+            <Text style={styles.tdUnite}>{texte(ligne.unite, "u")}</Text>
+            <Text style={styles.tdPu}>
+              {formatMontant(ligne.prix_unitaire_ht)}
+            </Text>
+            <Text style={styles.tdTva}>{formatNombre(ligne.tva)} %</Text>
+            <Text style={styles.tdTotal}>{formatMontant(ligne.total_ht)}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
+}
+
+function BlocTotaux({
+  typeDocument,
+  document,
+}: {
+  typeDocument: TypeDocumentPdf;
+  document: any;
+}) {
+  const estDevis = typeDocument === "devis";
+  const estAvoir = typeDocument === "avoir";
+  const couleur = couleurDocument(typeDocument);
+
+  return (
+    <View style={styles.totalCard}>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>Total HT</Text>
+        <Text style={styles.totalValue}>{formatMontant(document?.total_ht)}</Text>
+      </View>
+
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>Total TVA</Text>
+        <Text style={styles.totalValue}>
+          {formatMontant(document?.total_tva)}
+        </Text>
+      </View>
+
+      <View style={styles.totalFinal}>
+        <Text style={styles.totalFinalLabel}>
+          {estAvoir ? "Total avoir TTC" : "Total TTC"}
+        </Text>
+        <Text style={[styles.totalFinalValue, { color: couleur }]}>
+          {formatMontant(document?.total_ttc)}
+        </Text>
+      </View>
+
+      {!estDevis && !estAvoir ? (
+        <View style={styles.paiementBox}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Montant payé</Text>
+            <Text style={styles.totalValue}>
+              {formatMontant(document?.montant_paye)}
+            </Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Reste à payer</Text>
+            <Text style={styles.resteValue}>
+              {formatMontant(document?.reste_a_payer)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function BlocConditions({
+  typeDocument,
+  document,
+  entreprise,
+}: {
+  typeDocument: TypeDocumentPdf;
+  document: any;
+  entreprise: any;
+}) {
+  const estDevis = typeDocument === "devis";
+
+  return (
+    <View>
+      {document?.conditions ? (
+        <View style={styles.conditionsBox}>
+          <Text style={styles.conditionsTitle}>CONDITIONS</Text>
+          <Text style={styles.conditionsText}>{document.conditions}</Text>
+        </View>
+      ) : null}
+
+      {entreprise?.assurance_nom ? (
+        <View style={styles.conditionsBox}>
+          <Text style={styles.conditionsTitle}>ASSURANCE PROFESSIONNELLE</Text>
+
+          <Text style={styles.conditionsText}>
+            {entreprise.assurance_nom}
+            {entreprise.assurance_numero_contrat
+              ? ` - Contrat n° ${entreprise.assurance_numero_contrat}`
+              : ""}
+            {entreprise.assurance_zone_couverture
+              ? ` - Zone : ${entreprise.assurance_zone_couverture}`
+              : ""}
+          </Text>
+        </View>
+      ) : null}
+
+      {entreprise?.mentions_legales_documents ? (
+        <View style={styles.conditionsBox}>
+          <Text style={styles.conditionsTitle}>MENTIONS LÉGALES</Text>
+          <Text style={styles.conditionsText}>
+            {entreprise.mentions_legales_documents}
+          </Text>
+        </View>
+      ) : null}
+
+      {estDevis ? (
+        <View style={styles.signatureArea}>
+          <Text style={styles.signatureTitle}>
+            Bon pour accord - Date, nom et signature du client
+          </Text>
+          <View style={styles.signatureLine} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 function DocumentPdf({
   typeDocument,
@@ -432,26 +993,8 @@ function DocumentPdf({
   lignes = [],
   factureOrigine,
 }: GenererPdfParams) {
-  const estDevis = typeDocument === "devis";
   const estAvoir = typeDocument === "avoir";
-
-  const adresseEntreprise = adresseComplete(
-    entreprise?.adresse,
-    entreprise?.code_postal,
-    entreprise?.ville
-  );
-
-  const adresseClient = adresseComplete(
-    client?.adresse,
-    client?.code_postal,
-    client?.ville
-  );
-
-  const dateDocument = estDevis
-    ? document?.date_devis
-    : document?.date_facture;
-
-  const totalColor = estAvoir ? "#7e22ce" : "#0f172a";
+  const couleur = couleurDocument(typeDocument);
 
   return (
     <Document
@@ -462,273 +1005,44 @@ function DocumentPdf({
       producer="Arboboard"
     >
       <Page size="A4" style={styles.page}>
+        <View style={[styles.topBar, { backgroundColor: couleur }]} />
+
         <View style={styles.header}>
-          <View style={styles.entrepriseBloc}>
-            <Text style={styles.entrepriseNom}>
-              {texte(entreprise?.nom_entreprise, "Entreprise")}
-            </Text>
+          <BlocEntreprise entreprise={entreprise} />
 
-            {entreprise?.forme_juridique ? (
-              <Text style={styles.textePetit}>{entreprise.forme_juridique}</Text>
-            ) : null}
-
-            {adresseEntreprise ? (
-              <Text style={[styles.textePetit, { marginTop: 9 }]}>
-                {adresseEntreprise}
-              </Text>
-            ) : null}
-
-            <View style={{ marginTop: 9 }}>
-              {entreprise?.telephone ? (
-                <Text style={styles.textePetit}>Tél. : {entreprise.telephone}</Text>
-              ) : null}
-
-              {entreprise?.email_contact ? (
-                <Text style={styles.textePetit}>
-                  Email : {entreprise.email_contact}
-                </Text>
-              ) : null}
-
-              {entreprise?.siret ? (
-                <Text style={styles.textePetit}>SIRET : {entreprise.siret}</Text>
-              ) : null}
-
-              {entreprise?.numero_tva ? (
-                <Text style={styles.textePetit}>
-                  TVA intracommunautaire : {entreprise.numero_tva}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.documentBox}>
-            <Text style={[styles.titreDoc, { color: totalColor }]}>
-              {titreDocument(typeDocument)}
-            </Text>
-
-            <Text style={styles.numeroDoc}>
-              {texte(document?.numero, "Sans numéro")}
-            </Text>
-
-            <Text style={styles.textePetit}>
-              Type :{" "}
-              {estDevis
-                ? "Devis"
-                : estAvoir
-                ? "Avoir"
-                : libelleTypeFacture(document?.type_facture)}
-            </Text>
-
-            <Text style={styles.textePetit}>
-              Date : {formatDate(dateDocument)}
-            </Text>
-
-            {estDevis ? (
-              <Text style={styles.textePetit}>
-                Validité : {formatDate(document?.date_validite)}
-              </Text>
-            ) : !estAvoir ? (
-              <Text style={styles.textePetit}>
-                Échéance : {formatDate(document?.date_echeance)}
-              </Text>
-            ) : null}
-
-            <Text style={styles.textePetit}>
-              Statut : {libelleStatut(document?.statut)}
-            </Text>
+          <View style={styles.documentCol}>
+            <BlocDocument typeDocument={typeDocument} document={document} />
           </View>
         </View>
 
-        <View style={styles.sectionDeuxColonnes}>
-          <View style={styles.colonne}>
-            <Text style={styles.label}>Client</Text>
-
-            <Text style={styles.titreBloc}>{nomClient(client, document)}</Text>
-
-            {adresseClient ? (
-              <Text style={styles.texteNormal}>{adresseClient}</Text>
-            ) : null}
-
-            {client?.email ? (
-              <Text style={[styles.textePetit, { marginTop: 8 }]}>
-                Email : {client.email}
-              </Text>
-            ) : null}
-
-            {client?.telephone ? (
-              <Text style={styles.textePetit}>Tél. : {client.telephone}</Text>
-            ) : null}
-          </View>
-
-          <View style={styles.colonne}>
-            <Text style={styles.label}>Objet</Text>
-
-            <Text style={styles.titreBloc}>
-              {texte(document?.objet, "Sans objet")}
-            </Text>
-
-            {document?.description ? (
-              <Text style={styles.description}>{document.description}</Text>
-            ) : null}
-          </View>
-        </View>
+        <BlocClientEtObjet
+          typeDocument={typeDocument}
+          document={document}
+          client={client}
+        />
 
         {estAvoir ? (
-          <View style={styles.avoirBox}>
-            <Text style={styles.avoirTitre}>Informations avoir</Text>
-
-            {factureOrigine ? (
-              <Text style={styles.avoirTexte}>
-                Cet avoir est établi en référence à la facture{" "}
-                {texte(factureOrigine.numero, "sans numéro")} du{" "}
-                {formatDate(factureOrigine.date_facture)}.
-              </Text>
-            ) : (
-              <Text style={styles.avoirTexte}>
-                Cet avoir est établi en référence à une facture précédemment
-                émise.
-              </Text>
-            )}
-
-            {document?.motif_avoir ? (
-              <Text style={[styles.avoirTexte, { marginTop: 6 }]}>
-                Motif : {document.motif_avoir}
-              </Text>
-            ) : null}
-          </View>
+          <BlocAvoir document={document} factureOrigine={factureOrigine} />
         ) : null}
 
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={styles.thDesignation}>Désignation</Text>
-            <Text style={styles.thSmall}>Qté</Text>
-            <Text style={styles.thSmall}>Unité</Text>
-            <Text style={styles.thSmall}>PU HT</Text>
-            <Text style={styles.thSmall}>TVA</Text>
-            <Text style={styles.thMontant}>Total HT</Text>
+        <TableauLignes lignes={lignes} />
+
+        <View style={styles.bottomArea}>
+          <View style={styles.leftBottom}>
+            <BlocConditions
+              typeDocument={typeDocument}
+              document={document}
+              entreprise={entreprise}
+            />
           </View>
 
-          {lignes.length === 0 ? (
-            <View style={styles.tableRow}>
-              <Text style={[styles.tdDesignation, { width: "100%" }]}>
-                Aucune ligne renseignée.
-              </Text>
-            </View>
-          ) : (
-            lignes.map((ligne, index) => (
-              <View key={ligne.id || index} style={styles.tableRow} wrap={false}>
-                <View style={styles.tdDesignation}>
-                  <Text style={styles.ligneDesignation}>
-                    {texte(ligne.designation, "Ligne sans désignation")}
-                  </Text>
-
-                  {ligne.description ? (
-                    <Text style={styles.ligneDescription}>
-                      {ligne.description}
-                    </Text>
-                  ) : null}
-                </View>
-
-                <Text style={styles.tdSmall}>
-                  {Number(ligne.quantite || 0).toLocaleString("fr-FR")}
-                </Text>
-
-                <Text style={styles.tdSmall}>{texte(ligne.unite, "u")}</Text>
-
-                <Text style={styles.tdSmall}>
-                  {formatMontant(ligne.prix_unitaire_ht)}
-                </Text>
-
-                <Text style={styles.tdSmall}>
-                  {Number(ligne.tva || 0).toLocaleString("fr-FR")} %
-                </Text>
-
-                <Text style={styles.tdMontant}>
-                  {formatMontant(ligne.total_ht)}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.basPage}>
-          <View style={styles.blocConditions}>
-            {document?.conditions ? (
-              <>
-                <Text style={styles.label}>Conditions</Text>
-                <Text style={styles.description}>{document.conditions}</Text>
-              </>
-            ) : null}
-
-            {entreprise?.assurance_nom ? (
-              <View style={{ marginTop: 18 }}>
-                <Text style={styles.label}>Assurance professionnelle</Text>
-                <Text style={styles.description}>
-                  {entreprise.assurance_nom}
-                  {entreprise.assurance_numero_contrat
-                    ? ` — Contrat n° ${entreprise.assurance_numero_contrat}`
-                    : ""}
-                  {entreprise.assurance_zone_couverture
-                    ? ` — Zone : ${entreprise.assurance_zone_couverture}`
-                    : ""}
-                </Text>
-              </View>
-            ) : null}
-
-            {entreprise?.mentions_legales_documents ? (
-              <View style={{ marginTop: 18 }}>
-                <Text style={styles.label}>Mentions légales</Text>
-                <Text style={styles.textePetit}>
-                  {entreprise.mentions_legales_documents}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.blocTotaux}>
-            <View style={styles.totalLigne}>
-              <Text style={styles.totalLabel}>Total HT</Text>
-              <Text style={styles.totalValeur}>
-                {formatMontant(document?.total_ht)}
-              </Text>
-            </View>
-
-            <View style={styles.totalLigne}>
-              <Text style={styles.totalLabel}>Total TVA</Text>
-              <Text style={styles.totalValeur}>
-                {formatMontant(document?.total_tva)}
-              </Text>
-            </View>
-
-            <View style={styles.totalFinal}>
-              <Text style={styles.totalFinalLabel}>Total TTC</Text>
-              <Text style={[styles.totalFinalValeur, { color: totalColor }]}>
-                {formatMontant(document?.total_ttc)}
-              </Text>
-            </View>
-
-            {!estDevis && !estAvoir ? (
-              <View style={{ marginTop: 12 }}>
-                <View style={styles.totalLigne}>
-                  <Text style={styles.totalLabel}>Montant payé</Text>
-                  <Text style={styles.totalValeur}>
-                    {formatMontant(document?.montant_paye)}
-                  </Text>
-                </View>
-
-                <View style={styles.totalLigne}>
-                  <Text style={styles.totalLabel}>Reste à payer</Text>
-                  <Text style={styles.reste}>
-                    {formatMontant(document?.reste_a_payer)}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
+          <View style={styles.rightBottom}>
+            <BlocTotaux typeDocument={typeDocument} document={document} />
           </View>
         </View>
 
         <Text style={styles.footer}>
-          Document généré par Arboboard.
+          Document généré par Arboboard - {texte(entreprise?.nom_entreprise, "Entreprise")}
         </Text>
       </Page>
     </Document>

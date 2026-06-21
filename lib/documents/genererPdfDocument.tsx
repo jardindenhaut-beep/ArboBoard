@@ -123,8 +123,8 @@ function nomFichierPdf(typeDocument: TypeDocumentPdf, document: any) {
   return `${nomNettoye}.pdf`;
 }
 
-async function renduPdfEnBuffer(element: React.ReactElement) {
-  const resultat = await pdf(element).toBuffer();
+async function renduPdfEnBuffer(element: React.ReactElement<any>) {
+  const resultat = await pdf(element as any).toBuffer();
 
   if (Buffer.isBuffer(resultat)) {
     return resultat;

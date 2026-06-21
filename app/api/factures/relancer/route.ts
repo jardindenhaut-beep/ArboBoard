@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { genererPdfDocument } from "@/lib/documents/genererPdfDocument";
+
+export const runtime = "nodejs";
 
 function creerSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -84,8 +87,9 @@ function htmlRelance(params: {
   facture: any;
   client: any;
   message: string;
+  nomPieceJointe: string;
 }) {
-  const { entreprise, facture, client, message } = params;
+  const { entreprise, facture, client, message, nomPieceJointe } = params;
 
   const nomEntreprise =
     entreprise?.nom_entreprise || entreprise?.nom || "Votre entreprise";
@@ -118,6 +122,15 @@ function htmlRelance(params: {
         <div style="padding:28px;">
           <div style="font-size:15px;line-height:1.7;color:#334155;">
             ${nl2br(message)}
+          </div>
+
+          <div style="margin-top:20px;padding:14px 16px;border:1px solid #fed7aa;background:#fff7ed;border-radius:16px;color:#9a3412;">
+            <p style="margin:0;font-size:14px;font-weight:700;">Pièce jointe</p>
+            <p style="margin:6px 0 0 0;font-size:14px;">
+              La facture est jointe à cet email au format PDF : <strong>${echapperHtml(
+                nomPieceJointe
+              )}</strong>
+            </p>
           </div>
 
           <div style="margin-top:24px;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;">
@@ -184,6 +197,10 @@ async function envoyerAvecResend(params: {
   cc?: string[];
   subject: string;
   html: string;
+  attachments?: {
+    filename: string;
+    content: string;
+  }[];
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from =
@@ -202,6 +219,10 @@ async function envoyerAvecResend(params: {
 
   if (params.cc && params.cc.length > 0) {
     payload.cc = params.cc;
+  }
+
+  if (params.attachments && params.attachments.length > 0) {
+    payload.attachments = params.attachments;
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -406,6 +427,26 @@ export async function POST(request: NextRequest) {
       client = clientData || null;
     }
 
+    const { data: lignesData, error: lignesError } = await supabaseAdmin
+      .from("factures_lignes")
+      .select("*")
+      .eq("facture_id", factureId)
+      .eq("entreprise_id", entrepriseId)
+      .order("ordre", { ascending: true });
+
+    if (lignesError) throw lignesError;
+
+    const lignes = lignesData || [];
+
+    const pieceJointePdf = await genererPdfDocument({
+      typeDocument: "facture",
+      entreprise,
+      document: facture,
+      client,
+      lignes,
+      factureOrigine: null,
+    });
+
     const message =
       String(body.message || "").trim() ||
       `Bonjour,
@@ -417,6 +458,8 @@ Sauf erreur de notre part, la facture ${
       )} présente encore un solde restant dû de ${formatMontant(
         facture.reste_a_payer
       )}.
+
+Vous trouverez la facture en pièce jointe de cet email.
 
 Nous vous remercions de bien vouloir procéder au règlement dès que possible.
 
@@ -444,7 +487,14 @@ Cordialement.`;
         facture,
         client,
         message,
+        nomPieceJointe: pieceJointePdf.filename,
       }),
+      attachments: [
+        {
+          filename: pieceJointePdf.filename,
+          content: pieceJointePdf.content,
+        },
+      ],
     });
 
     await supabaseAdmin.from("documents_emails_envoyes").insert({
@@ -464,7 +514,8 @@ Cordialement.`;
     return NextResponse.json({
       success: true,
       resendId: resultatResend?.id || null,
-      message: "Relance envoyée avec succès.",
+      pieceJointe: pieceJointePdf.filename,
+      message: "Relance envoyée avec la facture en pièce jointe.",
     });
   } catch (error: any) {
     console.error("Erreur relance facture :", error);

@@ -17,13 +17,6 @@ function creerSupabaseAdmin() {
   });
 }
 
-function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "https://arboboard.fr").replace(
-    /\/$/,
-    ""
-  );
-}
-
 function nettoyerEmail(email: unknown) {
   return String(email || "").trim().toLowerCase();
 }
@@ -98,7 +91,6 @@ function htmlRelance(params: {
     entreprise?.nom_entreprise || entreprise?.nom || "Votre entreprise";
   const numero = facture.numero || "sans numéro";
   const clientNom = nomClient(client, facture);
-  const urlFacture = `${siteUrl()}/chef/factures/${facture.id}/impression`;
 
   return `
 <!doctype html>
@@ -175,14 +167,6 @@ function htmlRelance(params: {
                 </tbody>
               </table>
             </div>
-          </div>
-
-          <div style="margin-top:28px;text-align:center;">
-            <a href="${echapperHtml(
-              urlFacture
-            )}" style="display:inline-block;background:#ea580c;color:white;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:14px;">
-              Voir la facture
-            </a>
           </div>
 
           <p style="margin:24px 0 0 0;font-size:12px;line-height:1.6;color:#64748b;text-align:center;">
@@ -443,7 +427,11 @@ Cordialement.`;
     const cc: string[] = [];
     const emailCopie = nettoyerEmail(entreprise.email_contact);
 
-    if (emailCopie && emailValide(emailCopie) && emailCopie !== emailDestinataire) {
+    if (
+      emailCopie &&
+      emailValide(emailCopie) &&
+      emailCopie !== emailDestinataire
+    ) {
       cc.push(emailCopie);
     }
 

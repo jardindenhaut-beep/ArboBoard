@@ -28,13 +28,6 @@ function creerSupabaseAdmin() {
   });
 }
 
-function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "https://arboboard.fr").replace(
-    /\/$/,
-    ""
-  );
-}
-
 function nettoyerEmail(email: unknown) {
   return String(email || "").trim().toLowerCase();
 }
@@ -83,10 +76,7 @@ function nl2br(valeur: unknown) {
   return echapperHtml(valeur).replace(/\n/g, "<br />");
 }
 
-function remplacerVariables(
-  texte: string,
-  variables: Record<string, string>
-) {
+function remplacerVariables(texte: string, variables: Record<string, string>) {
   let resultat = texte;
 
   Object.entries(variables).forEach(([cle, valeur]) => {
@@ -130,7 +120,7 @@ function messageParDefaut(typeDocument: TypeDocumentDemande, numero: string) {
   if (typeDocument === "devis") {
     return `Bonjour,
 
-Veuillez trouver ci-dessous les informations relatives à votre devis ${numero}.
+Veuillez trouver ci-dessous le récapitulatif de votre devis ${numero}.
 
 Cordialement.`;
   }
@@ -138,7 +128,7 @@ Cordialement.`;
   if (typeDocument === "avoir") {
     return `Bonjour,
 
-Veuillez trouver ci-dessous les informations relatives à votre avoir ${numero}.
+Veuillez trouver ci-dessous le récapitulatif de votre avoir ${numero}.
 
 Cet avoir vient rectifier ou annuler une facture précédemment émise.
 
@@ -147,7 +137,7 @@ Cordialement.`;
 
   return `Bonjour,
 
-Veuillez trouver ci-dessous les informations relatives à votre facture ${numero}.
+Veuillez trouver ci-dessous le récapitulatif de votre facture ${numero}.
 
 Cordialement.`;
 }
@@ -164,14 +154,6 @@ function libelleDocument(typeDocument: TypeDocumentDemande) {
   return "facture";
 }
 
-function urlImpression(typeDocument: TypeDocumentDemande, documentId: string) {
-  if (typeDocument === "devis") {
-    return `${siteUrl()}/chef/devis/${documentId}/impression`;
-  }
-
-  return `${siteUrl()}/chef/factures/${documentId}/impression`;
-}
-
 function construireHtmlEmail(params: {
   typeDocument: TypeDocumentDemande;
   entreprise: any;
@@ -180,9 +162,8 @@ function construireHtmlEmail(params: {
   lignes: any[];
   sujet: string;
   message: string;
-  urlDocument: string;
 }) {
-  const { typeDocument, entreprise, document, client, lignes, message, urlDocument } =
+  const { typeDocument, entreprise, document, client, lignes, message } =
     params;
 
   const estAvoir = typeDocument === "avoir";
@@ -234,9 +215,8 @@ function construireHtmlEmail(params: {
         </tr>
       `;
 
-  const blocAvoir =
-    estAvoir
-      ? `
+  const blocAvoir = estAvoir
+    ? `
         <div style="margin:20px 0;padding:16px;border:1px solid #e9d5ff;background:#faf5ff;border-radius:16px;color:#581c87;">
           <p style="margin:0;font-weight:700;">Information avoir</p>
           <p style="margin:8px 0 0 0;font-size:14px;line-height:1.6;">
@@ -251,7 +231,7 @@ function construireHtmlEmail(params: {
           }
         </div>
       `
-      : "";
+    : "";
 
   return `
 <!doctype html>
@@ -394,14 +374,6 @@ function construireHtmlEmail(params: {
             </table>
           </div>
 
-          <div style="margin-top:28px;text-align:center;">
-            <a href="${echapperHtml(
-              urlDocument
-            )}" style="display:inline-block;background:${couleur};color:white;text-decoration:none;font-weight:700;padding:13px 22px;border-radius:14px;">
-              Voir le document
-            </a>
-          </div>
-
           <p style="margin:24px 0 0 0;font-size:12px;line-height:1.6;color:#64748b;text-align:center;">
             Email envoyé depuis Arboboard.
           </p>
@@ -419,7 +391,8 @@ async function envoyerAvecResend(params: {
   html: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL || "Arboboard <contact@arboboard.fr>";
+  const from =
+    process.env.RESEND_FROM_EMAIL || "Arboboard <contact@arboboard.fr>";
 
   if (!apiKey) {
     throw new Error("RESEND_API_KEY manquant.");
@@ -728,7 +701,6 @@ export async function POST(request: NextRequest) {
         messageParDefaut("devis", String(numero));
     } else if (typeDocumentFinal === "avoir") {
       sujetModele = objetParDefaut("avoir", String(numero));
-
       messageModele = messageParDefaut("avoir", String(numero));
     } else {
       sujetModele =
@@ -750,8 +722,6 @@ export async function POST(request: NextRequest) {
       variables
     );
 
-    const urlDocument = urlImpression(typeDocumentFinal, documentId);
-
     const html = construireHtmlEmail({
       typeDocument: typeDocumentFinal,
       entreprise,
@@ -760,7 +730,6 @@ export async function POST(request: NextRequest) {
       lignes,
       sujet: sujetFinal,
       message: messageFinal,
-      urlDocument,
     });
 
     const cc: string[] = [];
@@ -770,7 +739,11 @@ export async function POST(request: NextRequest) {
         nettoyerEmail(parametres.email_copie_adresse) ||
         nettoyerEmail(entreprise.email_contact);
 
-      if (emailCopie && emailValide(emailCopie) && emailCopie !== emailDestinataire) {
+      if (
+        emailCopie &&
+        emailValide(emailCopie) &&
+        emailCopie !== emailDestinataire
+      ) {
         cc.push(emailCopie);
       }
     }
@@ -805,7 +778,7 @@ export async function POST(request: NextRequest) {
         .neq("statut", "archive");
     }
 
-    if (typeDocumentFinal === "facture") {
+    if (typeDocumentFinal === "facture" && document.statut === "brouillon") {
       await supabaseAdmin
         .from("factures")
         .update({
@@ -813,10 +786,7 @@ export async function POST(request: NextRequest) {
         })
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
-        .neq("statut", "payee")
-        .neq("statut", "annulee")
-        .neq("statut", "archive")
-        .neq("type_facture", "avoir");
+        .eq("statut", "brouillon");
     }
 
     await supabaseAdmin.from("documents_emails_envoyes").insert({

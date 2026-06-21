@@ -1,39 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Props = {
   factureId: string;
   numero?: string | null;
-  statut?: string | null;
   totalTtc?: number | null;
   montantPaye?: number | null;
   resteAPayer?: number | null;
-  onEncaisse?: () => void | Promise<void>;
+  onPaiementEnregistre?: () => void | Promise<void>;
 };
 
-function dateDuJour() {
+function dateAujourdhui() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function nombreDepuisTexte(valeur: string | number | null | undefined) {
-  if (typeof valeur === "number") {
-    return Number.isFinite(valeur) ? valeur : 0;
-  }
-
-  const nombre = Number.parseFloat(
-    String(valeur || "")
-      .replace(",", ".")
-      .replace(/\s/g, "")
-      .trim()
-  );
-
-  return Number.isFinite(nombre) ? nombre : 0;
-}
-
-function arrondir2(nombre: number) {
-  return Math.round((nombre + Number.EPSILON) * 100) / 100;
 }
 
 function formatMontant(montant: number | null | undefined) {
@@ -46,46 +26,28 @@ function formatMontant(montant: number | null | undefined) {
 export default function BoutonEncaisserFacture({
   factureId,
   numero,
-  statut,
   totalTtc,
   montantPaye,
   resteAPayer,
-  onEncaisse,
+  onPaiementEnregistre,
 }: Props) {
   const [modalOuverte, setModalOuverte] = useState(false);
   const [chargement, setChargement] = useState(false);
 
-  const [montant, setMontant] = useState("");
+  const [montant, setMontant] = useState(String(Number(resteAPayer || 0)));
   const [modePaiement, setModePaiement] = useState("virement");
   const [referencePaiement, setReferencePaiement] = useState("");
-  const [datePaiement, setDatePaiement] = useState(dateDuJour());
+  const [datePaiement, setDatePaiement] = useState(dateAujourdhui());
   const [note, setNote] = useState("");
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
-  const resteCalcule = useMemo(() => {
-    if (resteAPayer !== null && resteAPayer !== undefined) {
-      return arrondir2(Number(resteAPayer || 0));
-    }
-
-    return arrondir2(
-      Math.max(Number(totalTtc || 0) - Number(montantPaye || 0), 0)
-    );
-  }, [resteAPayer, totalTtc, montantPaye]);
-
-  const factureBloquee =
-    statut === "payee" || statut === "annulee" || statut === "archive";
-
-  if (factureBloquee || resteCalcule <= 0) {
-    return null;
-  }
-
   function ouvrirModal() {
-    setMontant(String(resteCalcule.toFixed(2)).replace(".", ","));
+    setMontant(String(Number(resteAPayer || 0)));
     setModePaiement("virement");
     setReferencePaiement("");
-    setDatePaiement(dateDuJour());
+    setDatePaiement(dateAujourdhui());
     setNote("");
     setMessageErreur("");
     setMessageSucces("");
@@ -97,23 +59,35 @@ export default function BoutonEncaisserFacture({
     setModalOuverte(false);
   }
 
-  async function encaisser() {
+  async function enregistrerPaiement() {
     try {
       setChargement(true);
       setMessageErreur("");
       setMessageSucces("");
 
-      const montantNumber = arrondir2(nombreDepuisTexte(montant));
+      const montantNombre = Number(String(montant).replace(",", "."));
 
-      if (montantNumber <= 0) {
-        setMessageErreur("Le montant doit être supérieur à 0.");
+      if (!factureId) {
+        setMessageErreur("Identifiant de facture manquant.");
         return;
       }
 
-      if (montantNumber > resteCalcule + 0.01) {
+      if (!montantNombre || montantNombre <= 0) {
+        setMessageErreur("Veuillez renseigner un montant valide.");
+        return;
+      }
+
+      if (resteAPayer && montantNombre > Number(resteAPayer)) {
         setMessageErreur(
-          `Le paiement dépasse le reste à payer : ${formatMontant(resteCalcule)}.`
+          `Le montant encaissé ne peut pas dépasser le reste à payer : ${formatMontant(
+            resteAPayer
+          )}.`
         );
+        return;
+      }
+
+      if (!datePaiement) {
+        setMessageErreur("Veuillez renseigner une date de paiement.");
         return;
       }
 
@@ -134,11 +108,15 @@ export default function BoutonEncaisserFacture({
         },
         body: JSON.stringify({
           factureId,
-          montant: montantNumber,
+          facture_id: factureId,
+          montant: montantNombre,
           modePaiement,
-          referencePaiement,
+          mode_paiement: modePaiement,
+          referencePaiement: referencePaiement.trim() || null,
+          reference_paiement: referencePaiement.trim() || null,
           datePaiement,
-          note,
+          date_paiement: datePaiement,
+          note: note.trim() || null,
         }),
       });
 
@@ -150,17 +128,19 @@ export default function BoutonEncaisserFacture({
         );
       }
 
-      setMessageSucces(resultat.message || "Paiement enregistré avec succès.");
+      setMessageSucces(
+        resultat.message || "Paiement enregistré avec succès."
+      );
 
-      if (onEncaisse) {
-        await onEncaisse();
+      if (onPaiementEnregistre) {
+        await onPaiementEnregistre();
       }
 
       setTimeout(() => {
         setModalOuverte(false);
       }, 900);
     } catch (error: any) {
-      console.error("Erreur encaissement facture :", error);
+      console.error("Erreur enregistrement paiement :", error);
       setMessageErreur(
         error?.message || "Impossible d’enregistrer le paiement."
       );
@@ -181,24 +161,23 @@ export default function BoutonEncaisserFacture({
 
       {modalOuverte && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="w-full max-w-xl rounded-3xl bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 p-5">
               <div>
                 <h2 className="text-xl font-bold text-slate-950">
-                  Encaisser une facture
+                  Enregistrer un paiement
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
-                  {numero ? `Facture ${numero}` : "Facture"}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-emerald-700">
-                  Reste à payer : {formatMontant(resteCalcule)}
+                  {numero ? `Facture ${numero}` : "Facture sans numéro"}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={fermerModal}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                disabled={chargement}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Fermer
               </button>
@@ -217,23 +196,69 @@ export default function BoutonEncaisserFacture({
                 </div>
               )}
 
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Total TTC</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {formatMontant(totalTtc)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Déjà payé</p>
+                  <p className="mt-1 font-black text-slate-950">
+                    {formatMontant(montantPaye)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-xs text-red-600">Reste à payer</p>
+                  <p className="mt-1 font-black text-red-700">
+                    {formatMontant(resteAPayer)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Montant encaissé
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={montant}
+                  onChange={(event) => setMontant(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Montant encaissé
+                    Mode de paiement
                   </label>
-                  <input
-                    value={montant}
-                    onChange={(event) => setMontant(event.target.value)}
-                    placeholder="0,00"
+
+                  <select
+                    value={modePaiement}
+                    onChange={(event) => setModePaiement(event.target.value)}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
+                  >
+                    <option value="virement">Virement</option>
+                    <option value="cheque">Chèque</option>
+                    <option value="especes">Espèces</option>
+                    <option value="carte_bancaire">Carte bancaire</option>
+                    <option value="prelevement">Prélèvement</option>
+                    <option value="autre">Autre</option>
+                  </select>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Date paiement
+                    Date du paiement
                   </label>
+
                   <input
                     type="date"
                     value={datePaiement}
@@ -245,32 +270,15 @@ export default function BoutonEncaisserFacture({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Mode de paiement
+                  Référence du paiement
                 </label>
-                <select
-                  value={modePaiement}
-                  onChange={(event) => setModePaiement(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                >
-                  <option value="virement">Virement</option>
-                  <option value="cheque">Chèque</option>
-                  <option value="especes">Espèces</option>
-                  <option value="carte">Carte bancaire</option>
-                  <option value="prelevement">Prélèvement</option>
-                  <option value="autre">Autre</option>
-                </select>
-              </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Référence paiement
-                </label>
                 <input
                   value={referencePaiement}
                   onChange={(event) =>
                     setReferencePaiement(event.target.value)
                   }
-                  placeholder="Numéro chèque, référence virement..."
+                  placeholder="Ex : numéro de chèque, virement, référence bancaire..."
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </div>
@@ -279,10 +287,11 @@ export default function BoutonEncaisserFacture({
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Note interne
                 </label>
+
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
-                  rows={3}
+                  rows={4}
                   placeholder="Note facultative..."
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
@@ -301,11 +310,11 @@ export default function BoutonEncaisserFacture({
 
               <button
                 type="button"
-                onClick={encaisser}
+                onClick={enregistrerPaiement}
                 disabled={chargement}
                 className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {chargement ? "Encaissement..." : "Enregistrer le paiement"}
+                {chargement ? "Enregistrement..." : "Enregistrer le paiement"}
               </button>
             </div>
           </div>

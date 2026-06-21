@@ -1085,12 +1085,19 @@ Cordialement.`;
 
                           {resteAPayer > 0 && facture.statut !== "brouillon" && (
                             <BoutonEncaisserFacture
-                              factureId={facture.id}
-                              numero={facture.numero}
-                              totalTtc={Number(facture.total_ttc || 0)}
-                              montantPaye={Number(facture.montant_paye || 0)}
-                              resteAPayer={resteAPayer}
-                            />
+  factureId={facture.id}
+  numero={facture.numero}
+  totalTtc={Number(facture.total_ttc || 0)}
+  montantPaye={Number(facture.montant_paye || 0)}
+  resteAPayer={resteAPayer}
+  onPaiementEnregistre={chargerFactures}
+/>
+                              
+                              
+                              
+                              
+                              
+                            
                           )}
 
                           {facture.statut !== "brouillon" &&

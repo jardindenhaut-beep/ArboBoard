@@ -12,6 +12,7 @@ import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFact
 import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
 import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
+import { genererNumeroDocumentClient } from "@/lib/documents/genererNumeroDocumentClient";
 
 type Client = {
   id: string;
@@ -418,20 +419,9 @@ export default function PageFactures() {
     };
   }, [factures]);
 
-  async function genererNumeroFacture() {
-    if (!entrepriseId) return `FAC-${Date.now()}`;
-
-    const annee = new Date().getFullYear();
-
-    const { count } = await supabase
-      .from("factures")
-      .select("id", { count: "exact", head: true })
-      .eq("entreprise_id", entrepriseId)
-      .gte("date_facture", `${annee}-01-01`)
-      .lte("date_facture", `${annee}-12-31`);
-
-    return `FAC-${annee}-${String((count || 0) + 1).padStart(4, "0")}`;
-  }
+ async function genererNumeroFacture() {
+  return await genererNumeroDocumentClient("facture");
+}
 
   async function ouvrirCreation() {
     setMessageErreur("");

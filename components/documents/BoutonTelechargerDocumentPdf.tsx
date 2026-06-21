@@ -4,12 +4,16 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type TypeDocument = "devis" | "facture" | "avoir";
+type ModePdf = "download" | "inline";
 
 type Props = {
   typeDocument: TypeDocument;
   documentId: string;
   numero?: string | null;
   className?: string;
+  classNameVoir?: string;
+  afficherVoir?: boolean;
+  afficherTelecharger?: boolean;
 };
 
 function libelleDocument(typeDocument: TypeDocument) {
@@ -72,13 +76,16 @@ export default function BoutonTelechargerDocumentPdf({
   documentId,
   numero,
   className,
+  classNameVoir,
+  afficherVoir = true,
+  afficherTelecharger = true,
 }: Props) {
-  const [chargement, setChargement] = useState(false);
+  const [chargementMode, setChargementMode] = useState<ModePdf | null>(null);
   const [messageErreur, setMessageErreur] = useState("");
 
-  async function telechargerPdf() {
+  async function recupererPdf(mode: ModePdf) {
     try {
-      setChargement(true);
+      setChargementMode(mode);
       setMessageErreur("");
 
       if (!documentId) {
@@ -104,6 +111,7 @@ export default function BoutonTelechargerDocumentPdf({
         body: JSON.stringify({
           typeDocument,
           documentId,
+          mode,
         }),
       });
 
@@ -112,9 +120,7 @@ export default function BoutonTelechargerDocumentPdf({
 
         throw new Error(
           erreur ||
-            `Impossible de télécharger le PDF du ${libelleDocument(
-              typeDocument
-            )}.`
+            `Impossible de générer le PDF du ${libelleDocument(typeDocument)}.`
         );
       }
 
@@ -128,7 +134,26 @@ export default function BoutonTelechargerDocumentPdf({
         extraireNomFichier(response.headers.get("content-disposition")) ||
         nomFichierParDefaut(typeDocument, numero);
 
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(
+        new Blob([blob], { type: "application/pdf" })
+      );
+
+      if (mode === "inline") {
+        const nouvelOnglet = window.open(url, "_blank", "noopener,noreferrer");
+
+        if (!nouvelOnglet) {
+          setMessageErreur(
+            "Le navigateur a bloqué l’ouverture du PDF. Autorisez les pop-ups ou utilisez Télécharger PDF."
+          );
+        }
+
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 60_000);
+
+        return;
+      }
+
       const lien = window.document.createElement("a");
 
       lien.href = url;
@@ -141,29 +166,49 @@ export default function BoutonTelechargerDocumentPdf({
 
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      console.error("Erreur téléchargement PDF :", error);
+      console.error("Erreur génération PDF :", error);
       setMessageErreur(
         error?.message ||
-          `Impossible de télécharger le PDF du ${libelleDocument(typeDocument)}.`
+          `Impossible de générer le PDF du ${libelleDocument(typeDocument)}.`
       );
     } finally {
-      setChargement(false);
+      setChargementMode(null);
     }
   }
 
   return (
     <div className="inline-flex flex-col gap-1">
-      <button
-        type="button"
-        onClick={telechargerPdf}
-        disabled={chargement}
-        className={
-          className ||
-          "rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-        }
-      >
-        {chargement ? "Génération..." : "Télécharger PDF"}
-      </button>
+      <div className="inline-flex flex-wrap gap-2">
+        {afficherVoir && (
+          <button
+            type="button"
+            onClick={() => void recupererPdf("inline")}
+            disabled={!!chargementMode}
+            className={
+              classNameVoir ||
+              "rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+            }
+          >
+            {chargementMode === "inline" ? "Ouverture..." : "Voir PDF"}
+          </button>
+        )}
+
+        {afficherTelecharger && (
+          <button
+            type="button"
+            onClick={() => void recupererPdf("download")}
+            disabled={!!chargementMode}
+            className={
+              className ||
+              "rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            }
+          >
+            {chargementMode === "download"
+              ? "Génération..."
+              : "Télécharger PDF"}
+          </button>
+        )}
+      </div>
 
       {messageErreur && (
         <p className="max-w-xs text-xs font-medium text-red-600">

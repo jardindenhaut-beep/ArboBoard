@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type TypeDocumentDemande = "devis" | "facture" | "avoir";
+type ModePdf = "download" | "inline";
 
 function creerSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -27,13 +28,17 @@ function creerSupabaseAdmin() {
 }
 
 function encoderNomFichier(nomFichier: string) {
-  return encodeURIComponent(nomFichier).replace(/['()]/g, escape);
+  return encodeURIComponent(nomFichier)
+    .replaceAll("'", "%27")
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29");
 }
 
-function headerContentDisposition(nomFichier: string) {
+function headerContentDisposition(nomFichier: string, mode: ModePdf) {
+  const disposition = mode === "inline" ? "inline" : "attachment";
   const nomSimple = nomFichier.replace(/[^\w.\- ]+/g, "-");
 
-  return `attachment; filename="${nomSimple}"; filename*=UTF-8''${encoderNomFichier(
+  return `${disposition}; filename="${nomSimple}"; filename*=UTF-8''${encoderNomFichier(
     nomFichier
   )}`;
 }
@@ -94,7 +99,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Accès refusé. Seul le chef actif peut télécharger un PDF.",
+          error: "Accès refusé. Seul le chef actif peut accéder au PDF.",
         },
         { status: 403 }
       );
@@ -105,6 +110,7 @@ export async function POST(request: NextRequest) {
       type_document?: TypeDocumentDemande | string;
       documentId?: string;
       document_id?: string;
+      mode?: ModePdf | string;
     };
 
     const typeDemande = String(
@@ -112,6 +118,8 @@ export async function POST(request: NextRequest) {
     ).trim() as TypeDocumentDemande;
 
     const documentId = String(body.documentId || body.document_id || "").trim();
+
+    const mode: ModePdf = body.mode === "inline" ? "inline" : "download";
 
     if (!["devis", "facture", "avoir"].includes(typeDemande)) {
       return NextResponse.json(
@@ -281,17 +289,20 @@ export async function POST(request: NextRequest) {
       factureOrigine,
     });
 
-   const corpsPdf = new Uint8Array(pieceJointePdf.buffer);
+    const corpsPdf = new Uint8Array(pieceJointePdf.buffer);
 
-return new NextResponse(corpsPdf as any, {
-  status: 200,
-  headers: {
-    "Content-Type": "application/pdf",
-    "Content-Disposition": headerContentDisposition(pieceJointePdf.filename),
-    "Content-Length": String(pieceJointePdf.buffer.byteLength),
-    "Cache-Control": "no-store",
-  },
-});
+    return new NextResponse(corpsPdf as any, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": headerContentDisposition(
+          pieceJointePdf.filename,
+          mode
+        ),
+        "Content-Length": String(pieceJointePdf.buffer.byteLength),
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error: any) {
     console.error("Erreur génération PDF document :", error);
 

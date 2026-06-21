@@ -1081,6 +1081,7 @@ Cordialement.`;
                           <HistoriquePaiementsFacture
                             factureId={facture.id}
                             numero={facture.numero}
+                            onPaiementSupprime={chargerFactures}
                           />
 
                           {resteAPayer > 0 && facture.statut !== "brouillon" && (

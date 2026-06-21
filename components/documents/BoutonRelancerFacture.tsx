@@ -46,6 +46,8 @@ Sauf erreur de notre part, la facture ${
     dateEcheance
   )} présente encore un solde restant dû de ${formatMontant(resteAPayer)}.
 
+Vous trouverez la facture en pièce jointe de cet email.
+
 Nous vous remercions de bien vouloir procéder au règlement dès que possible.
 
 Cordialement.`;
@@ -126,12 +128,12 @@ export default function BoutonRelancerFacture({
       const resultat = await response.json().catch(() => null);
 
       if (!response.ok || !resultat?.success) {
-        throw new Error(
-          resultat?.error || "Impossible d’envoyer la relance."
-        );
+        throw new Error(resultat?.error || "Impossible d’envoyer la relance.");
       }
 
-      setMessageSucces(resultat.message || "Relance envoyée avec succès.");
+      setMessageSucces(
+        resultat.message || "Relance envoyée avec succès."
+      );
 
       if (onRelanceEnvoyee) {
         await onRelanceEnvoyee();
@@ -142,9 +144,7 @@ export default function BoutonRelancerFacture({
       }, 900);
     } catch (error: any) {
       console.error("Erreur envoi relance facture :", error);
-      setMessageErreur(
-        error?.message || "Impossible d’envoyer la relance."
-      );
+      setMessageErreur(error?.message || "Impossible d’envoyer la relance.");
     } finally {
       setChargement(false);
     }
@@ -168,6 +168,7 @@ export default function BoutonRelancerFacture({
                 <h2 className="text-xl font-bold text-slate-950">
                   Relancer la facture
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
                   {numero ? `Facture ${numero}` : "Facture sans numéro"}
                 </p>
@@ -200,6 +201,7 @@ export default function BoutonRelancerFacture({
                 <p className="text-sm font-semibold text-orange-900">
                   Récapitulatif
                 </p>
+
                 <div className="mt-2 space-y-1 text-sm text-orange-800">
                   <p>
                     Facture :{" "}
@@ -207,12 +209,14 @@ export default function BoutonRelancerFacture({
                       {numero || "sans numéro"}
                     </span>
                   </p>
+
                   <p>
                     Échéance :{" "}
                     <span className="font-semibold">
                       {formatDate(dateEcheance)}
                     </span>
                   </p>
+
                   <p>
                     Reste à payer :{" "}
                     <span className="font-semibold">
@@ -226,6 +230,7 @@ export default function BoutonRelancerFacture({
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Email destinataire
                 </label>
+
                 <input
                   type="email"
                   value={email}
@@ -239,15 +244,17 @@ export default function BoutonRelancerFacture({
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Message de relance
                 </label>
+
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   rows={9}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
                 />
+
                 <p className="mt-2 text-xs text-slate-500">
-                  La relance sera enregistrée dans l’historique des emails de la
-                  facture.
+                  La relance sera envoyée avec la facture PDF en pièce jointe et
+                  enregistrée dans l’historique des emails.
                 </p>
               </div>
             </div>

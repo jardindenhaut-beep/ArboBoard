@@ -36,7 +36,7 @@ function messageParDefaut(typeDocument: TypeDocument, numero?: string | null) {
   if (typeDocument === "devis") {
     return `Bonjour,
 
-Veuillez trouver ci-dessous votre devis ${numero || ""}.
+Veuillez trouver ci-joint votre devis ${numero || ""} au format PDF.
 
 Cordialement.`;
   }
@@ -44,7 +44,7 @@ Cordialement.`;
   if (typeDocument === "avoir") {
     return `Bonjour,
 
-Veuillez trouver ci-dessous votre avoir ${numero || ""}.
+Veuillez trouver ci-joint votre avoir ${numero || ""} au format PDF.
 
 Cet avoir vient rectifier ou annuler une facture précédemment émise.
 
@@ -53,7 +53,7 @@ Cordialement.`;
 
   return `Bonjour,
 
-Veuillez trouver ci-dessous votre facture ${numero || ""}.
+Veuillez trouver ci-joint votre facture ${numero || ""} au format PDF.
 
 Cordialement.`;
 }
@@ -68,10 +68,12 @@ export default function BoutonEnvoyerDocumentEmail({
 }: Props) {
   const [modalOuverte, setModalOuverte] = useState(false);
   const [chargement, setChargement] = useState(false);
+
   const [email, setEmail] = useState(defaultEmail || "");
   const [message, setMessage] = useState(
     defaultMessage || messageParDefaut(typeDocument, numero)
   );
+
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
@@ -98,6 +100,11 @@ export default function BoutonEnvoyerDocumentEmail({
 
       if (!emailNettoye) {
         setMessageErreur("Veuillez renseigner une adresse email.");
+        return;
+      }
+
+      if (!documentId) {
+        setMessageErreur("Identifiant du document manquant.");
         return;
       }
 
@@ -128,7 +135,8 @@ export default function BoutonEnvoyerDocumentEmail({
 
       if (!response.ok || !resultat?.success) {
         throw new Error(
-          resultat?.error || `Impossible d’envoyer le ${libelleDocument(typeDocument)}.`
+          resultat?.error ||
+            `Impossible d’envoyer le ${libelleDocument(typeDocument)}.`
         );
       }
 
@@ -173,6 +181,7 @@ export default function BoutonEnvoyerDocumentEmail({
                 <h2 className="text-xl font-bold text-slate-950">
                   Envoyer {libelleDocument(typeDocument)} par email
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
                   {numero
                     ? `${titreDocument(typeDocument)} ${numero}`
@@ -207,6 +216,7 @@ export default function BoutonEnvoyerDocumentEmail({
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Email destinataire
                 </label>
+
                 <input
                   type="email"
                   value={email}
@@ -220,15 +230,16 @@ export default function BoutonEnvoyerDocumentEmail({
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Message
                 </label>
+
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   rows={8}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
+
                 <p className="mt-2 text-xs text-slate-500">
-                  Le document sera envoyé avec un aperçu du contenu et un lien
-                  vers le PDF.
+                  Le document sera envoyé avec son PDF en pièce jointe.
                 </p>
               </div>
             </div>

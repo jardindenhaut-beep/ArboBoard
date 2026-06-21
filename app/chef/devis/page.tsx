@@ -1,13 +1,12 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { chargerContexteEntreprise } from "@/lib/entreprise";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
-import BoutonFacturerDevis from "@/components/documents/BoutonFacturerDevis";
-
-type StatutDevis = "brouillon" | "envoye" | "accepte" | "refuse" | "archive";
+import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 
 type Client = {
   id: string;
@@ -20,121 +19,80 @@ type Client = {
   adresse?: string | null;
   code_postal?: string | null;
   ville?: string | null;
-  statut?: string | null;
 };
 
 type Devis = {
   id: string;
   entreprise_id: string;
-  client_id: string | null;
-  client_nom: string | null;
-  numero: string | null;
-  objet: string | null;
-  description: string | null;
-  statut: string | null;
-  date_devis: string | null;
-  date_validite: string | null;
-  total_ht: number | null;
-  total_tva: number | null;
-  total_ttc: number | null;
-  conditions: string | null;
-  notes_internes: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  client_id?: string | null;
+  client_nom?: string | null;
+  numero?: string | null;
+  objet?: string | null;
+  description?: string | null;
+  date_devis?: string | null;
+  date_validite?: string | null;
+  statut?: string | null;
+  total_ht?: number | null;
+  total_tva?: number | null;
+  total_ttc?: number | null;
+  conditions?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  client?: Client | null;
 };
 
-type LigneDevis = {
-  id: string;
-  devis_id: string;
-  entreprise_id: string;
-  ordre: number | null;
-  designation: string | null;
-  description: string | null;
-  quantite: number | null;
-  unite: string | null;
-  prix_unitaire_ht: number | null;
-  tva: number | null;
-  total_ht: number | null;
-  total_tva: number | null;
-  total_ttc: number | null;
-};
-
-type DevisAvecLignes = Devis & {
-  lignes: LigneDevis[];
-};
-
-type EntrepriseParametres = {
-  tva_defaut?: number | null;
-  acompte_defaut?: number | null;
-  validite_devis_jours?: number | null;
-  prefixe_devis?: string | null;
-  numerotation_devis_auto?: boolean | null;
-  conditions_devis?: string | null;
-};
-
-type LigneFormulaire = {
+type LigneDevisForm = {
+  id?: string;
   designation: string;
   description: string;
-  quantite: string;
+  quantite: number;
   unite: string;
-  prix_unitaire_ht: string;
-  tva: string;
+  prix_unitaire_ht: number;
+  tva: number;
+  total_ht: number;
+  total_tva: number;
+  total_ttc: number;
 };
 
-type FormulaireDevis = {
+type FormDevis = {
   client_id: string;
   numero: string;
   objet: string;
   description: string;
-  statut: StatutDevis;
   date_devis: string;
   date_validite: string;
+  statut: "brouillon" | "envoye";
   conditions: string;
-  notes_internes: string;
-  lignes: LigneFormulaire[];
 };
 
-const CONDITIONS_DEVIS_DEFAUT =
-  "Devis valable pendant la durée indiquée. Acompte de 30 % à la signature sauf indication contraire. Les travaux seront réalisés selon les conditions précisées dans le devis.";
+type FiltreDevis =
+  | "tous"
+  | "brouillon"
+  | "envoye"
+  | "accepte"
+  | "refuse"
+  | "archive";
 
-function dateDuJour() {
+function dateAujourdhui() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function dateDansJours(jours: number) {
-  const date = new Date();
+function ajouterJours(dateIso: string, jours: number) {
+  const date = new Date(`${dateIso}T00:00:00`);
   date.setDate(date.getDate() + jours);
   return date.toISOString().slice(0, 10);
 }
 
-function nettoyerTexte(valeur: string) {
-  const texte = valeur.trim();
-  return texte.length > 0 ? texte : null;
-}
-
-function nettoyerDate(valeur: string) {
-  const texte = valeur.trim();
-  return texte.length > 0 ? texte : null;
-}
-
-function nombreDepuisTexte(valeur: string | number | null | undefined) {
-  if (typeof valeur === "number") {
-    return Number.isFinite(valeur) ? valeur : 0;
-  }
-
-  const texte = String(valeur || "")
-    .replace(",", ".")
-    .replace(/\s/g, "")
-    .trim();
-
-  const nombre = Number.parseFloat(texte);
-
-  return Number.isFinite(nombre) ? nombre : 0;
-}
-
-function arrondir2(nombre: number) {
-  return Math.round((nombre + Number.EPSILON) * 100) / 100;
-}
+const formVide: FormDevis = {
+  client_id: "",
+  numero: "",
+  objet: "",
+  description: "",
+  date_devis: dateAujourdhui(),
+  date_validite: ajouterJours(dateAujourdhui(), 30),
+  statut: "brouillon",
+  conditions: "",
+};
 
 function formatMontant(montant: number | null | undefined) {
   return new Intl.NumberFormat("fr-FR", {
@@ -151,18 +109,20 @@ function formatDate(date: string | null | undefined) {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
+    }).format(new Date(`${date.slice(0, 10)}T00:00:00`));
   } catch {
     return "—";
   }
 }
 
-function nomClient(client: Client | null | undefined) {
+function nomClient(client?: Client | null, devis?: Devis | null) {
+  if (devis?.client_nom) return devis.client_nom;
+
   if (!client) return "Client non renseigné";
 
   if (client.type_client === "particulier") {
-    const complet = `${client.prenom || ""} ${client.nom || ""}`.trim();
-    return complet || "Client particulier";
+    const nom = `${client.prenom || ""} ${client.nom || ""}`.trim();
+    return nom || "Client particulier";
   }
 
   return (
@@ -173,473 +133,425 @@ function nomClient(client: Client | null | undefined) {
   );
 }
 
-function libelleStatut(statut: string | null | undefined) {
+function libelleStatut(statut?: string | null) {
+  if (statut === "brouillon") return "Brouillon";
   if (statut === "envoye") return "Envoyé";
   if (statut === "accepte") return "Accepté";
   if (statut === "refuse") return "Refusé";
   if (statut === "archive") return "Archivé";
-  return "Brouillon";
+  return "Inconnu";
 }
 
-function badgeStatut(statut: string | null | undefined) {
-  if (statut === "envoye") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (statut === "accepte")
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (statut === "refuse") return "bg-red-50 text-red-700 border-red-200";
-  if (statut === "archive")
-    return "bg-slate-100 text-slate-600 border-slate-200";
-  return "bg-amber-50 text-amber-700 border-amber-200";
+function classeStatut(statut?: string | null) {
+  if (statut === "brouillon") {
+    return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+
+  if (statut === "envoye") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (statut === "accepte") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (statut === "refuse") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (statut === "archive") {
+    return "border-zinc-200 bg-zinc-50 text-zinc-600";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function calculerLigne(ligne: LigneFormulaire) {
-  const quantite = nombreDepuisTexte(ligne.quantite);
-  const prixUnitaire = nombreDepuisTexte(ligne.prix_unitaire_ht);
-  const tauxTva = nombreDepuisTexte(ligne.tva);
-
-  const totalHt = arrondir2(quantite * prixUnitaire);
-  const totalTva = arrondir2(totalHt * (tauxTva / 100));
-  const totalTtc = arrondir2(totalHt + totalTva);
-
-  return {
-    quantite,
-    prixUnitaire,
-    tauxTva,
-    totalHt,
-    totalTva,
-    totalTtc,
-  };
-}
-
-function calculerTotaux(lignes: LigneFormulaire[]) {
-  return lignes.reduce(
-    (acc, ligne) => {
-      const calcul = calculerLigne(ligne);
-
-      return {
-        totalHt: arrondir2(acc.totalHt + calcul.totalHt),
-        totalTva: arrondir2(acc.totalTva + calcul.totalTva),
-        totalTtc: arrondir2(acc.totalTtc + calcul.totalTtc),
-      };
-    },
-    {
-      totalHt: 0,
-      totalTva: 0,
-      totalTtc: 0,
-    }
-  );
-}
-
-function ligneEstValide(ligne: LigneFormulaire) {
-  return ligne.designation.trim().length > 0;
-}
-
-function ligneVide(tva = 20): LigneFormulaire {
+function ligneVide(): LigneDevisForm {
   return {
     designation: "",
     description: "",
-    quantite: "1",
+    quantite: 1,
     unite: "u",
-    prix_unitaire_ht: "0",
-    tva: String(tva),
+    prix_unitaire_ht: 0,
+    tva: 20,
+    total_ht: 0,
+    total_tva: 0,
+    total_ttc: 0,
   };
 }
 
-function formulaireVide(parametres: EntrepriseParametres | null): FormulaireDevis {
-  const tva = parametres?.tva_defaut ?? 20;
-  const validite = parametres?.validite_devis_jours ?? 30;
+function recalculerLigne(ligne: LigneDevisForm): LigneDevisForm {
+  const quantite = Number(ligne.quantite || 0);
+  const prixUnitaireHt = Number(ligne.prix_unitaire_ht || 0);
+  const tva = Number(ligne.tva || 0);
+
+  const totalHt = quantite * prixUnitaireHt;
+  const totalTva = totalHt * (tva / 100);
+  const totalTtc = totalHt + totalTva;
 
   return {
-    client_id: "",
-    numero: "",
-    objet: "",
-    description: "",
-    statut: "brouillon",
-    date_devis: dateDuJour(),
-    date_validite: dateDansJours(validite),
-    conditions: parametres?.conditions_devis || CONDITIONS_DEVIS_DEFAUT,
-    notes_internes: "",
-    lignes: [ligneVide(tva)],
+    ...ligne,
+    quantite,
+    prix_unitaire_ht: prixUnitaireHt,
+    tva,
+    total_ht: Number(totalHt.toFixed(2)),
+    total_tva: Number(totalTva.toFixed(2)),
+    total_ttc: Number(totalTtc.toFixed(2)),
   };
 }
 
-export default function DevisPage() {
-  const [entrepriseId, setEntrepriseId] = useState("");
-  const [clients, setClients] = useState<Client[]>([]);
-  const [devis, setDevis] = useState<DevisAvecLignes[]>([]);
-  const [parametres, setParametres] = useState<EntrepriseParametres | null>(null);
+function calculerTotaux(lignes: LigneDevisForm[]) {
+  const lignesCalculees = lignes.map(recalculerLigne);
 
-  const [chargement, setChargement] = useState(true);
-  const [enregistrement, setEnregistrement] = useState(false);
-
-  const [recherche, setRecherche] = useState("");
-  const [filtreStatut, setFiltreStatut] = useState<"tous" | StatutDevis>("tous");
-
-  const [modalOuverte, setModalOuverte] = useState(false);
-  const [devisEdition, setDevisEdition] = useState<DevisAvecLignes | null>(null);
-  const [formulaire, setFormulaire] = useState<FormulaireDevis>(() =>
-    formulaireVide(null)
+  const totalHt = lignesCalculees.reduce(
+    (total, ligne) => total + Number(ligne.total_ht || 0),
+    0
   );
 
+  const totalTva = lignesCalculees.reduce(
+    (total, ligne) => total + Number(ligne.total_tva || 0),
+    0
+  );
+
+  const totalTtc = lignesCalculees.reduce(
+    (total, ligne) => total + Number(ligne.total_ttc || 0),
+    0
+  );
+
+  return {
+    lignesCalculees,
+    total_ht: Number(totalHt.toFixed(2)),
+    total_tva: Number(totalTva.toFixed(2)),
+    total_ttc: Number(totalTtc.toFixed(2)),
+  };
+}
+
+export default function PageDevis() {
+  const [entrepriseId, setEntrepriseId] = useState("");
+  const [devis, setDevis] = useState<Devis[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  const [chargement, setChargement] = useState(true);
+  const [chargementAction, setChargementAction] = useState(false);
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
-  useEffect(() => {
-    initialiserPage();
-  }, []);
+  const [recherche, setRecherche] = useState("");
+  const [filtre, setFiltre] = useState<FiltreDevis>("tous");
 
-  async function initialiserPage() {
+  const [modalOuverte, setModalOuverte] = useState(false);
+  const [devisEdition, setDevisEdition] = useState<Devis | null>(null);
+  const [form, setForm] = useState<FormDevis>(formVide);
+  const [lignes, setLignes] = useState<LigneDevisForm[]>([ligneVide()]);
+
+  const chargerDevis = useCallback(async () => {
     try {
       setChargement(true);
       setMessageErreur("");
 
-      const resultat = await chargerContexteEntreprise();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
-        setMessageErreur(
-          "Impossible de charger votre entreprise. Veuillez vous reconnecter."
-        );
-        setChargement(false);
+      if (!session?.user?.id) {
+        setMessageErreur("Session expirée. Veuillez vous reconnecter.");
         return;
       }
 
-      const idEntreprise = resultat.contexte.entreprise.id as string;
-      setEntrepriseId(idEntreprise);
+      const { data: profil, error: profilError } = await supabase
+        .from("profils_utilisateurs")
+        .select("entreprise_id, role, statut")
+        .eq("id", session.user.id)
+        .maybeSingle();
 
-      const params = await chargerParametres(idEntreprise);
-      setParametres(params);
+      if (profilError) throw profilError;
 
-      await Promise.all([chargerClients(idEntreprise), chargerDevis(idEntreprise)]);
-    } catch (error) {
-      console.error("Erreur initialisation devis :", error);
-      setMessageErreur("Une erreur est survenue pendant le chargement.");
+      if (!profil?.entreprise_id) {
+        setMessageErreur("Entreprise introuvable pour ce compte.");
+        return;
+      }
+
+      if (profil.role !== "chef" || profil.statut !== "actif") {
+        setMessageErreur("Accès refusé.");
+        return;
+      }
+
+      setEntrepriseId(profil.entreprise_id);
+
+      const [
+        { data: clientsData, error: clientsError },
+        { data: devisData, error: devisError },
+      ] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("entreprise_id", profil.entreprise_id)
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("devis")
+          .select("*")
+          .eq("entreprise_id", profil.entreprise_id)
+          .order("date_devis", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (clientsError) throw clientsError;
+      if (devisError) throw devisError;
+
+      const listeClients = (clientsData || []) as Client[];
+      const mapClients = new Map(
+        listeClients.map((client) => [client.id, client])
+      );
+
+      const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
+        ...item,
+        client: item.client_id ? mapClients.get(item.client_id) || null : null,
+      }));
+
+      setClients(listeClients);
+      setDevis(listeDevis);
+    } catch (error: any) {
+      console.error("Erreur chargement devis :", error);
+      setMessageErreur(error?.message || "Impossible de charger les devis.");
     } finally {
       setChargement(false);
     }
-  }
+  }, []);
 
-  async function chargerParametres(idEntreprise = entrepriseId) {
-    if (!idEntreprise) return null;
-
-    const { data, error } = await supabase
-      .from("entreprise_parametres")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Erreur chargement paramètres devis :", error);
-      return null;
-    }
-
-    return (data || null) as EntrepriseParametres | null;
-  }
-
-  async function chargerClients(idEntreprise = entrepriseId) {
-    if (!idEntreprise) return;
-
-    const { data, error } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .neq("statut", "archive")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Erreur chargement clients :", error);
-      setMessageErreur(error.message || "Impossible de charger les clients.");
-      return;
-    }
-
-    setClients((data || []) as Client[]);
-  }
-
-  async function chargerDevis(idEntreprise = entrepriseId) {
-    if (!idEntreprise) return;
-
-    const { data: devisData, error: devisError } = await supabase
-      .from("devis")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .order("created_at", { ascending: false });
-
-    if (devisError) {
-      console.error("Erreur chargement devis :", devisError);
-      setMessageErreur(devisError.message || "Impossible de charger les devis.");
-      return;
-    }
-
-    const devisListe = (devisData || []) as Devis[];
-    const devisIds = devisListe.map((item) => item.id);
-
-    if (devisIds.length === 0) {
-      setDevis([]);
-      return;
-    }
-
-    const { data: lignesData, error: lignesError } = await supabase
-      .from("devis_lignes")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .in("devis_id", devisIds)
-      .order("ordre", { ascending: true });
-
-    if (lignesError) {
-      console.error("Erreur chargement lignes devis :", lignesError);
-      setMessageErreur(
-        lignesError.message || "Impossible de charger les lignes de devis."
-      );
-      return;
-    }
-
-    const lignes = (lignesData || []) as LigneDevis[];
-
-    const devisAvecLignes = devisListe.map((item) => ({
-      ...item,
-      lignes: lignes.filter((ligne) => ligne.devis_id === item.id),
-    }));
-
-    setDevis(devisAvecLignes);
-  }
-
-  const statistiques = useMemo(() => {
-    const totalTtc = devis.reduce(
-      (total, item) => total + Number(item.total_ttc || 0),
-      0
-    );
-
-    const accepteTtc = devis
-      .filter((item) => item.statut === "accepte")
-      .reduce((total, item) => total + Number(item.total_ttc || 0), 0);
-
-    return {
-      total: devis.length,
-      brouillons: devis.filter((item) => item.statut === "brouillon").length,
-      envoyes: devis.filter((item) => item.statut === "envoye").length,
-      acceptes: devis.filter((item) => item.statut === "accepte").length,
-      refuses: devis.filter((item) => item.statut === "refuse").length,
-      totalTtc,
-      accepteTtc,
-    };
-  }, [devis]);
+  useEffect(() => {
+    chargerDevis();
+  }, [chargerDevis]);
 
   const devisFiltres = useMemo(() => {
-    const texte = recherche.trim().toLowerCase();
+    const rechercheNormalisee = recherche.trim().toLowerCase();
 
     return devis.filter((item) => {
-      const statut = item.statut || "brouillon";
-      const correspondStatut = filtreStatut === "tous" || statut === filtreStatut;
+      if (filtre !== "tous" && item.statut !== filtre) {
+        return false;
+      }
 
-      const zoneRecherche = [
+      if (!rechercheNormalisee) return true;
+
+      const texte = [
         item.numero,
-        item.client_nom,
         item.objet,
         item.description,
-        item.conditions,
-        item.notes_internes,
+        item.statut,
+        nomClient(item.client, item),
+        item.client?.email,
+        item.client?.telephone,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      const correspondRecherche =
-        texte.length === 0 || zoneRecherche.includes(texte);
-
-      return correspondStatut && correspondRecherche;
+      return texte.includes(rechercheNormalisee);
     });
-  }, [devis, recherche, filtreStatut]);
+  }, [devis, filtre, recherche]);
 
-  const totauxFormulaire = useMemo(() => {
-    return calculerTotaux(formulaire.lignes);
-  }, [formulaire.lignes]);
+  const statistiques = useMemo(() => {
+    return {
+      total: devis.length,
+      brouillons: devis.filter((item) => item.statut === "brouillon").length,
+      envoyes: devis.filter((item) => item.statut === "envoye").length,
+      acceptes: devis.filter((item) => item.statut === "accepte").length,
+      totalAccepteTtc: devis
+        .filter((item) => item.statut === "accepte")
+        .reduce((total, item) => total + Number(item.total_ttc || 0), 0),
+    };
+  }, [devis]);
 
-  function trouverClient(clientId: string | null | undefined) {
-    if (!clientId) return null;
-    return clients.find((client) => client.id === clientId) || null;
+  async function genererNumeroDevis() {
+    if (!entrepriseId) return `DEV-${Date.now()}`;
+
+    const annee = new Date().getFullYear();
+
+    const { count } = await supabase
+      .from("devis")
+      .select("id", { count: "exact", head: true })
+      .eq("entreprise_id", entrepriseId)
+      .gte("date_devis", `${annee}-01-01`)
+      .lte("date_devis", `${annee}-12-31`);
+
+    return `DEV-${annee}-${String((count || 0) + 1).padStart(4, "0")}`;
   }
 
-  function ouvrirCreation() {
-    setDevisEdition(null);
-    setFormulaire(formulaireVide(parametres));
+  async function ouvrirCreation() {
     setMessageErreur("");
     setMessageSucces("");
+
+    const numero = await genererNumeroDevis();
+
+    setDevisEdition(null);
+    setForm({
+      ...formVide,
+      numero,
+      date_devis: dateAujourdhui(),
+      date_validite: ajouterJours(dateAujourdhui(), 30),
+    });
+    setLignes([ligneVide()]);
     setModalOuverte(true);
   }
 
-  function ouvrirEdition(item: DevisAvecLignes) {
-    setDevisEdition(item);
-
-    const tva = parametres?.tva_defaut ?? 20;
-
-    const lignesFormulaire =
-      item.lignes.length > 0
-        ? item.lignes.map((ligne) => ({
-            designation: ligne.designation || "",
-            description: ligne.description || "",
-            quantite: String(ligne.quantite ?? 1),
-            unite: ligne.unite || "u",
-            prix_unitaire_ht: String(ligne.prix_unitaire_ht ?? 0),
-            tva: String(ligne.tva ?? tva),
-          }))
-        : [ligneVide(tva)];
-
-    setFormulaire({
-      client_id: item.client_id || "",
-      numero: item.numero || "",
-      objet: item.objet || "",
-      description: item.description || "",
-      statut: (item.statut as StatutDevis) || "brouillon",
-      date_devis: item.date_devis || dateDuJour(),
-      date_validite:
-        item.date_validite ||
-        dateDansJours(parametres?.validite_devis_jours ?? 30),
-      conditions:
-        item.conditions || parametres?.conditions_devis || CONDITIONS_DEVIS_DEFAUT,
-      notes_internes: item.notes_internes || "",
-      lignes: lignesFormulaire,
-    });
-
-    setMessageErreur("");
-    setMessageSucces("");
-    setModalOuverte(true);
-  }
-
-  function fermerModal() {
-    if (enregistrement) return;
-
-    setModalOuverte(false);
-    setDevisEdition(null);
-    setFormulaire(formulaireVide(parametres));
-  }
-
-  function modifierChamp(champ: keyof Omit<FormulaireDevis, "lignes">, valeur: string) {
-    setFormulaire((ancien) => ({
-      ...ancien,
-      [champ]: valeur,
-    }));
-  }
-
-  function modifierLigne(index: number, champ: keyof LigneFormulaire, valeur: string) {
-    setFormulaire((ancien) => ({
-      ...ancien,
-      lignes: ancien.lignes.map((ligne, ligneIndex) =>
-        ligneIndex === index
-          ? {
-              ...ligne,
-              [champ]: valeur,
-            }
-          : ligne
-      ),
-    }));
-  }
-
-  function ajouterLigne() {
-    setFormulaire((ancien) => ({
-      ...ancien,
-      lignes: [...ancien.lignes, ligneVide(parametres?.tva_defaut ?? 20)],
-    }));
-  }
-
-  function supprimerLigne(index: number) {
-    setFormulaire((ancien) => {
-      if (ancien.lignes.length <= 1) return ancien;
-
-      return {
-        ...ancien,
-        lignes: ancien.lignes.filter((_, ligneIndex) => ligneIndex !== index),
-      };
-    });
-  }
-
-  function formulaireValide() {
-    if (!formulaire.objet.trim()) return false;
-    return formulaire.lignes.some((ligne) => ligneEstValide(ligne));
-  }
-
-  async function genererNumeroDevisSiBesoin() {
-    const numeroManuel = formulaire.numero.trim();
-
-    if (numeroManuel.length > 0) {
-      return numeroManuel;
-    }
-
-    if (parametres?.numerotation_devis_auto === false) {
-      const maintenant = new Date();
-      const annee = maintenant.getFullYear();
-      const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
-      const jour = String(maintenant.getDate()).padStart(2, "0");
-      const heures = String(maintenant.getHours()).padStart(2, "0");
-      const minutes = String(maintenant.getMinutes()).padStart(2, "0");
-      const secondes = String(maintenant.getSeconds()).padStart(2, "0");
-
-      return `DEV-${annee}${mois}${jour}-${heures}${minutes}${secondes}`;
-    }
-
-    const { data, error } = await supabase.rpc("generer_numero_devis_entreprise", {
-      p_entreprise_id: entrepriseId,
-    });
-
-    if (error) throw error;
-
-    if (!data || typeof data !== "string") {
-      throw new Error("Impossible de générer le numéro du devis.");
-    }
-
-    return data;
-  }
-
-  async function enregistrerDevis() {
-    if (!entrepriseId) {
-      setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
-      return;
-    }
-
-    if (!formulaireValide()) {
-      setMessageErreur(
-        "Renseignez au minimum un objet et une ligne de devis avec une désignation."
-      );
-      return;
-    }
-
+  async function ouvrirEdition(item: Devis) {
     try {
-      setEnregistrement(true);
       setMessageErreur("");
       setMessageSucces("");
 
-      const clientSelectionne = trouverClient(formulaire.client_id);
-      const lignesValides = formulaire.lignes.filter((ligne) => ligneEstValide(ligne));
-      const totaux = calculerTotaux(lignesValides);
+      if (item.statut !== "brouillon") {
+        setMessageErreur("Seuls les devis en brouillon peuvent être modifiés.");
+        return;
+      }
 
-      const numeroFinal = devisEdition
-        ? formulaire.numero.trim() || devisEdition.numero || ""
-        : await genererNumeroDevisSiBesoin();
+      const { data: lignesData, error: lignesError } = await supabase
+        .from("devis_lignes")
+        .select("*")
+        .eq("devis_id", item.id)
+        .eq("entreprise_id", item.entreprise_id)
+        .order("ordre", { ascending: true });
+
+      if (lignesError) throw lignesError;
+
+      setDevisEdition(item);
+      setForm({
+        client_id: item.client_id || "",
+        numero: item.numero || "",
+        objet: item.objet || "",
+        description: item.description || "",
+        date_devis: item.date_devis || dateAujourdhui(),
+        date_validite: item.date_validite || ajouterJours(dateAujourdhui(), 30),
+        statut: "brouillon",
+        conditions: item.conditions || "",
+      });
+
+      const lignesForm = (lignesData || []).map((ligne: any) =>
+        recalculerLigne({
+          id: ligne.id,
+          designation: ligne.designation || "",
+          description: ligne.description || "",
+          quantite: Number(ligne.quantite || 0),
+          unite: ligne.unite || "u",
+          prix_unitaire_ht: Number(ligne.prix_unitaire_ht || 0),
+          tva: Number(ligne.tva || 0),
+          total_ht: Number(ligne.total_ht || 0),
+          total_tva: Number(ligne.total_tva || 0),
+          total_ttc: Number(ligne.total_ttc || 0),
+        })
+      );
+
+      setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide()]);
+      setModalOuverte(true);
+    } catch (error: any) {
+      console.error("Erreur ouverture édition devis :", error);
+      setMessageErreur(error?.message || "Impossible d’ouvrir le devis.");
+    }
+  }
+
+  function fermerModal() {
+    if (chargementAction) return;
+
+    setModalOuverte(false);
+    setDevisEdition(null);
+    setForm(formVide);
+    setLignes([ligneVide()]);
+  }
+
+  function modifierLigne(
+    index: number,
+    champ: keyof LigneDevisForm,
+    valeur: any
+  ) {
+    setLignes((anciennesLignes) =>
+      anciennesLignes.map((ligne, ligneIndex) => {
+        if (ligneIndex !== index) return ligne;
+
+        return recalculerLigne({
+          ...ligne,
+          [champ]:
+            champ === "quantite" ||
+            champ === "prix_unitaire_ht" ||
+            champ === "tva"
+              ? Number(valeur || 0)
+              : valeur,
+        });
+      })
+    );
+  }
+
+  function ajouterLigne() {
+    setLignes((anciennesLignes) => [...anciennesLignes, ligneVide()]);
+  }
+
+  function supprimerLigne(index: number) {
+    setLignes((anciennesLignes) => {
+      if (anciennesLignes.length <= 1) return anciennesLignes;
+      return anciennesLignes.filter((_, ligneIndex) => ligneIndex !== index);
+    });
+  }
+
+  async function enregistrerDevis() {
+    try {
+      setChargementAction(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      if (!entrepriseId) {
+        setMessageErreur("Entreprise introuvable.");
+        return;
+      }
+
+      if (!form.numero.trim()) {
+        setMessageErreur("Veuillez renseigner un numéro de devis.");
+        return;
+      }
+
+      if (!form.objet.trim()) {
+        setMessageErreur("Veuillez renseigner l’objet du devis.");
+        return;
+      }
+
+      const lignesValides = lignes
+        .map(recalculerLigne)
+        .filter((ligne) => ligne.designation.trim());
+
+      if (lignesValides.length === 0) {
+        setMessageErreur("Veuillez ajouter au moins une ligne de devis.");
+        return;
+      }
+
+      const { lignesCalculees, total_ht, total_tva, total_ttc } =
+        calculerTotaux(lignesValides);
+
+      const client = clients.find((item) => item.id === form.client_id) || null;
+      const clientNom = client ? nomClient(client, null) : null;
 
       const payloadDevis = {
         entreprise_id: entrepriseId,
-        client_id: formulaire.client_id || null,
-        client_nom: clientSelectionne ? nomClient(clientSelectionne) : null,
-        numero: numeroFinal,
-        objet: nettoyerTexte(formulaire.objet),
-        description: nettoyerTexte(formulaire.description),
-        statut: formulaire.statut,
-        date_devis: nettoyerDate(formulaire.date_devis),
-        date_validite: nettoyerDate(formulaire.date_validite),
-        total_ht: totaux.totalHt,
-        total_tva: totaux.totalTva,
-        total_ttc: totaux.totalTtc,
-        conditions: nettoyerTexte(formulaire.conditions),
-        notes_internes: nettoyerTexte(formulaire.notes_internes),
+        client_id: form.client_id || null,
+        client_nom: clientNom,
+        numero: form.numero.trim(),
+        objet: form.objet.trim(),
+        description: form.description.trim() || null,
+        date_devis: form.date_devis,
+        date_validite: form.date_validite,
+        statut: "brouillon",
+        total_ht,
+        total_tva,
+        total_ttc,
+        conditions: form.conditions.trim() || null,
       };
 
       let devisId = devisEdition?.id || "";
 
       if (devisEdition) {
-        const { error } = await supabase
+        const { error: devisError } = await supabase
           .from("devis")
           .update(payloadDevis)
           .eq("id", devisEdition.id)
           .eq("entreprise_id", entrepriseId);
 
-        if (error) throw error;
+        if (devisError) throw devisError;
 
         const { error: deleteLignesError } = await supabase
           .from("devis_lignes")
@@ -649,70 +561,65 @@ export default function DevisPage() {
 
         if (deleteLignesError) throw deleteLignesError;
       } else {
-        const { data, error } = await supabase
+        const { data: devisCree, error: devisError } = await supabase
           .from("devis")
           .insert(payloadDevis)
           .select("id")
           .single();
 
-        if (error) throw error;
+        if (devisError) throw devisError;
 
-        if (!data?.id) {
-          throw new Error("Impossible de récupérer l’identifiant du devis créé.");
-        }
-
-        devisId = data.id;
+        devisId = devisCree.id;
       }
 
-      const payloadLignes = lignesValides.map((ligne, index) => {
-        const calcul = calculerLigne(ligne);
+      const lignesPayload = lignesCalculees.map((ligne, index) => ({
+        entreprise_id: entrepriseId,
+        devis_id: devisId,
+        designation: ligne.designation.trim(),
+        description: ligne.description.trim() || null,
+        quantite: ligne.quantite,
+        unite: ligne.unite || "u",
+        prix_unitaire_ht: ligne.prix_unitaire_ht,
+        tva: ligne.tva,
+        total_ht: ligne.total_ht,
+        total_tva: ligne.total_tva,
+        total_ttc: ligne.total_ttc,
+        ordre: index + 1,
+      }));
 
-        return {
-          devis_id: devisId,
-          entreprise_id: entrepriseId,
-          ordre: index + 1,
-          designation: nettoyerTexte(ligne.designation),
-          description: nettoyerTexte(ligne.description),
-          quantite: calcul.quantite,
-          unite: nettoyerTexte(ligne.unite) || "u",
-          prix_unitaire_ht: calcul.prixUnitaire,
-          tva: calcul.tauxTva,
-          total_ht: calcul.totalHt,
-          total_tva: calcul.totalTva,
-          total_ttc: calcul.totalTtc,
-        };
-      });
+      const { error: lignesInsertError } = await supabase
+        .from("devis_lignes")
+        .insert(lignesPayload);
 
-      if (payloadLignes.length > 0) {
-        const { error: lignesError } = await supabase
-          .from("devis_lignes")
-          .insert(payloadLignes);
+      if (lignesInsertError) throw lignesInsertError;
 
-        if (lignesError) throw lignesError;
+      if (form.statut === "envoye") {
+        const { error: statutError } = await supabase
+          .from("devis")
+          .update({
+            statut: "envoye",
+          })
+          .eq("id", devisId)
+          .eq("entreprise_id", entrepriseId);
+
+        if (statutError) throw statutError;
       }
-
-      await chargerDevis(entrepriseId);
 
       setMessageSucces(
-        devisEdition
-          ? "Devis modifié avec succès."
-          : `Devis créé avec succès : ${numeroFinal}.`
+        devisEdition ? "Devis modifié avec succès." : "Devis créé avec succès."
       );
 
       fermerModal();
+      await chargerDevis();
     } catch (error: any) {
       console.error("Erreur enregistrement devis :", error);
-      setMessageErreur(
-        error?.message || "Impossible d’enregistrer le devis pour le moment."
-      );
+      setMessageErreur(error?.message || "Impossible d’enregistrer le devis.");
     } finally {
-      setEnregistrement(false);
+      setChargementAction(false);
     }
   }
 
-  async function changerStatutDevis(item: DevisAvecLignes, statut: StatutDevis) {
-    if (!entrepriseId) return;
-
+  async function changerStatut(item: Devis, statut: string) {
     try {
       setMessageErreur("");
       setMessageSucces("");
@@ -721,689 +628,806 @@ export default function DevisPage() {
         .from("devis")
         .update({ statut })
         .eq("id", item.id)
-        .eq("entreprise_id", entrepriseId);
+        .eq("entreprise_id", item.entreprise_id);
 
       if (error) throw error;
 
-      await chargerDevis(entrepriseId);
-
-      setMessageSucces(`Statut du devis mis à jour : ${libelleStatut(statut)}.`);
+      setMessageSucces(`Devis marqué comme ${libelleStatut(statut).toLowerCase()}.`);
+      await chargerDevis();
     } catch (error: any) {
       console.error("Erreur changement statut devis :", error);
-      setMessageErreur(error?.message || "Impossible de modifier le statut du devis.");
+      setMessageErreur(error?.message || "Impossible de modifier le statut.");
     }
   }
 
-  async function supprimerDevis(item: DevisAvecLignes) {
-    if (!entrepriseId) return;
+  async function genererNumeroFacture() {
+    if (!entrepriseId) return `FAC-${Date.now()}`;
 
-    const confirmation = window.confirm(
-      `Suppression définitive du devis "${
-        item.numero || item.objet || "sans numéro"
-      }". Continuer ?`
-    );
+    const annee = new Date().getFullYear();
 
-    if (!confirmation) return;
+    const { count } = await supabase
+      .from("factures")
+      .select("id", { count: "exact", head: true })
+      .eq("entreprise_id", entrepriseId)
+      .gte("date_facture", `${annee}-01-01`)
+      .lte("date_facture", `${annee}-12-31`);
 
+    return `FAC-${annee}-${String((count || 0) + 1).padStart(4, "0")}`;
+  }
+
+  async function transformerEnFacture(item: Devis) {
     try {
+      setChargementAction(true);
       setMessageErreur("");
       setMessageSucces("");
 
-      const { error: lignesError } = await supabase
+      if (!entrepriseId) {
+        setMessageErreur("Entreprise introuvable.");
+        return;
+      }
+
+      const { data: lignesData, error: lignesError } = await supabase
         .from("devis_lignes")
-        .delete()
+        .select("*")
         .eq("devis_id", item.id)
-        .eq("entreprise_id", entrepriseId);
+        .eq("entreprise_id", item.entreprise_id)
+        .order("ordre", { ascending: true });
 
       if (lignesError) throw lignesError;
 
-      const { error } = await supabase
-        .from("devis")
-        .delete()
-        .eq("id", item.id)
-        .eq("entreprise_id", entrepriseId);
+      const numeroFacture = await genererNumeroFacture();
+      const dateFacture = dateAujourdhui();
 
-      if (error) throw error;
+      const { data: factureCreee, error: factureError } = await supabase
+        .from("factures")
+        .insert({
+          entreprise_id: entrepriseId,
+          client_id: item.client_id || null,
+          client_nom: item.client_nom || nomClient(item.client, item),
+          numero: numeroFacture,
+          objet: item.objet || "Facture issue d’un devis",
+          description: item.description || null,
+          date_facture: dateFacture,
+          date_echeance: ajouterJours(dateFacture, 30),
+          statut: "brouillon",
+          type_facture: "simple",
+          total_ht: Number(item.total_ht || 0),
+          total_tva: Number(item.total_tva || 0),
+          total_ttc: Number(item.total_ttc || 0),
+          montant_paye: 0,
+          reste_a_payer: Number(item.total_ttc || 0),
+          conditions: item.conditions || null,
+          est_avoir: false,
+        })
+        .select("id")
+        .single();
 
-      await chargerDevis(entrepriseId);
+      if (factureError) throw factureError;
 
-      setMessageSucces("Devis supprimé définitivement.");
+      const lignesFacturePayload = ((lignesData || []) as any[]).map(
+        (ligne, index) => ({
+          entreprise_id: entrepriseId,
+          facture_id: factureCreee.id,
+          designation: ligne.designation || "",
+          description: ligne.description || null,
+          quantite: Number(ligne.quantite || 0),
+          unite: ligne.unite || "u",
+          prix_unitaire_ht: Number(ligne.prix_unitaire_ht || 0),
+          tva: Number(ligne.tva || 0),
+          total_ht: Number(ligne.total_ht || 0),
+          total_tva: Number(ligne.total_tva || 0),
+          total_ttc: Number(ligne.total_ttc || 0),
+          ordre: index + 1,
+        })
+      );
+
+      if (lignesFacturePayload.length > 0) {
+        const { error: lignesFactureError } = await supabase
+          .from("factures_lignes")
+          .insert(lignesFacturePayload);
+
+        if (lignesFactureError) throw lignesFactureError;
+      }
+
+      setMessageSucces(`Facture ${numeroFacture} créée depuis le devis.`);
+      await chargerDevis();
     } catch (error: any) {
-      console.error("Erreur suppression devis :", error);
-      setMessageErreur(error?.message || "Impossible de supprimer ce devis.");
+      console.error("Erreur transformation devis en facture :", error);
+      setMessageErreur(
+        error?.message || "Impossible de transformer le devis en facture."
+      );
+    } finally {
+      setChargementAction(false);
     }
   }
 
+  const totauxFormulaire = useMemo(() => calculerTotaux(lignes), [lignes]);
+
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Devis</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Créez vos devis, calculez les totaux automatiquement et suivez leur
-            avancement commercial.
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 px-4 py-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+              Devis
+            </p>
 
-        <button
-          onClick={ouvrirCreation}
-          className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          + Créer un devis
-        </button>
-      </section>
+            <h1 className="mt-1 text-3xl font-black text-slate-950">
+              Devis clients
+            </h1>
 
-      {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {messageErreur}
-        </div>
-      )}
+            <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              Créez, envoyez, imprimez, téléchargez vos devis en PDF et
+              transformez-les en factures.
+            </p>
+          </div>
 
-      {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {messageSucces}
-        </div>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.total}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Brouillons
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.brouillons}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Envoyés
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.envoyes}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Acceptés
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.acceptes}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Total devis TTC
-          </p>
-          <p className="mt-2 text-xl font-bold text-slate-950">
-            {formatMontant(statistiques.totalTtc)}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Accepté TTC
-          </p>
-          <p className="mt-2 text-xl font-bold text-slate-950">
-            {formatMontant(statistiques.accepteTtc)}
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_240px]">
-          <input
-            value={recherche}
-            onChange={(event) => setRecherche(event.target.value)}
-            placeholder="Rechercher par numéro, client, objet..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          />
-
-          <select
-            value={filtreStatut}
-            onChange={(event) =>
-              setFiltreStatut(event.target.value as "tous" | StatutDevis)
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+          <button
+            type="button"
+            onClick={() => void ouvrirCreation()}
+            className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
           >
-            <option value="tous">Tous les statuts</option>
-            <option value="brouillon">Brouillons</option>
-            <option value="envoye">Envoyés</option>
-            <option value="accepte">Acceptés</option>
-            <option value="refuse">Refusés</option>
-            <option value="archive">Archivés</option>
-          </select>
+            Nouveau devis
+          </button>
+        </div>
+
+        {(messageErreur || messageSucces) && (
+          <div className="space-y-3">
+            {messageErreur && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {messageErreur}
+              </div>
+            )}
+
+            {messageSucces && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                {messageSucces}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Total devis</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              {statistiques.total}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Brouillons</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              {statistiques.brouillons}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Envoyés</p>
+            <p className="mt-2 text-2xl font-black text-blue-700">
+              {statistiques.envoyes}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Acceptés</p>
+            <p className="mt-2 text-2xl font-black text-emerald-700">
+              {statistiques.acceptes}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Total accepté TTC</p>
+            <p className="mt-2 text-2xl font-black text-emerald-700">
+              {formatMontant(statistiques.totalAccepteTtc)}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <input
+              type="search"
+              value={recherche}
+              onChange={(event) => setRecherche(event.target.value)}
+              placeholder="Rechercher un devis, un client, un numéro..."
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
+            />
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["tous", "Tous"],
+                ["brouillon", "Brouillons"],
+                ["envoye", "Envoyés"],
+                ["accepte", "Acceptés"],
+                ["refuse", "Refusés"],
+                ["archive", "Archives"],
+              ].map(([valeur, label]) => (
+                <button
+                  key={valeur}
+                  type="button"
+                  onClick={() => setFiltre(valeur as FiltreDevis)}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                    filtre === valeur
+                      ? "bg-slate-950 text-white"
+                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {chargement ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-              📝
-            </div>
-            <p className="font-semibold text-slate-900">Chargement des devis...</p>
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <p className="font-semibold text-slate-900">
+              Chargement des devis...
+            </p>
             <p className="mt-1 text-sm text-slate-500">
-              Récupération des données depuis Supabase.
+              Récupération des données en cours.
             </p>
           </div>
         ) : devisFiltres.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-              📝
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
+              📄
             </div>
-            <p className="font-semibold text-slate-900">Aucun devis trouvé</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Créez votre premier devis avec numérotation automatique.
+
+            <p className="text-lg font-bold text-slate-950">
+              Aucun devis trouvé
             </p>
 
-            <button
-              onClick={ouvrirCreation}
-              className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Créer un devis
-            </button>
+            <p className="mt-1 text-sm text-slate-500">
+              Créez votre premier devis ou modifiez les filtres.
+            </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Devis</th>
-                  <th className="px-4 py-3 font-semibold">Client</th>
-                  <th className="px-4 py-3 font-semibold">Dates</th>
-                  <th className="px-4 py-3 font-semibold">Montants</th>
-                  <th className="px-4 py-3 font-semibold">Statut</th>
-                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
+          <div className="space-y-4">
+            {devisFiltres.map((item) => {
+              const client = item.client || null;
+              const emailClient = client?.email || "";
 
-              <tbody className="divide-y divide-slate-100">
-                {devisFiltres.map((item) => {
-                  const client = trouverClient(item.client_id);
+              const messageEmailParDefaut = `Bonjour,
 
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50/70">
-                      <td className="px-4 py-4 align-top">
-                        <p className="font-semibold text-slate-950">
-                          {item.numero || "Sans numéro"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-700">
-                          {item.objet || "Sans objet"}
-                        </p>
-                      </td>
+Veuillez trouver ci-joint votre devis ${item.numero || ""} au format PDF.
 
-                      <td className="px-4 py-4 align-top">
-                        <p className="font-medium text-slate-800">
-                          {item.client_nom || "—"}
-                        </p>
-                      </td>
+Cordialement.`;
 
-                      <td className="px-4 py-4 align-top text-sm text-slate-700">
-                        <p>Devis : {formatDate(item.date_devis)}</p>
-                        <p className="text-xs text-slate-500">
-                          Validité : {formatDate(item.date_validite)}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-4 align-top text-sm text-slate-700">
-                        <p>HT : {formatMontant(item.total_ht)}</p>
-                        <p className="text-xs text-slate-500">
-                          TVA : {formatMontant(item.total_tva)}
-                        </p>
-                        <p className="font-semibold text-slate-950">
-                          TTC : {formatMontant(item.total_ttc)}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-4 align-top">
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
+                          className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
                             item.statut
                           )}`}
                         >
                           {libelleStatut(item.statut)}
                         </span>
-                      </td>
+                      </div>
 
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <a
-                            href={`/chef/devis/${item.id}/impression`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          >
-                            PDF
-                          </a>
+                      <h2 className="mt-3 text-xl font-black text-slate-950">
+                        {item.numero || "Sans numéro"}
+                      </h2>
 
-                          <BoutonEnvoyerDocumentEmail
-                            typeDocument="devis"
-                            documentId={item.id}
-                            numero={item.numero}
-                            defaultEmail={client?.email || ""}
-                            defaultMessage={`Bonjour,\n\nVeuillez trouver ci-dessous votre devis ${
-                              item.numero || ""
-                            }.\n\nCordialement.`}
-                            onEnvoye={() => chargerDevis(entrepriseId)}
-                          />
-                          <HistoriqueEmailsDocument
-  typeDocument="devis"
-  documentId={item.id}
-  numero={item.numero}
-/>
-<BoutonFacturerDevis
-  devisId={item.id}
-  numero={item.numero}
-  statut={item.statut}
-  onFacture={() => chargerDevis(entrepriseId)}
-/>
+                      <p className="mt-1 text-sm font-semibold text-slate-700">
+                        {item.objet || "Sans objet"}
+                      </p>
 
-                          <button
-                            onClick={() => ouvrirEdition(item)}
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            Modifier
-                          </button>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Client : {nomClient(client, item)}
+                      </p>
 
-                          <button
-                            onClick={() => changerStatutDevis(item, "envoye")}
-                            className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                          >
-                            Envoyé
-                          </button>
-
-                          <button
-                            onClick={() => changerStatutDevis(item, "accepte")}
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          >
-                            Accepté
-                          </button>
-
-                          <button
-                            onClick={() => changerStatutDevis(item, "refuse")}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Refusé
-                          </button>
-
-                          <button
-                            onClick={() => supprimerDevis(item)}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Supprimer
-                          </button>
+                      <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="rounded-2xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Date</p>
+                          <p className="font-bold text-slate-900">
+                            {formatDate(item.date_devis)}
+                          </p>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+                        <div className="rounded-2xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Validité</p>
+                          <p className="font-bold text-slate-900">
+                            {formatDate(item.date_validite)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Total TTC</p>
+                          <p className="font-black text-slate-950">
+                            {formatMontant(item.total_ttc)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Client</p>
+                          <p className="truncate font-bold text-slate-900">
+                            {nomClient(client, item)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex max-w-full flex-wrap gap-2 xl:max-w-md xl:justify-end">
+                      <BoutonTelechargerDocumentPdf
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
+                      />
+
+                      <Link
+                        href={`/chef/devis/${item.id}/impression`}
+                        target="_blank"
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        Imprimer
+                      </Link>
+
+                      <BoutonEnvoyerDocumentEmail
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
+                        defaultEmail={emailClient}
+                        defaultMessage={messageEmailParDefaut}
+                        onEnvoye={chargerDevis}
+                      />
+
+                      <HistoriqueEmailsDocument
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
+                      />
+
+                      {item.statut === "brouillon" && (
+                        <button
+                          type="button"
+                          onClick={() => void ouvrirEdition(item)}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                          Modifier
+                        </button>
+                      )}
+
+                      {item.statut === "envoye" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void changerStatut(item, "accepte")}
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Accepter
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void changerStatut(item, "refuse")}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Refuser
+                          </button>
+                        </>
+                      )}
+
+                      {item.statut === "accepte" && (
+                        <button
+                          type="button"
+                          onClick={() => void transformerEnFacture(item)}
+                          disabled={chargementAction}
+                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Transformer en facture
+                        </button>
+                      )}
+
+                      {item.statut !== "archive" && (
+                        <button
+                          type="button"
+                          onClick={() => void changerStatut(item, "archive")}
+                          className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                          Archiver
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-      </section>
 
-      {modalOuverte && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 p-5">
-              <div>
-                <h2 className="text-xl font-bold text-slate-950">
-                  {devisEdition ? "Modifier le devis" : "Créer un devis"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {devisEdition
-                    ? "Le numéro existant est conservé."
-                    : "Le numéro sera généré automatiquement à l’enregistrement."}
-                </p>
+        {modalOuverte && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/40 px-4 py-6">
+            <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+              <div className="flex items-start justify-between border-b border-slate-200 p-5">
+                <div>
+                  <h2 className="text-xl font-black text-slate-950">
+                    {devisEdition ? "Modifier le devis" : "Nouveau devis"}
+                  </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Les modifications sont autorisées uniquement sur les
+                    brouillons.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fermerModal}
+                  disabled={chargementAction}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Fermer
+                </button>
               </div>
 
-              <button
-                onClick={fermerModal}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Fermer
-              </button>
-            </div>
+              <div className="space-y-5 p-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Client
+                    </label>
 
-            <div className="space-y-6 p-5">
-              <div className="grid gap-4 md:grid-cols-[260px_1fr_180px]">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Numéro
-                  </label>
-                  <input
-                    value={formulaire.numero}
-                    onChange={(event) => modifierChamp("numero", event.target.value)}
-                    placeholder={
-                      parametres?.numerotation_devis_auto === false
-                        ? "Numéro manuel"
-                        : "Auto à l’enregistrement"
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
+                    <select
+                      value={form.client_id}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          client_id: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="">Client non renseigné</option>
+
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {nomClient(client, null)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Numéro
+                    </label>
+
+                    <input
+                      value={form.numero}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          numero: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Date devis
+                    </label>
+
+                    <input
+                      type="date"
+                      value={form.date_devis}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          date_devis: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Date de validité
+                    </label>
+
+                    <input
+                      type="date"
+                      value={form.date_validite}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          date_validite: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Statut
+                    </label>
+
+                    <select
+                      value={form.statut}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          statut: event.target.value as FormDevis["statut"],
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="brouillon">Brouillon</option>
+                      <option value="envoye">Envoyé</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Client
-                  </label>
-                  <select
-                    value={formulaire.client_id}
-                    onChange={(event) =>
-                      modifierChamp("client_id", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  >
-                    <option value="">Aucun client sélectionné</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {nomClient(client)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Statut
-                  </label>
-                  <select
-                    value={formulaire.statut}
-                    onChange={(event) =>
-                      modifierChamp("statut", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  >
-                    <option value="brouillon">Brouillon</option>
-                    <option value="envoye">Envoyé</option>
-                    <option value="accepte">Accepté</option>
-                    <option value="refuse">Refusé</option>
-                    <option value="archive">Archivé</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-[1fr_180px_180px]">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     Objet
                   </label>
+
                   <input
-                    value={formulaire.objet}
-                    onChange={(event) => modifierChamp("objet", event.target.value)}
-                    placeholder="Ex : Taille de haies, élagage, entretien..."
+                    value={form.objet}
+                    onChange={(event) =>
+                      setForm((ancien) => ({
+                        ...ancien,
+                        objet: event.target.value,
+                      }))
+                    }
+                    placeholder="Ex : Taille de haie, abattage, entretien..."
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Date devis
+                    Description
                   </label>
-                  <input
-                    type="date"
-                    value={formulaire.date_devis}
+
+                  <textarea
+                    value={form.description}
                     onChange={(event) =>
-                      modifierChamp("date_devis", event.target.value)
+                      setForm((ancien) => ({
+                        ...ancien,
+                        description: event.target.value,
+                      }))
                     }
+                    rows={3}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Validité
-                  </label>
-                  <input
-                    type="date"
-                    value={formulaire.date_validite}
-                    onChange={(event) =>
-                      modifierChamp("date_validite", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-              </div>
+                <div className="rounded-3xl border border-slate-200">
+                  <div className="flex items-center justify-between border-b border-slate-200 p-4">
+                    <h3 className="font-bold text-slate-950">
+                      Lignes de devis
+                    </h3>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Description
-                </label>
-                <textarea
-                  value={formulaire.description}
-                  onChange={(event) =>
-                    modifierChamp("description", event.target.value)
-                  }
-                  placeholder="Description globale du devis..."
-                  rows={3}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                />
-              </div>
-
-              <div className="rounded-3xl border border-slate-200">
-                <div className="flex items-center justify-between border-b border-slate-200 p-4">
-                  <div>
-                    <h3 className="font-bold text-slate-950">Lignes de devis</h3>
-                    <p className="text-sm text-slate-500">
-                      Les totaux HT, TVA et TTC sont calculés automatiquement.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={ajouterLigne}
+                      className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+                    >
+                      Ajouter ligne
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={ajouterLigne}
-                    className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700"
-                  >
-                    + Ajouter ligne
-                  </button>
-                </div>
-
-                <div className="space-y-4 p-4">
-                  {formulaire.lignes.map((ligne, index) => {
-                    const calcul = calculerLigne(ligne);
-
-                    return (
+                  <div className="space-y-3 p-4">
+                    {lignes.map((ligne, index) => (
                       <div
                         key={index}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                        className="grid gap-3 rounded-2xl border border-slate-200 p-4 lg:grid-cols-12"
                       >
-                        <div className="grid gap-3 lg:grid-cols-[1fr_100px_110px_140px_100px_130px]">
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              Désignation
-                            </label>
-                            <input
-                              value={ligne.designation}
-                              onChange={(event) =>
-                                modifierLigne(index, "designation", event.target.value)
-                              }
-                              placeholder="Ex : Taille de haie"
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                            />
-                          </div>
+                        <div className="lg:col-span-3">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Désignation
+                          </label>
 
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              Qté
-                            </label>
-                            <input
-                              value={ligne.quantite}
-                              onChange={(event) =>
-                                modifierLigne(index, "quantite", event.target.value)
-                              }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              Unité
-                            </label>
-                            <input
-                              value={ligne.unite}
-                              onChange={(event) =>
-                                modifierLigne(index, "unite", event.target.value)
-                              }
-                              placeholder="h, ml, u..."
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              PU HT
-                            </label>
-                            <input
-                              value={ligne.prix_unitaire_ht}
-                              onChange={(event) =>
-                                modifierLigne(
-                                  index,
-                                  "prix_unitaire_ht",
-                                  event.target.value
-                                )
-                              }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              TVA %
-                            </label>
-                            <input
-                              value={ligne.tva}
-                              onChange={(event) =>
-                                modifierLigne(index, "tva", event.target.value)
-                              }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              Total TTC
-                            </label>
-                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-950">
-                              {formatMontant(calcul.totalTtc)}
-                            </div>
-                          </div>
+                          <input
+                            value={ligne.designation}
+                            onChange={(event) =>
+                              modifierLigne(
+                                index,
+                                "designation",
+                                event.target.value
+                              )
+                            }
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                          />
                         </div>
 
-                        <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_130px]">
-                          <textarea
+                        <div className="lg:col-span-3">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Description
+                          </label>
+
+                          <input
                             value={ligne.description}
                             onChange={(event) =>
-                              modifierLigne(index, "description", event.target.value)
+                              modifierLigne(
+                                index,
+                                "description",
+                                event.target.value
+                              )
                             }
-                            placeholder="Description complémentaire de la ligne..."
-                            rows={2}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
                           />
+                        </div>
 
+                        <div className="lg:col-span-1">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Qté
+                          </label>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={ligne.quantite}
+                            onChange={(event) =>
+                              modifierLigne(index, "quantite", event.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div className="lg:col-span-1">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Unité
+                          </label>
+
+                          <input
+                            value={ligne.unite}
+                            onChange={(event) =>
+                              modifierLigne(index, "unite", event.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div className="lg:col-span-1">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            PU HT
+                          </label>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={ligne.prix_unitaire_ht}
+                            onChange={(event) =>
+                              modifierLigne(
+                                index,
+                                "prix_unitaire_ht",
+                                event.target.value
+                              )
+                            }
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div className="lg:col-span-1">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            TVA %
+                          </label>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={ligne.tva}
+                            onChange={(event) =>
+                              modifierLigne(index, "tva", event.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div className="lg:col-span-1">
+                          <label className="mb-1 block text-xs font-medium text-slate-500">
+                            Total TTC
+                          </label>
+
+                          <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900">
+                            {formatMontant(ligne.total_ttc)}
+                          </p>
+                        </div>
+
+                        <div className="flex items-end lg:col-span-1">
                           <button
                             type="button"
                             onClick={() => supprimerLigne(index)}
-                            disabled={formulaire.lignes.length <= 1}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            className="w-full rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
                           >
-                            Supprimer
+                            Suppr.
                           </button>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
 
-                <div className="border-t border-slate-200 bg-white p-4">
-                  <div className="ml-auto max-w-sm space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Total HT</span>
-                      <span className="font-semibold">
-                        {formatMontant(totauxFormulaire.totalHt)}
-                      </span>
-                    </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Conditions
+                    </label>
 
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Total TVA</span>
-                      <span className="font-semibold">
-                        {formatMontant(totauxFormulaire.totalTva)}
-                      </span>
-                    </div>
+                    <textarea
+                      value={form.conditions}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          conditions: event.target.value,
+                        }))
+                      }
+                      rows={5}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
 
-                    <div className="flex justify-between border-t border-slate-200 pt-2 text-base">
-                      <span className="font-bold text-slate-950">Total TTC</span>
-                      <span className="font-bold text-slate-950">
-                        {formatMontant(totauxFormulaire.totalTtc)}
-                      </span>
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="font-bold text-slate-950">Totaux</h3>
+
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Total HT</span>
+                        <span className="font-bold text-slate-950">
+                          {formatMontant(totauxFormulaire.total_ht)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">TVA</span>
+                        <span className="font-bold text-slate-950">
+                          {formatMontant(totauxFormulaire.total_tva)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between border-t border-slate-200 pt-3 text-lg">
+                        <span className="font-black text-slate-950">
+                          Total TTC
+                        </span>
+                        <span className="font-black text-emerald-700">
+                          {formatMontant(totauxFormulaire.total_ttc)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Conditions
-                </label>
-                <textarea
-                  value={formulaire.conditions}
-                  onChange={(event) =>
-                    modifierChamp("conditions", event.target.value)
-                  }
-                  rows={4}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                />
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={fermerModal}
+                  disabled={chargementAction}
+                  className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={enregistrerDevis}
+                  disabled={chargementAction}
+                  className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {chargementAction ? "Enregistrement..." : "Enregistrer"}
+                </button>
               </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Notes internes
-                </label>
-                <textarea
-                  value={formulaire.notes_internes}
-                  onChange={(event) =>
-                    modifierChamp("notes_internes", event.target.value)
-                  }
-                  placeholder="Notes non visibles client..."
-                  rows={3}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
-              <button
-                onClick={fermerModal}
-                disabled={enregistrement}
-                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Annuler
-              </button>
-
-              <button
-                onClick={enregistrerDevis}
-                disabled={enregistrement}
-                className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {enregistrement
-                  ? "Enregistrement..."
-                  : devisEdition
-                  ? "Modifier le devis"
-                  : "Créer le devis"}
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

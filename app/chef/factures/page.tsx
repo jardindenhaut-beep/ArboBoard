@@ -78,6 +78,16 @@ type FormFacture = {
   conditions: string;
 };
 
+function dateAujourdhui() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ajouterJours(dateIso: string, jours: number) {
+  const date = new Date(`${dateIso}T00:00:00`);
+  date.setDate(date.getDate() + jours);
+  return date.toISOString().slice(0, 10);
+}
+
 const formVide: FormFacture = {
   client_id: "",
   numero: "",
@@ -89,16 +99,6 @@ const formVide: FormFacture = {
   type_facture: "simple",
   conditions: "",
 };
-
-function dateAujourdhui() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function ajouterJours(dateIso: string, jours: number) {
-  const date = new Date(`${dateIso}T00:00:00`);
-  date.setDate(date.getDate() + jours);
-  return date.toISOString().slice(0, 10);
-}
 
 function formatMontant(montant: number | null | undefined) {
   return new Intl.NumberFormat("fr-FR", {
@@ -260,7 +260,13 @@ export default function PageFactures() {
 
   const [recherche, setRecherche] = useState("");
   const [filtre, setFiltre] = useState<
-    "toutes" | "brouillon" | "envoyee" | "en_retard" | "payee" | "avoirs" | "archive"
+    | "toutes"
+    | "brouillon"
+    | "envoyee"
+    | "en_retard"
+    | "payee"
+    | "avoirs"
+    | "archive"
   >("toutes");
 
   const [modalOuverte, setModalOuverte] = useState(false);
@@ -302,32 +308,40 @@ export default function PageFactures() {
 
       setEntrepriseId(profil.entreprise_id);
 
-      const [{ data: clientsData, error: clientsError }, { data: facturesData, error: facturesError }] =
-        await Promise.all([
-          supabase
-            .from("clients")
-            .select("*")
-            .eq("entreprise_id", profil.entreprise_id)
-            .order("created_at", { ascending: false }),
+      const [
+        { data: clientsData, error: clientsError },
+        { data: facturesData, error: facturesError },
+      ] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("entreprise_id", profil.entreprise_id)
+          .order("created_at", { ascending: false }),
 
-          supabase
-            .from("factures")
-            .select("*")
-            .eq("entreprise_id", profil.entreprise_id)
-            .order("date_facture", { ascending: false })
-            .order("created_at", { ascending: false }),
-        ]);
+        supabase
+          .from("factures")
+          .select("*")
+          .eq("entreprise_id", profil.entreprise_id)
+          .order("date_facture", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
 
       if (clientsError) throw clientsError;
       if (facturesError) throw facturesError;
 
       const listeClients = (clientsData || []) as Client[];
-      const mapClients = new Map(listeClients.map((client) => [client.id, client]));
+      const mapClients = new Map(
+        listeClients.map((client) => [client.id, client])
+      );
 
-      const listeFactures = ((facturesData || []) as Facture[]).map((facture) => ({
-        ...facture,
-        client: facture.client_id ? mapClients.get(facture.client_id) || null : null,
-      }));
+      const listeFactures = ((facturesData || []) as Facture[]).map(
+        (facture) => ({
+          ...facture,
+          client: facture.client_id
+            ? mapClients.get(facture.client_id) || null
+            : null,
+        })
+      );
 
       setClients(listeClients);
       setFactures(listeFactures);
@@ -350,7 +364,12 @@ export default function PageFactures() {
       const estAvoir = estAvoirFacture(facture);
 
       if (filtre === "avoirs" && !estAvoir) return false;
-      if (filtre !== "toutes" && filtre !== "avoirs" && facture.statut !== filtre) {
+
+      if (
+        filtre !== "toutes" &&
+        filtre !== "avoirs" &&
+        facture.statut !== filtre
+      ) {
         return false;
       }
 
@@ -375,7 +394,10 @@ export default function PageFactures() {
   }, [factures, filtre, recherche]);
 
   const statistiques = useMemo(() => {
-    const facturesClassiques = factures.filter((facture) => !estAvoirFacture(facture));
+    const facturesClassiques = factures.filter(
+      (facture) => !estAvoirFacture(facture)
+    );
+
     const avoirs = factures.filter(estAvoirFacture);
 
     return {
@@ -439,7 +461,9 @@ export default function PageFactures() {
       }
 
       if (facture.statut !== "brouillon") {
-        setMessageErreur("Seules les factures en brouillon peuvent être modifiées.");
+        setMessageErreur(
+          "Seules les factures en brouillon peuvent être modifiées."
+        );
         return;
       }
 
@@ -459,8 +483,9 @@ export default function PageFactures() {
         objet: facture.objet || "",
         description: facture.description || "",
         date_facture: facture.date_facture || dateAujourdhui(),
-        date_echeance: facture.date_echeance || ajouterJours(dateAujourdhui(), 30),
-        statut: facture.statut === "envoyee" ? "envoyee" : "brouillon",
+        date_echeance:
+          facture.date_echeance || ajouterJours(dateAujourdhui(), 30),
+        statut: "brouillon",
         type_facture:
           facture.type_facture === "acompte" || facture.type_facture === "solde"
             ? facture.type_facture
@@ -500,7 +525,11 @@ export default function PageFactures() {
     setLignes([ligneVide()]);
   }
 
-  function modifierLigne(index: number, champ: keyof LigneFactureForm, valeur: any) {
+  function modifierLigne(
+    index: number,
+    champ: keyof LigneFactureForm,
+    valeur: any
+  ) {
     setLignes((anciennesLignes) =>
       anciennesLignes.map((ligne, ligneIndex) => {
         if (ligneIndex !== index) return ligne;
@@ -508,7 +537,9 @@ export default function PageFactures() {
         return recalculerLigne({
           ...ligne,
           [champ]:
-            champ === "quantite" || champ === "prix_unitaire_ht" || champ === "tva"
+            champ === "quantite" ||
+            champ === "prix_unitaire_ht" ||
+            champ === "tva"
               ? Number(valeur || 0)
               : valeur,
         });
@@ -729,7 +760,9 @@ export default function PageFactures() {
       await chargerFactures();
     } catch (error: any) {
       console.error("Erreur synchronisation retards :", error);
-      setMessageErreur(error?.message || "Impossible de synchroniser les retards.");
+      setMessageErreur(
+        error?.message || "Impossible de synchroniser les retards."
+      );
     } finally {
       setChargementAction(false);
     }
@@ -868,7 +901,9 @@ export default function PageFactures() {
 
         {chargement ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-            <p className="font-semibold text-slate-900">Chargement des factures...</p>
+            <p className="font-semibold text-slate-900">
+              Chargement des factures...
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               Récupération des données en cours.
             </p>
@@ -894,7 +929,8 @@ export default function PageFactures() {
               const client = facture.client || null;
               const emailClient = client?.email || "";
               const estEnvoyeeOuRetard =
-                facture.statut === "envoyee" || facture.statut === "en_retard";
+                facture.statut === "envoyee" ||
+                facture.statut === "en_retard";
               const resteAPayer = Number(facture.reste_a_payer || 0);
 
               const messageEmailParDefaut = estAvoir
@@ -936,7 +972,9 @@ Cordialement.`;
                               : "border-blue-200 bg-blue-50 text-blue-700"
                           }`}
                         >
-                          {estAvoir ? "Avoir" : libelleTypeFacture(facture.type_facture)}
+                          {estAvoir
+                            ? "Avoir"
+                            : libelleTypeFacture(facture.type_facture)}
                         </span>
 
                         {facture.avoir_annule_facture && (
@@ -985,9 +1023,13 @@ Cordialement.`;
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Reste à payer</p>
+                          <p className="text-xs text-slate-500">
+                            Reste à payer
+                          </p>
                           <p className="font-black text-red-600">
-                            {estAvoir ? "—" : formatMontant(facture.reste_a_payer)}
+                            {estAvoir
+                              ? "—"
+                              : formatMontant(facture.reste_a_payer)}
                           </p>
                         </div>
                       </div>
@@ -1048,7 +1090,6 @@ Cordialement.`;
                               totalTtc={Number(facture.total_ttc || 0)}
                               montantPaye={Number(facture.montant_paye || 0)}
                               resteAPayer={resteAPayer}
-                              onPaiementEnregistre={chargerFactures}
                             />
                           )}
 
@@ -1057,7 +1098,6 @@ Cordialement.`;
                               <BoutonCreerAvoirFacture
                                 factureId={facture.id}
                                 numero={facture.numero}
-                                resteAPayer={resteAPayer}
                                 onAvoirCree={chargerFactures}
                               />
                             )}
@@ -1106,7 +1146,8 @@ Cordialement.`;
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Les modifications sont autorisées uniquement sur les brouillons.
+                    Les modifications sont autorisées uniquement sur les
+                    brouillons.
                   </p>
                 </div>
 
@@ -1210,7 +1251,8 @@ Cordialement.`;
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          type_facture: event.target.value as FormFacture["type_facture"],
+                          type_facture: event.target
+                            .value as FormFacture["type_facture"],
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
@@ -1280,7 +1322,9 @@ Cordialement.`;
 
                 <div className="rounded-3xl border border-slate-200">
                   <div className="flex items-center justify-between border-b border-slate-200 p-4">
-                    <h3 className="font-bold text-slate-950">Lignes de facture</h3>
+                    <h3 className="font-bold text-slate-950">
+                      Lignes de facture
+                    </h3>
 
                     <button
                       type="button"
@@ -1305,7 +1349,11 @@ Cordialement.`;
                           <input
                             value={ligne.designation}
                             onChange={(event) =>
-                              modifierLigne(index, "designation", event.target.value)
+                              modifierLigne(
+                                index,
+                                "designation",
+                                event.target.value
+                              )
                             }
                             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
                           />
@@ -1319,7 +1367,11 @@ Cordialement.`;
                           <input
                             value={ligne.description}
                             onChange={(event) =>
-                              modifierLigne(index, "description", event.target.value)
+                              modifierLigne(
+                                index,
+                                "description",
+                                event.target.value
+                              )
                             }
                             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
                           />
@@ -1456,7 +1508,9 @@ Cordialement.`;
                       </div>
 
                       <div className="flex justify-between border-t border-slate-200 pt-3 text-lg">
-                        <span className="font-black text-slate-950">Total TTC</span>
+                        <span className="font-black text-slate-950">
+                          Total TTC
+                        </span>
                         <span className="font-black text-emerald-700">
                           {formatMontant(totauxFormulaire.total_ttc)}
                         </span>

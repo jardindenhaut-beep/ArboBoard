@@ -6,7 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
+import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
+import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
+import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFacture";
+import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
+import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
+import { genererNumeroDocumentClient } from "@/lib/documents/genererNumeroDocumentClient";
 
 type Client = {
   id: string;
@@ -21,7 +27,7 @@ type Client = {
   ville?: string | null;
 };
 
-type Devis = {
+type Facture = {
   id: string;
   entreprise_id: string;
   client_id?: string | null;
@@ -29,19 +35,26 @@ type Devis = {
   numero?: string | null;
   objet?: string | null;
   description?: string | null;
-  date_devis?: string | null;
-  date_validite?: string | null;
+  date_facture?: string | null;
+  date_echeance?: string | null;
   statut?: string | null;
+  type_facture?: string | null;
   total_ht?: number | null;
   total_tva?: number | null;
   total_ttc?: number | null;
+  montant_paye?: number | null;
+  reste_a_payer?: number | null;
   conditions?: string | null;
+  est_avoir?: boolean | null;
+  facture_origine_id?: string | null;
+  motif_avoir?: string | null;
+  avoir_annule_facture?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
   client?: Client | null;
 };
 
-type LigneDevisForm = {
+type LigneFactureForm = {
   id?: string;
   designation: string;
   description: string;
@@ -54,24 +67,17 @@ type LigneDevisForm = {
   total_ttc: number;
 };
 
-type FormDevis = {
+type FormFacture = {
   client_id: string;
   numero: string;
   objet: string;
   description: string;
-  date_devis: string;
-  date_validite: string;
-  statut: "brouillon" | "envoye";
+  date_facture: string;
+  date_echeance: string;
+  statut: "brouillon" | "envoyee";
+  type_facture: "simple" | "acompte" | "solde";
   conditions: string;
 };
-
-type FiltreDevis =
-  | "tous"
-  | "brouillon"
-  | "envoye"
-  | "accepte"
-  | "refuse"
-  | "archive";
 
 function dateAujourdhui() {
   return new Date().toISOString().slice(0, 10);
@@ -83,14 +89,15 @@ function ajouterJours(dateIso: string, jours: number) {
   return date.toISOString().slice(0, 10);
 }
 
-const formVide: FormDevis = {
+const formVide: FormFacture = {
   client_id: "",
   numero: "",
   objet: "",
   description: "",
-  date_devis: dateAujourdhui(),
-  date_validite: ajouterJours(dateAujourdhui(), 30),
+  date_facture: dateAujourdhui(),
+  date_echeance: ajouterJours(dateAujourdhui(), 30),
   statut: "brouillon",
+  type_facture: "simple",
   conditions: "",
 };
 
@@ -115,8 +122,8 @@ function formatDate(date: string | null | undefined) {
   }
 }
 
-function nomClient(client?: Client | null, devis?: Devis | null) {
-  if (devis?.client_nom) return devis.client_nom;
+function nomClient(client?: Client | null, facture?: Facture | null) {
+  if (facture?.client_nom) return facture.client_nom;
 
   if (!client) return "Client non renseigné";
 
@@ -133,12 +140,17 @@ function nomClient(client?: Client | null, devis?: Devis | null) {
   );
 }
 
+function estAvoirFacture(facture: Facture) {
+  return !!facture.est_avoir || facture.type_facture === "avoir";
+}
+
 function libelleStatut(statut?: string | null) {
   if (statut === "brouillon") return "Brouillon";
-  if (statut === "envoye") return "Envoyé";
-  if (statut === "accepte") return "Accepté";
-  if (statut === "refuse") return "Refusé";
-  if (statut === "archive") return "Archivé";
+  if (statut === "envoyee") return "Envoyée";
+  if (statut === "payee") return "Payée";
+  if (statut === "en_retard") return "En retard";
+  if (statut === "annulee") return "Annulée";
+  if (statut === "archive") return "Archivée";
   return "Inconnu";
 }
 
@@ -147,16 +159,20 @@ function classeStatut(statut?: string | null) {
     return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
-  if (statut === "envoye") {
+  if (statut === "envoyee") {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
-  if (statut === "accepte") {
+  if (statut === "payee") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (statut === "refuse") {
+  if (statut === "en_retard") {
     return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (statut === "annulee") {
+    return "border-purple-200 bg-purple-50 text-purple-700";
   }
 
   if (statut === "archive") {
@@ -166,7 +182,14 @@ function classeStatut(statut?: string | null) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function ligneVide(): LigneDevisForm {
+function libelleTypeFacture(type?: string | null) {
+  if (type === "acompte") return "Acompte";
+  if (type === "solde") return "Solde";
+  if (type === "avoir") return "Avoir";
+  return "Facture";
+}
+
+function ligneVide(): LigneFactureForm {
   return {
     designation: "",
     description: "",
@@ -180,7 +203,7 @@ function ligneVide(): LigneDevisForm {
   };
 }
 
-function recalculerLigne(ligne: LigneDevisForm): LigneDevisForm {
+function recalculerLigne(ligne: LigneFactureForm): LigneFactureForm {
   const quantite = Number(ligne.quantite || 0);
   const prixUnitaireHt = Number(ligne.prix_unitaire_ht || 0);
   const tva = Number(ligne.tva || 0);
@@ -200,7 +223,7 @@ function recalculerLigne(ligne: LigneDevisForm): LigneDevisForm {
   };
 }
 
-function calculerTotaux(lignes: LigneDevisForm[]) {
+function calculerTotaux(lignes: LigneFactureForm[]) {
   const lignesCalculees = lignes.map(recalculerLigne);
 
   const totalHt = lignesCalculees.reduce(
@@ -226,9 +249,9 @@ function calculerTotaux(lignes: LigneDevisForm[]) {
   };
 }
 
-export default function PageDevis() {
+export default function PageFactures() {
   const [entrepriseId, setEntrepriseId] = useState("");
-  const [devis, setDevis] = useState<Devis[]>([]);
+  const [factures, setFactures] = useState<Facture[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
   const [chargement, setChargement] = useState(true);
@@ -237,14 +260,22 @@ export default function PageDevis() {
   const [messageSucces, setMessageSucces] = useState("");
 
   const [recherche, setRecherche] = useState("");
-  const [filtre, setFiltre] = useState<FiltreDevis>("tous");
+  const [filtre, setFiltre] = useState<
+    | "toutes"
+    | "brouillon"
+    | "envoyee"
+    | "en_retard"
+    | "payee"
+    | "avoirs"
+    | "archive"
+  >("toutes");
 
   const [modalOuverte, setModalOuverte] = useState(false);
-  const [devisEdition, setDevisEdition] = useState<Devis | null>(null);
-  const [form, setForm] = useState<FormDevis>(formVide);
-  const [lignes, setLignes] = useState<LigneDevisForm[]>([ligneVide()]);
+  const [factureEdition, setFactureEdition] = useState<Facture | null>(null);
+  const [form, setForm] = useState<FormFacture>(formVide);
+  const [lignes, setLignes] = useState<LigneFactureForm[]>([ligneVide()]);
 
-  const chargerDevis = useCallback(async () => {
+  const chargerFactures = useCallback(async () => {
     try {
       setChargement(true);
       setMessageErreur("");
@@ -280,7 +311,7 @@ export default function PageDevis() {
 
       const [
         { data: clientsData, error: clientsError },
-        { data: devisData, error: devisError },
+        { data: facturesData, error: facturesError },
       ] = await Promise.all([
         supabase
           .from("clients")
@@ -289,58 +320,71 @@ export default function PageDevis() {
           .order("created_at", { ascending: false }),
 
         supabase
-          .from("devis")
+          .from("factures")
           .select("*")
           .eq("entreprise_id", profil.entreprise_id)
-          .order("date_devis", { ascending: false })
+          .order("date_facture", { ascending: false })
           .order("created_at", { ascending: false }),
       ]);
 
       if (clientsError) throw clientsError;
-      if (devisError) throw devisError;
+      if (facturesError) throw facturesError;
 
       const listeClients = (clientsData || []) as Client[];
       const mapClients = new Map(
         listeClients.map((client) => [client.id, client])
       );
 
-      const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
-        ...item,
-        client: item.client_id ? mapClients.get(item.client_id) || null : null,
-      }));
+      const listeFactures = ((facturesData || []) as Facture[]).map(
+        (facture) => ({
+          ...facture,
+          client: facture.client_id
+            ? mapClients.get(facture.client_id) || null
+            : null,
+        })
+      );
 
       setClients(listeClients);
-      setDevis(listeDevis);
+      setFactures(listeFactures);
     } catch (error: any) {
-      console.error("Erreur chargement devis :", error);
-      setMessageErreur(error?.message || "Impossible de charger les devis.");
+      console.error("Erreur chargement factures :", error);
+      setMessageErreur(error?.message || "Impossible de charger les factures.");
     } finally {
       setChargement(false);
     }
   }, []);
 
   useEffect(() => {
-    chargerDevis();
-  }, [chargerDevis]);
+    chargerFactures();
+  }, [chargerFactures]);
 
-  const devisFiltres = useMemo(() => {
+  const facturesFiltrees = useMemo(() => {
     const rechercheNormalisee = recherche.trim().toLowerCase();
 
-    return devis.filter((item) => {
-      if (filtre !== "tous" && item.statut !== filtre) {
+    return factures.filter((facture) => {
+      const estAvoir = estAvoirFacture(facture);
+
+      if (filtre === "avoirs" && !estAvoir) return false;
+
+      if (
+        filtre !== "toutes" &&
+        filtre !== "avoirs" &&
+        facture.statut !== filtre
+      ) {
         return false;
       }
 
       if (!rechercheNormalisee) return true;
 
       const texte = [
-        item.numero,
-        item.objet,
-        item.description,
-        item.statut,
-        nomClient(item.client, item),
-        item.client?.email,
-        item.client?.telephone,
+        facture.numero,
+        facture.objet,
+        facture.description,
+        facture.statut,
+        facture.type_facture,
+        nomClient(facture.client, facture),
+        facture.client?.email,
+        facture.client?.telephone,
       ]
         .filter(Boolean)
         .join(" ")
@@ -348,81 +392,95 @@ export default function PageDevis() {
 
       return texte.includes(rechercheNormalisee);
     });
-  }, [devis, filtre, recherche]);
+  }, [factures, filtre, recherche]);
 
   const statistiques = useMemo(() => {
+    const facturesClassiques = factures.filter(
+      (facture) => !estAvoirFacture(facture)
+    );
+
+    const avoirs = factures.filter(estAvoirFacture);
+
     return {
-      total: devis.length,
-      brouillons: devis.filter((item) => item.statut === "brouillon").length,
-      envoyes: devis.filter((item) => item.statut === "envoye").length,
-      acceptes: devis.filter((item) => item.statut === "accepte").length,
-      totalAccepteTtc: devis
-        .filter((item) => item.statut === "accepte")
-        .reduce((total, item) => total + Number(item.total_ttc || 0), 0),
+      totalFactures: facturesClassiques.length,
+      totalAvoirs: avoirs.length,
+      caTtc: facturesClassiques.reduce(
+        (total, facture) => total + Number(facture.total_ttc || 0),
+        0
+      ),
+      resteAPayer: facturesClassiques.reduce(
+        (total, facture) => total + Number(facture.reste_a_payer || 0),
+        0
+      ),
+      totalAvoirsTtc: avoirs.reduce(
+        (total, facture) => total + Number(facture.total_ttc || 0),
+        0
+      ),
     };
-  }, [devis]);
+  }, [factures]);
 
-  async function genererNumeroDevis() {
-    if (!entrepriseId) return `DEV-${Date.now()}`;
-
-    const annee = new Date().getFullYear();
-
-    const { count } = await supabase
-      .from("devis")
-      .select("id", { count: "exact", head: true })
-      .eq("entreprise_id", entrepriseId)
-      .gte("date_devis", `${annee}-01-01`)
-      .lte("date_devis", `${annee}-12-31`);
-
-    return `DEV-${annee}-${String((count || 0) + 1).padStart(4, "0")}`;
-  }
+ async function genererNumeroFacture() {
+  return await genererNumeroDocumentClient("facture");
+}
 
   async function ouvrirCreation() {
     setMessageErreur("");
     setMessageSucces("");
 
-    const numero = await genererNumeroDevis();
+    const numero = await genererNumeroFacture();
 
-    setDevisEdition(null);
+    setFactureEdition(null);
     setForm({
       ...formVide,
       numero,
-      date_devis: dateAujourdhui(),
-      date_validite: ajouterJours(dateAujourdhui(), 30),
+      date_facture: dateAujourdhui(),
+      date_echeance: ajouterJours(dateAujourdhui(), 30),
     });
     setLignes([ligneVide()]);
     setModalOuverte(true);
   }
 
-  async function ouvrirEdition(item: Devis) {
+  async function ouvrirEdition(facture: Facture) {
     try {
       setMessageErreur("");
       setMessageSucces("");
 
-      if (item.statut !== "brouillon") {
-        setMessageErreur("Seuls les devis en brouillon peuvent être modifiés.");
+      if (estAvoirFacture(facture)) {
+        setMessageErreur("Un avoir ne peut pas être modifié.");
+        return;
+      }
+
+      if (facture.statut !== "brouillon") {
+        setMessageErreur(
+          "Seules les factures en brouillon peuvent être modifiées."
+        );
         return;
       }
 
       const { data: lignesData, error: lignesError } = await supabase
-        .from("devis_lignes")
+        .from("factures_lignes")
         .select("*")
-        .eq("devis_id", item.id)
-        .eq("entreprise_id", item.entreprise_id)
+        .eq("facture_id", facture.id)
+        .eq("entreprise_id", facture.entreprise_id)
         .order("ordre", { ascending: true });
 
       if (lignesError) throw lignesError;
 
-      setDevisEdition(item);
+      setFactureEdition(facture);
       setForm({
-        client_id: item.client_id || "",
-        numero: item.numero || "",
-        objet: item.objet || "",
-        description: item.description || "",
-        date_devis: item.date_devis || dateAujourdhui(),
-        date_validite: item.date_validite || ajouterJours(dateAujourdhui(), 30),
+        client_id: facture.client_id || "",
+        numero: facture.numero || "",
+        objet: facture.objet || "",
+        description: facture.description || "",
+        date_facture: facture.date_facture || dateAujourdhui(),
+        date_echeance:
+          facture.date_echeance || ajouterJours(dateAujourdhui(), 30),
         statut: "brouillon",
-        conditions: item.conditions || "",
+        type_facture:
+          facture.type_facture === "acompte" || facture.type_facture === "solde"
+            ? facture.type_facture
+            : "simple",
+        conditions: facture.conditions || "",
       });
 
       const lignesForm = (lignesData || []).map((ligne: any) =>
@@ -443,8 +501,8 @@ export default function PageDevis() {
       setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide()]);
       setModalOuverte(true);
     } catch (error: any) {
-      console.error("Erreur ouverture édition devis :", error);
-      setMessageErreur(error?.message || "Impossible d’ouvrir le devis.");
+      console.error("Erreur ouverture édition facture :", error);
+      setMessageErreur(error?.message || "Impossible d’ouvrir la facture.");
     }
   }
 
@@ -452,14 +510,14 @@ export default function PageDevis() {
     if (chargementAction) return;
 
     setModalOuverte(false);
-    setDevisEdition(null);
+    setFactureEdition(null);
     setForm(formVide);
     setLignes([ligneVide()]);
   }
 
   function modifierLigne(
     index: number,
-    champ: keyof LigneDevisForm,
+    champ: keyof LigneFactureForm,
     valeur: any
   ) {
     setLignes((anciennesLignes) =>
@@ -490,7 +548,7 @@ export default function PageDevis() {
     });
   }
 
-  async function enregistrerDevis() {
+  async function enregistrerFacture() {
     try {
       setChargementAction(true);
       setMessageErreur("");
@@ -502,12 +560,12 @@ export default function PageDevis() {
       }
 
       if (!form.numero.trim()) {
-        setMessageErreur("Veuillez renseigner un numéro de devis.");
+        setMessageErreur("Veuillez renseigner un numéro de facture.");
         return;
       }
 
       if (!form.objet.trim()) {
-        setMessageErreur("Veuillez renseigner l’objet du devis.");
+        setMessageErreur("Veuillez renseigner l’objet de la facture.");
         return;
       }
 
@@ -516,7 +574,7 @@ export default function PageDevis() {
         .filter((ligne) => ligne.designation.trim());
 
       if (lignesValides.length === 0) {
-        setMessageErreur("Veuillez ajouter au moins une ligne de devis.");
+        setMessageErreur("Veuillez ajouter au moins une ligne de facture.");
         return;
       }
 
@@ -526,55 +584,61 @@ export default function PageDevis() {
       const client = clients.find((item) => item.id === form.client_id) || null;
       const clientNom = client ? nomClient(client, null) : null;
 
-      const payloadDevis = {
+      const payloadFacture = {
         entreprise_id: entrepriseId,
         client_id: form.client_id || null,
         client_nom: clientNom,
         numero: form.numero.trim(),
         objet: form.objet.trim(),
         description: form.description.trim() || null,
-        date_devis: form.date_devis,
-        date_validite: form.date_validite,
+        date_facture: form.date_facture,
+        date_echeance: form.date_echeance,
         statut: "brouillon",
+        type_facture: form.type_facture,
         total_ht,
         total_tva,
         total_ttc,
+        montant_paye: Number(factureEdition?.montant_paye || 0),
+        reste_a_payer: Number(
+          (total_ttc - Number(factureEdition?.montant_paye || 0)).toFixed(2)
+        ),
         conditions: form.conditions.trim() || null,
+        est_avoir: false,
       };
 
-      let devisId = devisEdition?.id || "";
+      let factureId = factureEdition?.id || "";
 
-      if (devisEdition) {
-        const { error: devisError } = await supabase
-          .from("devis")
-          .update(payloadDevis)
-          .eq("id", devisEdition.id)
+      if (factureEdition) {
+        const { error: factureError } = await supabase
+          .from("factures")
+          .update(payloadFacture)
+          .eq("id", factureEdition.id)
           .eq("entreprise_id", entrepriseId);
 
-        if (devisError) throw devisError;
+        if (factureError) throw factureError;
 
         const { error: deleteLignesError } = await supabase
-          .from("devis_lignes")
+          .from("factures_lignes")
           .delete()
-          .eq("devis_id", devisEdition.id)
+          .eq("facture_id", factureEdition.id)
           .eq("entreprise_id", entrepriseId);
 
         if (deleteLignesError) throw deleteLignesError;
       } else {
-        const { data: devisCree, error: devisError } = await supabase
-          .from("devis")
-          .insert(payloadDevis)
+        const { data: factureCreee, error: factureError } = await supabase
+          .from("factures")
+          .insert(payloadFacture)
           .select("id")
           .single();
 
-        if (devisError) throw devisError;
+        if (factureError) throw factureError;
 
-        devisId = devisCree.id;
+        factureId = factureCreee.id;
       }
 
       const lignesPayload = lignesCalculees.map((ligne, index) => ({
         entreprise_id: entrepriseId,
-        devis_id: devisId,
+        facture_id: factureId,
         designation: ligne.designation.trim(),
         description: ligne.description.trim() || null,
         quantite: ligne.quantite,
@@ -588,153 +652,106 @@ export default function PageDevis() {
       }));
 
       const { error: lignesInsertError } = await supabase
-        .from("devis_lignes")
+        .from("factures_lignes")
         .insert(lignesPayload);
 
       if (lignesInsertError) throw lignesInsertError;
 
-      if (form.statut === "envoye") {
+      if (form.statut === "envoyee") {
         const { error: statutError } = await supabase
-          .from("devis")
+          .from("factures")
           .update({
-            statut: "envoye",
+            statut: "envoyee",
           })
-          .eq("id", devisId)
+          .eq("id", factureId)
           .eq("entreprise_id", entrepriseId);
 
         if (statutError) throw statutError;
       }
 
       setMessageSucces(
-        devisEdition ? "Devis modifié avec succès." : "Devis créé avec succès."
+        factureEdition
+          ? "Facture modifiée avec succès."
+          : "Facture créée avec succès."
       );
 
       fermerModal();
-      await chargerDevis();
+      await chargerFactures();
     } catch (error: any) {
-      console.error("Erreur enregistrement devis :", error);
-      setMessageErreur(error?.message || "Impossible d’enregistrer le devis.");
+      console.error("Erreur enregistrement facture :", error);
+      setMessageErreur(error?.message || "Impossible d’enregistrer la facture.");
     } finally {
       setChargementAction(false);
     }
   }
 
-  async function changerStatut(item: Devis, statut: string) {
+  async function archiverFacture(facture: Facture) {
     try {
       setMessageErreur("");
       setMessageSucces("");
 
+      if (estAvoirFacture(facture)) {
+        setMessageErreur("Un avoir ne peut pas être archivé depuis cette action.");
+        return;
+      }
+
+      if (facture.statut !== "payee") {
+        setMessageErreur("Seules les factures payées peuvent être archivées.");
+        return;
+      }
+
       const { error } = await supabase
-        .from("devis")
-        .update({ statut })
-        .eq("id", item.id)
-        .eq("entreprise_id", item.entreprise_id);
+        .from("factures")
+        .update({ statut: "archive" })
+        .eq("id", facture.id)
+        .eq("entreprise_id", facture.entreprise_id);
 
       if (error) throw error;
 
-      setMessageSucces(`Devis marqué comme ${libelleStatut(statut).toLowerCase()}.`);
-      await chargerDevis();
+      setMessageSucces("Facture archivée.");
+      await chargerFactures();
     } catch (error: any) {
-      console.error("Erreur changement statut devis :", error);
-      setMessageErreur(error?.message || "Impossible de modifier le statut.");
+      console.error("Erreur archivage facture :", error);
+      setMessageErreur(error?.message || "Impossible d’archiver la facture.");
     }
   }
 
-  async function genererNumeroFacture() {
-    if (!entrepriseId) return `FAC-${Date.now()}`;
-
-    const annee = new Date().getFullYear();
-
-    const { count } = await supabase
-      .from("factures")
-      .select("id", { count: "exact", head: true })
-      .eq("entreprise_id", entrepriseId)
-      .gte("date_facture", `${annee}-01-01`)
-      .lte("date_facture", `${annee}-12-31`);
-
-    return `FAC-${annee}-${String((count || 0) + 1).padStart(4, "0")}`;
-  }
-
-  async function transformerEnFacture(item: Devis) {
+  async function synchroniserRetards() {
     try {
       setChargementAction(true);
       setMessageErreur("");
       setMessageSucces("");
 
-      if (!entrepriseId) {
-        setMessageErreur("Entreprise introuvable.");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        setMessageErreur("Session expirée. Veuillez vous reconnecter.");
         return;
       }
 
-      const { data: lignesData, error: lignesError } = await supabase
-        .from("devis_lignes")
-        .select("*")
-        .eq("devis_id", item.id)
-        .eq("entreprise_id", item.entreprise_id)
-        .order("ordre", { ascending: true });
+      const response = await fetch("/api/factures/synchroniser-retards", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-      if (lignesError) throw lignesError;
+      const resultat = await response.json().catch(() => null);
 
-      const numeroFacture = await genererNumeroFacture();
-      const dateFacture = dateAujourdhui();
-
-      const { data: factureCreee, error: factureError } = await supabase
-        .from("factures")
-        .insert({
-          entreprise_id: entrepriseId,
-          client_id: item.client_id || null,
-          client_nom: item.client_nom || nomClient(item.client, item),
-          numero: numeroFacture,
-          objet: item.objet || "Facture issue d’un devis",
-          description: item.description || null,
-          date_facture: dateFacture,
-          date_echeance: ajouterJours(dateFacture, 30),
-          statut: "brouillon",
-          type_facture: "simple",
-          total_ht: Number(item.total_ht || 0),
-          total_tva: Number(item.total_tva || 0),
-          total_ttc: Number(item.total_ttc || 0),
-          montant_paye: 0,
-          reste_a_payer: Number(item.total_ttc || 0),
-          conditions: item.conditions || null,
-          est_avoir: false,
-        })
-        .select("id")
-        .single();
-
-      if (factureError) throw factureError;
-
-      const lignesFacturePayload = ((lignesData || []) as any[]).map(
-        (ligne, index) => ({
-          entreprise_id: entrepriseId,
-          facture_id: factureCreee.id,
-          designation: ligne.designation || "",
-          description: ligne.description || null,
-          quantite: Number(ligne.quantite || 0),
-          unite: ligne.unite || "u",
-          prix_unitaire_ht: Number(ligne.prix_unitaire_ht || 0),
-          tva: Number(ligne.tva || 0),
-          total_ht: Number(ligne.total_ht || 0),
-          total_tva: Number(ligne.total_tva || 0),
-          total_ttc: Number(ligne.total_ttc || 0),
-          ordre: index + 1,
-        })
-      );
-
-      if (lignesFacturePayload.length > 0) {
-        const { error: lignesFactureError } = await supabase
-          .from("factures_lignes")
-          .insert(lignesFacturePayload);
-
-        if (lignesFactureError) throw lignesFactureError;
+      if (!response.ok || !resultat?.success) {
+        throw new Error(
+          resultat?.error || "Impossible de synchroniser les retards."
+        );
       }
 
-      setMessageSucces(`Facture ${numeroFacture} créée depuis le devis.`);
-      await chargerDevis();
+      setMessageSucces(resultat.message || "Retards synchronisés.");
+      await chargerFactures();
     } catch (error: any) {
-      console.error("Erreur transformation devis en facture :", error);
+      console.error("Erreur synchronisation retards :", error);
       setMessageErreur(
-        error?.message || "Impossible de transformer le devis en facture."
+        error?.message || "Impossible de synchroniser les retards."
       );
     } finally {
       setChargementAction(false);
@@ -749,26 +766,37 @@ export default function PageDevis() {
         <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-              Devis
+              Facturation
             </p>
 
             <h1 className="mt-1 text-3xl font-black text-slate-950">
-              Devis clients
+              Factures & avoirs
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Créez, envoyez, imprimez, téléchargez vos devis en PDF et
-              transformez-les en factures.
+              Gérez vos factures, les paiements, les relances, les avoirs, les
+              emails et les PDF.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void ouvrirCreation()}
-            className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Nouveau devis
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={synchroniserRetards}
+              disabled={chargementAction}
+              className="rounded-2xl border border-orange-200 px-4 py-3 text-sm font-semibold text-orange-700 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Synchroniser retards
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void ouvrirCreation()}
+              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Nouvelle facture
+            </button>
+          </div>
         </div>
 
         {(messageErreur || messageSucces) && (
@@ -789,37 +817,37 @@ export default function PageDevis() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total devis</p>
+            <p className="text-sm text-slate-500">Factures</p>
             <p className="mt-2 text-2xl font-black text-slate-950">
-              {statistiques.total}
+              {statistiques.totalFactures}
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Brouillons</p>
+            <p className="text-sm text-slate-500">Avoirs</p>
+            <p className="mt-2 text-2xl font-black text-purple-700">
+              {statistiques.totalAvoirs}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Total facturé TTC</p>
             <p className="mt-2 text-2xl font-black text-slate-950">
-              {statistiques.brouillons}
+              {formatMontant(statistiques.caTtc)}
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Envoyés</p>
-            <p className="mt-2 text-2xl font-black text-blue-700">
-              {statistiques.envoyes}
+            <p className="text-sm text-slate-500">Reste à payer</p>
+            <p className="mt-2 text-2xl font-black text-red-600">
+              {formatMontant(statistiques.resteAPayer)}
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Acceptés</p>
-            <p className="mt-2 text-2xl font-black text-emerald-700">
-              {statistiques.acceptes}
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total accepté TTC</p>
-            <p className="mt-2 text-2xl font-black text-emerald-700">
-              {formatMontant(statistiques.totalAccepteTtc)}
+            <p className="text-sm text-slate-500">Total avoirs TTC</p>
+            <p className="mt-2 text-2xl font-black text-purple-700">
+              {formatMontant(statistiques.totalAvoirsTtc)}
             </p>
           </div>
         </div>
@@ -830,23 +858,24 @@ export default function PageDevis() {
               type="search"
               value={recherche}
               onChange={(event) => setRecherche(event.target.value)}
-              placeholder="Rechercher un devis, un client, un numéro..."
+              placeholder="Rechercher une facture, un client, un numéro..."
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
             />
 
             <div className="flex flex-wrap gap-2">
               {[
-                ["tous", "Tous"],
+                ["toutes", "Toutes"],
                 ["brouillon", "Brouillons"],
-                ["envoye", "Envoyés"],
-                ["accepte", "Acceptés"],
-                ["refuse", "Refusés"],
+                ["envoyee", "Envoyées"],
+                ["en_retard", "Retards"],
+                ["payee", "Payées"],
+                ["avoirs", "Avoirs"],
                 ["archive", "Archives"],
               ].map(([valeur, label]) => (
                 <button
                   key={valeur}
                   type="button"
-                  onClick={() => setFiltre(valeur as FiltreDevis)}
+                  onClick={() => setFiltre(valeur as any)}
                   className={`rounded-xl px-3 py-2 text-xs font-semibold ${
                     filtre === valeur
                       ? "bg-slate-950 text-white"
@@ -863,93 +892,134 @@ export default function PageDevis() {
         {chargement ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <p className="font-semibold text-slate-900">
-              Chargement des devis...
+              Chargement des factures...
             </p>
             <p className="mt-1 text-sm text-slate-500">
               Récupération des données en cours.
             </p>
           </div>
-        ) : devisFiltres.length === 0 ? (
+        ) : facturesFiltrees.length === 0 ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
-              📄
+              🧾
             </div>
 
             <p className="text-lg font-bold text-slate-950">
-              Aucun devis trouvé
+              Aucune facture trouvée
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre premier devis ou modifiez les filtres.
+              Créez votre première facture ou modifiez les filtres.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {devisFiltres.map((item) => {
-              const client = item.client || null;
+            {facturesFiltrees.map((facture) => {
+              const estAvoir = estAvoirFacture(facture);
+              const client = facture.client || null;
               const emailClient = client?.email || "";
+              const estEnvoyeeOuRetard =
+                facture.statut === "envoyee" ||
+                facture.statut === "en_retard";
+              const resteAPayer = Number(facture.reste_a_payer || 0);
 
-              const messageEmailParDefaut = `Bonjour,
+              const messageEmailParDefaut = estAvoir
+                ? `Bonjour,
 
-Veuillez trouver ci-joint votre devis ${item.numero || ""} au format PDF.
+Veuillez trouver ci-joint votre avoir ${facture.numero || ""} au format PDF.
+
+Cet avoir vient rectifier ou annuler une facture précédemment émise.
+
+Cordialement.`
+                : `Bonjour,
+
+Veuillez trouver ci-joint votre facture ${facture.numero || ""} au format PDF.
 
 Cordialement.`;
 
               return (
                 <div
-                  key={item.id}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                  key={facture.id}
+                  className={`rounded-3xl border bg-white p-5 shadow-sm ${
+                    estAvoir ? "border-purple-200" : "border-slate-200"
+                  }`}
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
-                            item.statut
+                            facture.statut
                           )}`}
                         >
-                          {libelleStatut(item.statut)}
+                          {libelleStatut(facture.statut)}
                         </span>
+
+                        <span
+                          className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                            estAvoir
+                              ? "border-purple-200 bg-purple-50 text-purple-700"
+                              : "border-blue-200 bg-blue-50 text-blue-700"
+                          }`}
+                        >
+                          {estAvoir
+                            ? "Avoir"
+                            : libelleTypeFacture(facture.type_facture)}
+                        </span>
+
+                        {facture.avoir_annule_facture && (
+                          <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
+                            Facture annulée par avoir
+                          </span>
+                        )}
                       </div>
 
                       <h2 className="mt-3 text-xl font-black text-slate-950">
-                        {item.numero || "Sans numéro"}
+                        {facture.numero || "Sans numéro"}
                       </h2>
 
                       <p className="mt-1 text-sm font-semibold text-slate-700">
-                        {item.objet || "Sans objet"}
+                        {facture.objet || "Sans objet"}
                       </p>
 
                       <p className="mt-1 text-sm text-slate-500">
-                        Client : {nomClient(client, item)}
+                        Client : {nomClient(client, facture)}
                       </p>
 
                       <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                         <div className="rounded-2xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Date</p>
                           <p className="font-bold text-slate-900">
-                            {formatDate(item.date_devis)}
+                            {formatDate(facture.date_facture)}
                           </p>
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Validité</p>
+                          <p className="text-xs text-slate-500">Échéance</p>
                           <p className="font-bold text-slate-900">
-                            {formatDate(item.date_validite)}
+                            {estAvoir ? "—" : formatDate(facture.date_echeance)}
                           </p>
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Total TTC</p>
-                          <p className="font-black text-slate-950">
-                            {formatMontant(item.total_ttc)}
+                          <p
+                            className={`font-black ${
+                              estAvoir ? "text-purple-700" : "text-slate-950"
+                            }`}
+                          >
+                            {formatMontant(facture.total_ttc)}
                           </p>
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Client</p>
-                          <p className="truncate font-bold text-slate-900">
-                            {nomClient(client, item)}
+                          <p className="text-xs text-slate-500">
+                            Reste à payer
+                          </p>
+                          <p className="font-black text-red-600">
+                            {estAvoir
+                              ? "—"
+                              : formatMontant(facture.reste_a_payer)}
                           </p>
                         </div>
                       </div>
@@ -957,13 +1027,13 @@ Cordialement.`;
 
                     <div className="flex max-w-full flex-wrap gap-2 xl:max-w-md xl:justify-end">
                       <BoutonTelechargerDocumentPdf
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
+                        typeDocument={estAvoir ? "avoir" : "facture"}
+                        documentId={facture.id}
+                        numero={facture.numero}
                       />
 
                       <Link
-                        href={`/chef/devis/${item.id}/impression`}
+                        href={`/chef/factures/${facture.id}/impression`}
                         target="_blank"
                         className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       >
@@ -971,65 +1041,86 @@ Cordialement.`;
                       </Link>
 
                       <BoutonEnvoyerDocumentEmail
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
+                        typeDocument={estAvoir ? "avoir" : "facture"}
+                        documentId={facture.id}
+                        numero={facture.numero}
                         defaultEmail={emailClient}
                         defaultMessage={messageEmailParDefaut}
-                        onEnvoye={chargerDevis}
+                        onEnvoye={chargerFactures}
                       />
 
                       <HistoriqueEmailsDocument
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
+                        typeDocument={estAvoir ? "avoir" : "facture"}
+                        documentId={facture.id}
+                        numero={facture.numero}
                       />
 
-                      {item.statut === "brouillon" && (
+                      {!estAvoir && estEnvoyeeOuRetard && resteAPayer > 0 && (
+                        <BoutonRelancerFacture
+                          factureId={facture.id}
+                          numero={facture.numero}
+                          defaultEmail={emailClient}
+                          resteAPayer={resteAPayer}
+                          dateEcheance={facture.date_echeance}
+                          onRelanceEnvoyee={chargerFactures}
+                        />
+                      )}
+
+                      {!estAvoir && (
+                        <>
+                          <HistoriquePaiementsFacture
+                            factureId={facture.id}
+                            numero={facture.numero}
+                            onPaiementSupprime={chargerFactures}
+                          />
+
+                          {resteAPayer > 0 && facture.statut !== "brouillon" && (
+                            <BoutonEncaisserFacture
+  factureId={facture.id}
+  numero={facture.numero}
+  totalTtc={Number(facture.total_ttc || 0)}
+  montantPaye={Number(facture.montant_paye || 0)}
+  resteAPayer={resteAPayer}
+  onPaiementEnregistre={chargerFactures}
+/>
+                              
+                              
+                              
+                              
+                              
+                            
+                          )}
+
+                          {facture.statut !== "brouillon" &&
+                            facture.statut !== "archive" && (
+                              <BoutonCreerAvoirFacture
+                                factureId={facture.id}
+                                numero={facture.numero}
+                                onAvoirCree={chargerFactures}
+                              />
+                            )}
+
+                          <HistoriqueAvoirsFacture
+                            factureId={facture.id}
+                            numero={facture.numero}
+                          />
+                        </>
+                      )}
+
+                      {!estAvoir && facture.statut === "brouillon" && (
                         <button
                           type="button"
-                          onClick={() => void ouvrirEdition(item)}
+                          onClick={() => void ouvrirEdition(facture)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
                         >
                           Modifier
                         </button>
                       )}
 
-                      {item.statut === "envoye" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => void changerStatut(item, "accepte")}
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          >
-                            Accepter
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void changerStatut(item, "refuse")}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Refuser
-                          </button>
-                        </>
-                      )}
-
-                      {item.statut === "accepte" && (
+                      {!estAvoir && facture.statut === "payee" && (
                         <button
                           type="button"
-                          onClick={() => void transformerEnFacture(item)}
-                          disabled={chargementAction}
-                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Transformer en facture
-                        </button>
-                      )}
-
-                      {item.statut !== "archive" && (
-                        <button
-                          type="button"
-                          onClick={() => void changerStatut(item, "archive")}
+                          onClick={() => void archiverFacture(facture)}
                           className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
                         >
                           Archiver
@@ -1049,7 +1140,7 @@ Cordialement.`;
               <div className="flex items-start justify-between border-b border-slate-200 p-5">
                 <div>
                   <h2 className="text-xl font-black text-slate-950">
-                    {devisEdition ? "Modifier le devis" : "Nouveau devis"}
+                    {factureEdition ? "Modifier la facture" : "Nouvelle facture"}
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
@@ -1114,16 +1205,16 @@ Cordialement.`;
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Date devis
+                      Date facture
                     </label>
 
                     <input
                       type="date"
-                      value={form.date_devis}
+                      value={form.date_facture}
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          date_devis: event.target.value,
+                          date_facture: event.target.value,
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
@@ -1132,20 +1223,42 @@ Cordialement.`;
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Date de validité
+                      Date échéance
                     </label>
 
                     <input
                       type="date"
-                      value={form.date_validite}
+                      value={form.date_echeance}
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          date_validite: event.target.value,
+                          date_echeance: event.target.value,
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Type
+                    </label>
+
+                    <select
+                      value={form.type_facture}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          type_facture: event.target
+                            .value as FormFacture["type_facture"],
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="simple">Facture simple</option>
+                      <option value="acompte">Facture d’acompte</option>
+                      <option value="solde">Facture de solde</option>
+                    </select>
                   </div>
 
                   <div>
@@ -1158,13 +1271,13 @@ Cordialement.`;
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          statut: event.target.value as FormDevis["statut"],
+                          statut: event.target.value as FormFacture["statut"],
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     >
                       <option value="brouillon">Brouillon</option>
-                      <option value="envoye">Envoyé</option>
+                      <option value="envoyee">Envoyée</option>
                     </select>
                   </div>
                 </div>
@@ -1182,7 +1295,7 @@ Cordialement.`;
                         objet: event.target.value,
                       }))
                     }
-                    placeholder="Ex : Taille de haie, abattage, entretien..."
+                    placeholder="Ex : Entretien espaces verts"
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
@@ -1208,7 +1321,7 @@ Cordialement.`;
                 <div className="rounded-3xl border border-slate-200">
                   <div className="flex items-center justify-between border-b border-slate-200 p-4">
                     <h3 className="font-bold text-slate-950">
-                      Lignes de devis
+                      Lignes de facture
                     </h3>
 
                     <button
@@ -1417,7 +1530,7 @@ Cordialement.`;
 
                 <button
                   type="button"
-                  onClick={enregistrerDevis}
+                  onClick={enregistrerFacture}
                   disabled={chargementAction}
                   className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >

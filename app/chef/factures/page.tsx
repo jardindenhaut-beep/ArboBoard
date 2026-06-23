@@ -12,6 +12,7 @@ import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFact
 import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
 import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
+import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
 import { genererNumeroDocumentClient } from "@/lib/documents/genererNumeroDocumentClient";
 
 type Client = {
@@ -78,6 +79,15 @@ type FormFacture = {
   type_facture: "simple" | "acompte" | "solde";
   conditions: string;
 };
+
+type FiltreFactures =
+  | "toutes"
+  | "brouillon"
+  | "envoyee"
+  | "en_retard"
+  | "payee"
+  | "avoirs"
+  | "archive";
 
 function dateAujourdhui() {
   return new Date().toISOString().slice(0, 10);
@@ -260,15 +270,7 @@ export default function PageFactures() {
   const [messageSucces, setMessageSucces] = useState("");
 
   const [recherche, setRecherche] = useState("");
-  const [filtre, setFiltre] = useState<
-    | "toutes"
-    | "brouillon"
-    | "envoyee"
-    | "en_retard"
-    | "payee"
-    | "avoirs"
-    | "archive"
-  >("toutes");
+  const [filtre, setFiltre] = useState<FiltreFactures>("toutes");
 
   const [modalOuverte, setModalOuverte] = useState(false);
   const [factureEdition, setFactureEdition] = useState<Facture | null>(null);
@@ -419,25 +421,35 @@ export default function PageFactures() {
     };
   }, [factures]);
 
- async function genererNumeroFacture() {
-  return await genererNumeroDocumentClient("facture");
-}
+  async function genererNumeroFacture() {
+    return await genererNumeroDocumentClient("facture");
+  }
 
   async function ouvrirCreation() {
-    setMessageErreur("");
-    setMessageSucces("");
+    try {
+      setMessageErreur("");
+      setMessageSucces("");
+      setChargementAction(true);
 
-    const numero = await genererNumeroFacture();
+      const numero = await genererNumeroFacture();
 
-    setFactureEdition(null);
-    setForm({
-      ...formVide,
-      numero,
-      date_facture: dateAujourdhui(),
-      date_echeance: ajouterJours(dateAujourdhui(), 30),
-    });
-    setLignes([ligneVide()]);
-    setModalOuverte(true);
+      setFactureEdition(null);
+      setForm({
+        ...formVide,
+        numero,
+        date_facture: dateAujourdhui(),
+        date_echeance: ajouterJours(dateAujourdhui(), 30),
+      });
+      setLignes([ligneVide()]);
+      setModalOuverte(true);
+    } catch (error: any) {
+      console.error("Erreur génération numéro facture :", error);
+      setMessageErreur(
+        error?.message || "Impossible de générer le numéro de facture."
+      );
+    } finally {
+      setChargementAction(false);
+    }
   }
 
   async function ouvrirEdition(facture: Facture) {
@@ -559,9 +571,10 @@ export default function PageFactures() {
         return;
       }
 
-      if (!form.numero.trim()) {
-        setMessageErreur("Veuillez renseigner un numéro de facture.");
-        return;
+      let numeroFinal = form.numero.trim();
+
+      if (!numeroFinal) {
+        numeroFinal = await genererNumeroFacture();
       }
 
       if (!form.objet.trim()) {
@@ -584,11 +597,14 @@ export default function PageFactures() {
       const client = clients.find((item) => item.id === form.client_id) || null;
       const clientNom = client ? nomClient(client, null) : null;
 
+      const montantPaye = Number(factureEdition?.montant_paye || 0);
+      const resteAPayer = Number((total_ttc - montantPaye).toFixed(2));
+
       const payloadFacture = {
         entreprise_id: entrepriseId,
         client_id: form.client_id || null,
         client_nom: clientNom,
-        numero: form.numero.trim(),
+        numero: numeroFinal,
         objet: form.objet.trim(),
         description: form.description.trim() || null,
         date_facture: form.date_facture,
@@ -598,10 +614,8 @@ export default function PageFactures() {
         total_ht,
         total_tva,
         total_ttc,
-        montant_paye: Number(factureEdition?.montant_paye || 0),
-        reste_a_payer: Number(
-          (total_ttc - Number(factureEdition?.montant_paye || 0)).toFixed(2)
-        ),
+        montant_paye: montantPaye,
+        reste_a_payer: resteAPayer,
         conditions: form.conditions.trim() || null,
         est_avoir: false,
       };
@@ -792,9 +806,10 @@ export default function PageFactures() {
             <button
               type="button"
               onClick={() => void ouvrirCreation()}
-              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+              disabled={chargementAction}
+              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Nouvelle facture
+              {chargementAction ? "Préparation..." : "Nouvelle facture"}
             </button>
           </div>
         </div>
@@ -875,7 +890,7 @@ export default function PageFactures() {
                 <button
                   key={valeur}
                   type="button"
-                  onClick={() => setFiltre(valeur as any)}
+                  onClick={() => setFiltre(valeur as FiltreFactures)}
                   className={`rounded-xl px-3 py-2 text-xs font-semibold ${
                     filtre === valeur
                       ? "bg-slate-950 text-white"
@@ -1076,19 +1091,13 @@ Cordialement.`;
 
                           {resteAPayer > 0 && facture.statut !== "brouillon" && (
                             <BoutonEncaisserFacture
-  factureId={facture.id}
-  numero={facture.numero}
-  totalTtc={Number(facture.total_ttc || 0)}
-  montantPaye={Number(facture.montant_paye || 0)}
-  resteAPayer={resteAPayer}
-  onPaiementEnregistre={chargerFactures}
-/>
-                              
-                              
-                              
-                              
-                              
-                            
+                              factureId={facture.id}
+                              numero={facture.numero}
+                              totalTtc={Number(facture.total_ttc || 0)}
+                              montantPaye={Number(facture.montant_paye || 0)}
+                              resteAPayer={resteAPayer}
+                              onPaiementEnregistre={chargerFactures}
+                            />
                           )}
 
                           {facture.statut !== "brouillon" &&
@@ -1145,7 +1154,7 @@ Cordialement.`;
 
                   <p className="mt-1 text-sm text-slate-500">
                     Les modifications sont autorisées uniquement sur les
-                    brouillons.
+                    brouillons. Le numéro est généré automatiquement.
                   </p>
                 </div>
 
@@ -1186,22 +1195,10 @@ Cordialement.`;
                     </select>
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Numéro
-                    </label>
-
-                    <input
-                      value={form.numero}
-                      onChange={(event) =>
-                        setForm((ancien) => ({
-                          ...ancien,
-                          numero: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    />
-                  </div>
+                  <ChampNumeroDocumentVerrouille
+                    typeDocument="facture"
+                    numero={form.numero}
+                  />
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -1386,7 +1383,11 @@ Cordialement.`;
                             step="0.01"
                             value={ligne.quantite}
                             onChange={(event) =>
-                              modifierLigne(index, "quantite", event.target.value)
+                              modifierLigne(
+                                index,
+                                "quantite",
+                                event.target.value
+                              )
                             }
                             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
                           />

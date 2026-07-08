@@ -316,7 +316,7 @@ export default function PageDevis() {
     .select("id, devis_id, numero, statut")
     .eq("entreprise_id", profil.entreprise_id)
     .not("devis_id", "is", null)
-    .eq("est_avoir", false),
+   .or("est_avoir.is.false,est_avoir.is.null"),
 ]);
 
 if (clientsError) throw clientsError;
@@ -947,13 +947,22 @@ Cordialement.`;
                       />
 
                       <HistoriqueEmailsDocument
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
-                      />
+  typeDocument="devis"
+  documentId={item.id}
+  numero={item.numero}
+/>
 
-                      {item.statut === "brouillon" && (
-                        <button
+{item.facture_liee && (
+  <Link
+    href="/chef/factures"
+    className="rounded-xl border border-purple-200 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50"
+  >
+    Voir facture {item.facture_liee.numero || ""}
+  </Link>
+)}
+
+{item.statut === "brouillon" && (
+  <button
                           type="button"
                           onClick={() => void ouvrirEdition(item)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"

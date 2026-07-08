@@ -47,6 +47,7 @@ type Facture = {
   conditions?: string | null;
   est_avoir?: boolean | null;
   facture_origine_id?: string | null;
+  devis_id?: string | null;
   motif_avoir?: string | null;
   avoir_annule_facture?: boolean | null;
   created_at?: string | null;
@@ -1025,22 +1026,31 @@ Cordialement.`;
                         numero={facture.numero}
                       />
 
-                      <Link
-                        href={`/chef/factures/${facture.id}/impression`}
-                        target="_blank"
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        Imprimer
-                      </Link>
+                     <Link
+  href={`/chef/factures/${facture.id}/impression`}
+  target="_blank"
+  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+>
+  Imprimer
+</Link>
 
-                      <BoutonEnvoyerDocumentEmail
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
-                        defaultEmail={emailClient}
-                        defaultMessage={messageEmailParDefaut}
-                        onEnvoye={chargerFactures}
-                      />
+{!estAvoir && facture.devis_id && (
+  <Link
+    href="/chef/devis"
+    className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+  >
+    Voir devis d’origine
+  </Link>
+)}
+
+<BoutonEnvoyerDocumentEmail
+  typeDocument={estAvoir ? "avoir" : "facture"}
+  documentId={facture.id}
+  numero={facture.numero}
+  defaultEmail={emailClient}
+  defaultMessage={messageEmailParDefaut}
+  onEnvoye={chargerFactures}
+/>
 
                       <HistoriqueEmailsDocument
                         typeDocument={estAvoir ? "avoir" : "facture"}

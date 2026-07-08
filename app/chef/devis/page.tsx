@@ -40,6 +40,14 @@ type Devis = {
   created_at?: string | null;
   updated_at?: string | null;
   client?: Client | null;
+    facture_liee?: FactureLiee | null;
+};
+
+type FactureLiee = {
+  id: string;
+  devis_id?: string | null;
+  numero?: string | null;
+  statut?: string | null;
 };
 
 type LigneDevisForm = {
@@ -285,36 +293,54 @@ export default function PageDevis() {
 
       setEntrepriseId(profil.entreprise_id);
 
-      const [
-        { data: clientsData, error: clientsError },
-        { data: devisData, error: devisError },
-      ] = await Promise.all([
-        supabase
-          .from("clients")
-          .select("*")
-          .eq("entreprise_id", profil.entreprise_id)
-          .order("created_at", { ascending: false }),
+    const [
+  { data: clientsData, error: clientsError },
+  { data: devisData, error: devisError },
+  { data: facturesData, error: facturesError },
+] = await Promise.all([
+  supabase
+    .from("clients")
+    .select("*")
+    .eq("entreprise_id", profil.entreprise_id)
+    .order("created_at", { ascending: false }),
 
-        supabase
-          .from("devis")
-          .select("*")
-          .eq("entreprise_id", profil.entreprise_id)
-          .order("date_devis", { ascending: false })
-          .order("created_at", { ascending: false }),
-      ]);
+  supabase
+    .from("devis")
+    .select("*")
+    .eq("entreprise_id", profil.entreprise_id)
+    .order("date_devis", { ascending: false })
+    .order("created_at", { ascending: false }),
 
-      if (clientsError) throw clientsError;
-      if (devisError) throw devisError;
+  supabase
+    .from("factures")
+    .select("id, devis_id, numero, statut")
+    .eq("entreprise_id", profil.entreprise_id)
+    .not("devis_id", "is", null)
+    .eq("est_avoir", false),
+]);
 
-      const listeClients = (clientsData || []) as Client[];
-      const mapClients = new Map(
-        listeClients.map((client) => [client.id, client])
-      );
+if (clientsError) throw clientsError;
+if (devisError) throw devisError;
+if (facturesError) throw facturesError;
 
-      const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
-        ...item,
-        client: item.client_id ? mapClients.get(item.client_id) || null : null,
-      }));
+    const listeClients = (clientsData || []) as Client[];
+const mapClients = new Map(
+  listeClients.map((client) => [client.id, client])
+);
+
+const listeFacturesLiees = (facturesData || []) as FactureLiee[];
+
+const mapFacturesParDevis = new Map(
+  listeFacturesLiees
+    .filter((facture) => facture.devis_id)
+    .map((facture) => [facture.devis_id as string, facture])
+);
+
+const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
+  ...item,
+  client: item.client_id ? mapClients.get(item.client_id) || null : null,
+  facture_liee: mapFacturesParDevis.get(item.id) || null,
+}));
 
       setClients(listeClients);
       setDevis(listeDevis);

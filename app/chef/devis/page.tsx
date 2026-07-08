@@ -623,94 +623,55 @@ export default function PageDevis() {
     }
   }
 
-  async function transformerEnFacture(item: Devis) {
-    try {
-      setChargementAction(true);
-      setMessageErreur("");
-      setMessageSucces("");
+async function transformerEnFacture(item: Devis) {
+  try {
+    setChargementAction(true);
+    setMessageErreur("");
+    setMessageSucces("");
 
-      if (!entrepriseId) {
-        setMessageErreur("Entreprise introuvable.");
-        return;
-      }
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      const { data: lignesData, error: lignesError } = await supabase
-        .from("devis_lignes")
-        .select("*")
-        .eq("devis_id", item.id)
-        .eq("entreprise_id", item.entreprise_id)
-        .order("ordre", { ascending: true });
-
-      if (lignesError) throw lignesError;
-
-      const dateFacture = dateAujourdhui();
-
-      const { data: factureCreee, error: factureError } = await supabase
-        .from("factures")
-        .insert({
-          entreprise_id: entrepriseId,
-          client_id: item.client_id || null,
-          client_nom: item.client_nom || nomClient(item.client, item),
-          devis_id: item.id,
-          numero: null,
-          objet: item.objet || "Facture issue d’un devis",
-          description: item.description || null,
-          date_facture: dateFacture,
-          date_echeance: ajouterJours(dateFacture, 30),
-          statut: "brouillon",
-          type_facture: "simple",
-          total_ht: Number(item.total_ht || 0),
-          total_tva: Number(item.total_tva || 0),
-          total_ttc: Number(item.total_ttc || 0),
-          montant_paye: 0,
-          reste_a_payer: Number(item.total_ttc || 0),
-          conditions: item.conditions || null,
-          est_avoir: false,
-        } as any)
-        .select("id, numero")
-        .single();
-
-      if (factureError) throw factureError;
-
-      const lignesFacturePayload = ((lignesData || []) as any[]).map(
-        (ligne, index) => ({
-          entreprise_id: entrepriseId,
-          facture_id: factureCreee.id,
-          designation: ligne.designation || "",
-          description: ligne.description || null,
-          quantite: Number(ligne.quantite || 0),
-          unite: ligne.unite || "u",
-          prix_unitaire_ht: Number(ligne.prix_unitaire_ht || 0),
-          tva: Number(ligne.tva || 0),
-          total_ht: Number(ligne.total_ht || 0),
-          total_tva: Number(ligne.total_tva || 0),
-          total_ttc: Number(ligne.total_ttc || 0),
-          ordre: index + 1,
-        })
-      );
-
-      if (lignesFacturePayload.length > 0) {
-        const { error: lignesFactureError } = await supabase
-          .from("factures_lignes")
-          .insert(lignesFacturePayload);
-
-        if (lignesFactureError) throw lignesFactureError;
-      }
-
-      setMessageSucces(
-        `Facture ${factureCreee.numero || ""} créée depuis le devis.`
-      );
-
-      await chargerDevis();
-    } catch (error: any) {
-      console.error("Erreur transformation devis en facture :", error);
-      setMessageErreur(
-        error?.message || "Impossible de transformer le devis en facture."
-      );
-    } finally {
-      setChargementAction(false);
+    if (!session?.access_token) {
+      setMessageErreur("Session expirée. Veuillez vous reconnecter.");
+      return;
     }
+
+    const response = await fetch("/api/devis/transformer-en-facture", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        devisId: item.id,
+      }),
+    });
+
+    const resultat = await response.json().catch(() => null);
+
+    if (!response.ok || !resultat?.success) {
+      throw new Error(
+        resultat?.error || "Impossible de transformer le devis en facture."
+      );
+    }
+
+    setMessageSucces(
+      resultat.message ||
+        `Facture ${resultat.numero || ""} créée depuis le devis.`
+    );
+
+    await chargerDevis();
+  } catch (error: any) {
+    console.error("Erreur transformation devis en facture :", error);
+    setMessageErreur(
+      error?.message || "Impossible de transformer le devis en facture."
+    );
+  } finally {
+    setChargementAction(false);
   }
+}
 
   const totauxFormulaire = useMemo(() => calculerTotaux(lignes), [lignes]);
 

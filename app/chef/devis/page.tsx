@@ -71,6 +71,7 @@ type FiltreDevis =
   | "brouillon"
   | "envoye"
   | "accepte"
+  | "facture"
   | "refuse"
   | "archive";
 
@@ -138,6 +139,7 @@ function libelleStatut(statut?: string | null) {
   if (statut === "brouillon") return "Brouillon";
   if (statut === "envoye") return "Envoyé";
   if (statut === "accepte") return "Accepté";
+  if (statut === "facture") return "Facturé";
   if (statut === "refuse") return "Refusé";
   if (statut === "archive") return "Archivé";
   return "Inconnu";
@@ -155,6 +157,10 @@ function classeStatut(statut?: string | null) {
   if (statut === "accepte") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
+
+  if (statut === "facture") {
+  return "border-purple-200 bg-purple-50 text-purple-700";
+}
 
   if (statut === "refuse") {
     return "border-red-200 bg-red-50 text-red-700";
@@ -357,6 +363,7 @@ export default function PageDevis() {
       brouillons: devis.filter((item) => item.statut === "brouillon").length,
       envoyes: devis.filter((item) => item.statut === "envoye").length,
       acceptes: devis.filter((item) => item.statut === "accepte").length,
+      factures: devis.filter((item) => item.statut === "facture").length,
       totalAccepteTtc: devis
         .filter((item) => item.statut === "accepte")
         .reduce((total, item) => total + Number(item.total_ttc || 0), 0),
@@ -773,6 +780,7 @@ async function transformerEnFacture(item: Devis) {
                 ["brouillon", "Brouillons"],
                 ["envoye", "Envoyés"],
                 ["accepte", "Acceptés"],
+                ["facture", "Facturés"],
                 ["refuse", "Refusés"],
                 ["archive", "Archives"],
               ].map(([valeur, label]) => (

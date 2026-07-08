@@ -13,7 +13,6 @@ import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFact
 import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
-import { genererNumeroDocumentClient } from "@/lib/documents/genererNumeroDocumentClient";
 
 type Client = {
   id: string;
@@ -421,35 +420,19 @@ export default function PageFactures() {
     };
   }, [factures]);
 
-  async function genererNumeroFacture() {
-    return await genererNumeroDocumentClient("facture");
-  }
+  function ouvrirCreation() {
+    setMessageErreur("");
+    setMessageSucces("");
 
-  async function ouvrirCreation() {
-    try {
-      setMessageErreur("");
-      setMessageSucces("");
-      setChargementAction(true);
-
-      const numero = await genererNumeroFacture();
-
-      setFactureEdition(null);
-      setForm({
-        ...formVide,
-        numero,
-        date_facture: dateAujourdhui(),
-        date_echeance: ajouterJours(dateAujourdhui(), 30),
-      });
-      setLignes([ligneVide()]);
-      setModalOuverte(true);
-    } catch (error: any) {
-      console.error("Erreur génération numéro facture :", error);
-      setMessageErreur(
-        error?.message || "Impossible de générer le numéro de facture."
-      );
-    } finally {
-      setChargementAction(false);
-    }
+    setFactureEdition(null);
+    setForm({
+      ...formVide,
+      numero: "",
+      date_facture: dateAujourdhui(),
+      date_echeance: ajouterJours(dateAujourdhui(), 30),
+    });
+    setLignes([ligneVide()]);
+    setModalOuverte(true);
   }
 
   async function ouvrirEdition(facture: Facture) {
@@ -571,12 +554,6 @@ export default function PageFactures() {
         return;
       }
 
-      let numeroFinal = form.numero.trim();
-
-      if (!numeroFinal) {
-        numeroFinal = await genererNumeroFacture();
-      }
-
       if (!form.objet.trim()) {
         setMessageErreur("Veuillez renseigner l’objet de la facture.");
         return;
@@ -599,8 +576,9 @@ export default function PageFactures() {
 
       const montantPaye = Number(factureEdition?.montant_paye || 0);
       const resteAPayer = Number((total_ttc - montantPaye).toFixed(2));
+      const numeroFinal = form.numero.trim() || null;
 
-      const payloadFacture = {
+      const payloadFacture: any = {
         entreprise_id: entrepriseId,
         client_id: form.client_id || null,
         client_nom: clientNom,
@@ -642,7 +620,7 @@ export default function PageFactures() {
         const { data: factureCreee, error: factureError } = await supabase
           .from("factures")
           .insert(payloadFacture)
-          .select("id")
+          .select("id, numero")
           .single();
 
         if (factureError) throw factureError;
@@ -805,11 +783,11 @@ export default function PageFactures() {
 
             <button
               type="button"
-              onClick={() => void ouvrirCreation()}
+              onClick={ouvrirCreation}
               disabled={chargementAction}
               className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {chargementAction ? "Préparation..." : "Nouvelle facture"}
+              Nouvelle facture
             </button>
           </div>
         </div>
@@ -1154,7 +1132,7 @@ Cordialement.`;
 
                   <p className="mt-1 text-sm text-slate-500">
                     Les modifications sont autorisées uniquement sur les
-                    brouillons. Le numéro est généré automatiquement.
+                    brouillons. Le numéro sera généré à l’enregistrement.
                   </p>
                 </div>
 

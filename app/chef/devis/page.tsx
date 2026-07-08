@@ -6,13 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
-import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
-import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
-import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFacture";
-import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
-import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
-import { genererNumeroDocumentClient } from "@/lib/documents/genererNumeroDocumentClient";
+import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
 
 type Client = {
   id: string;
@@ -27,7 +22,7 @@ type Client = {
   ville?: string | null;
 };
 
-type Facture = {
+type Devis = {
   id: string;
   entreprise_id: string;
   client_id?: string | null;
@@ -35,26 +30,19 @@ type Facture = {
   numero?: string | null;
   objet?: string | null;
   description?: string | null;
-  date_facture?: string | null;
-  date_echeance?: string | null;
+  date_devis?: string | null;
+  date_validite?: string | null;
   statut?: string | null;
-  type_facture?: string | null;
   total_ht?: number | null;
   total_tva?: number | null;
   total_ttc?: number | null;
-  montant_paye?: number | null;
-  reste_a_payer?: number | null;
   conditions?: string | null;
-  est_avoir?: boolean | null;
-  facture_origine_id?: string | null;
-  motif_avoir?: string | null;
-  avoir_annule_facture?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
   client?: Client | null;
 };
 
-type LigneFactureForm = {
+type LigneDevisForm = {
   id?: string;
   designation: string;
   description: string;
@@ -67,17 +55,24 @@ type LigneFactureForm = {
   total_ttc: number;
 };
 
-type FormFacture = {
+type FormDevis = {
   client_id: string;
   numero: string;
   objet: string;
   description: string;
-  date_facture: string;
-  date_echeance: string;
-  statut: "brouillon" | "envoyee";
-  type_facture: "simple" | "acompte" | "solde";
+  date_devis: string;
+  date_validite: string;
+  statut: "brouillon" | "envoye";
   conditions: string;
 };
+
+type FiltreDevis =
+  | "tous"
+  | "brouillon"
+  | "envoye"
+  | "accepte"
+  | "refuse"
+  | "archive";
 
 function dateAujourdhui() {
   return new Date().toISOString().slice(0, 10);
@@ -89,15 +84,14 @@ function ajouterJours(dateIso: string, jours: number) {
   return date.toISOString().slice(0, 10);
 }
 
-const formVide: FormFacture = {
+const formVide: FormDevis = {
   client_id: "",
   numero: "",
   objet: "",
   description: "",
-  date_facture: dateAujourdhui(),
-  date_echeance: ajouterJours(dateAujourdhui(), 30),
+  date_devis: dateAujourdhui(),
+  date_validite: ajouterJours(dateAujourdhui(), 30),
   statut: "brouillon",
-  type_facture: "simple",
   conditions: "",
 };
 
@@ -122,8 +116,8 @@ function formatDate(date: string | null | undefined) {
   }
 }
 
-function nomClient(client?: Client | null, facture?: Facture | null) {
-  if (facture?.client_nom) return facture.client_nom;
+function nomClient(client?: Client | null, devis?: Devis | null) {
+  if (devis?.client_nom) return devis.client_nom;
 
   if (!client) return "Client non renseigné";
 
@@ -140,17 +134,12 @@ function nomClient(client?: Client | null, facture?: Facture | null) {
   );
 }
 
-function estAvoirFacture(facture: Facture) {
-  return !!facture.est_avoir || facture.type_facture === "avoir";
-}
-
 function libelleStatut(statut?: string | null) {
   if (statut === "brouillon") return "Brouillon";
-  if (statut === "envoyee") return "Envoyée";
-  if (statut === "payee") return "Payée";
-  if (statut === "en_retard") return "En retard";
-  if (statut === "annulee") return "Annulée";
-  if (statut === "archive") return "Archivée";
+  if (statut === "envoye") return "Envoyé";
+  if (statut === "accepte") return "Accepté";
+  if (statut === "refuse") return "Refusé";
+  if (statut === "archive") return "Archivé";
   return "Inconnu";
 }
 
@@ -159,20 +148,16 @@ function classeStatut(statut?: string | null) {
     return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
-  if (statut === "envoyee") {
+  if (statut === "envoye") {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
-  if (statut === "payee") {
+  if (statut === "accepte") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (statut === "en_retard") {
+  if (statut === "refuse") {
     return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (statut === "annulee") {
-    return "border-purple-200 bg-purple-50 text-purple-700";
   }
 
   if (statut === "archive") {
@@ -182,14 +167,7 @@ function classeStatut(statut?: string | null) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function libelleTypeFacture(type?: string | null) {
-  if (type === "acompte") return "Acompte";
-  if (type === "solde") return "Solde";
-  if (type === "avoir") return "Avoir";
-  return "Facture";
-}
-
-function ligneVide(): LigneFactureForm {
+function ligneVide(): LigneDevisForm {
   return {
     designation: "",
     description: "",
@@ -203,7 +181,7 @@ function ligneVide(): LigneFactureForm {
   };
 }
 
-function recalculerLigne(ligne: LigneFactureForm): LigneFactureForm {
+function recalculerLigne(ligne: LigneDevisForm): LigneDevisForm {
   const quantite = Number(ligne.quantite || 0);
   const prixUnitaireHt = Number(ligne.prix_unitaire_ht || 0);
   const tva = Number(ligne.tva || 0);
@@ -223,7 +201,7 @@ function recalculerLigne(ligne: LigneFactureForm): LigneFactureForm {
   };
 }
 
-function calculerTotaux(lignes: LigneFactureForm[]) {
+function calculerTotaux(lignes: LigneDevisForm[]) {
   const lignesCalculees = lignes.map(recalculerLigne);
 
   const totalHt = lignesCalculees.reduce(
@@ -249,9 +227,9 @@ function calculerTotaux(lignes: LigneFactureForm[]) {
   };
 }
 
-export default function PageFactures() {
+export default function PageDevis() {
   const [entrepriseId, setEntrepriseId] = useState("");
-  const [factures, setFactures] = useState<Facture[]>([]);
+  const [devis, setDevis] = useState<Devis[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
   const [chargement, setChargement] = useState(true);
@@ -260,22 +238,14 @@ export default function PageFactures() {
   const [messageSucces, setMessageSucces] = useState("");
 
   const [recherche, setRecherche] = useState("");
-  const [filtre, setFiltre] = useState<
-    | "toutes"
-    | "brouillon"
-    | "envoyee"
-    | "en_retard"
-    | "payee"
-    | "avoirs"
-    | "archive"
-  >("toutes");
+  const [filtre, setFiltre] = useState<FiltreDevis>("tous");
 
   const [modalOuverte, setModalOuverte] = useState(false);
-  const [factureEdition, setFactureEdition] = useState<Facture | null>(null);
-  const [form, setForm] = useState<FormFacture>(formVide);
-  const [lignes, setLignes] = useState<LigneFactureForm[]>([ligneVide()]);
+  const [devisEdition, setDevisEdition] = useState<Devis | null>(null);
+  const [form, setForm] = useState<FormDevis>(formVide);
+  const [lignes, setLignes] = useState<LigneDevisForm[]>([ligneVide()]);
 
-  const chargerFactures = useCallback(async () => {
+  const chargerDevis = useCallback(async () => {
     try {
       setChargement(true);
       setMessageErreur("");
@@ -311,7 +281,7 @@ export default function PageFactures() {
 
       const [
         { data: clientsData, error: clientsError },
-        { data: facturesData, error: facturesError },
+        { data: devisData, error: devisError },
       ] = await Promise.all([
         supabase
           .from("clients")
@@ -320,71 +290,58 @@ export default function PageFactures() {
           .order("created_at", { ascending: false }),
 
         supabase
-          .from("factures")
+          .from("devis")
           .select("*")
           .eq("entreprise_id", profil.entreprise_id)
-          .order("date_facture", { ascending: false })
+          .order("date_devis", { ascending: false })
           .order("created_at", { ascending: false }),
       ]);
 
       if (clientsError) throw clientsError;
-      if (facturesError) throw facturesError;
+      if (devisError) throw devisError;
 
       const listeClients = (clientsData || []) as Client[];
       const mapClients = new Map(
         listeClients.map((client) => [client.id, client])
       );
 
-      const listeFactures = ((facturesData || []) as Facture[]).map(
-        (facture) => ({
-          ...facture,
-          client: facture.client_id
-            ? mapClients.get(facture.client_id) || null
-            : null,
-        })
-      );
+      const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
+        ...item,
+        client: item.client_id ? mapClients.get(item.client_id) || null : null,
+      }));
 
       setClients(listeClients);
-      setFactures(listeFactures);
+      setDevis(listeDevis);
     } catch (error: any) {
-      console.error("Erreur chargement factures :", error);
-      setMessageErreur(error?.message || "Impossible de charger les factures.");
+      console.error("Erreur chargement devis :", error);
+      setMessageErreur(error?.message || "Impossible de charger les devis.");
     } finally {
       setChargement(false);
     }
   }, []);
 
   useEffect(() => {
-    chargerFactures();
-  }, [chargerFactures]);
+    chargerDevis();
+  }, [chargerDevis]);
 
-  const facturesFiltrees = useMemo(() => {
+  const devisFiltres = useMemo(() => {
     const rechercheNormalisee = recherche.trim().toLowerCase();
 
-    return factures.filter((facture) => {
-      const estAvoir = estAvoirFacture(facture);
-
-      if (filtre === "avoirs" && !estAvoir) return false;
-
-      if (
-        filtre !== "toutes" &&
-        filtre !== "avoirs" &&
-        facture.statut !== filtre
-      ) {
+    return devis.filter((item) => {
+      if (filtre !== "tous" && item.statut !== filtre) {
         return false;
       }
 
       if (!rechercheNormalisee) return true;
 
       const texte = [
-        facture.numero,
-        facture.objet,
-        facture.description,
-        facture.statut,
-        facture.type_facture,
-        nomClient(facture.client, facture),
-        facture.client?.email,
-        facture.client?.telephone,
+        item.numero,
+        item.objet,
+        item.description,
+        item.statut,
+        nomClient(item.client, item),
+        item.client?.email,
+        item.client?.telephone,
       ]
         .filter(Boolean)
         .join(" ")
@@ -392,95 +349,64 @@ export default function PageFactures() {
 
       return texte.includes(rechercheNormalisee);
     });
-  }, [factures, filtre, recherche]);
+  }, [devis, filtre, recherche]);
 
   const statistiques = useMemo(() => {
-    const facturesClassiques = factures.filter(
-      (facture) => !estAvoirFacture(facture)
-    );
-
-    const avoirs = factures.filter(estAvoirFacture);
-
     return {
-      totalFactures: facturesClassiques.length,
-      totalAvoirs: avoirs.length,
-      caTtc: facturesClassiques.reduce(
-        (total, facture) => total + Number(facture.total_ttc || 0),
-        0
-      ),
-      resteAPayer: facturesClassiques.reduce(
-        (total, facture) => total + Number(facture.reste_a_payer || 0),
-        0
-      ),
-      totalAvoirsTtc: avoirs.reduce(
-        (total, facture) => total + Number(facture.total_ttc || 0),
-        0
-      ),
+      total: devis.length,
+      brouillons: devis.filter((item) => item.statut === "brouillon").length,
+      envoyes: devis.filter((item) => item.statut === "envoye").length,
+      acceptes: devis.filter((item) => item.statut === "accepte").length,
+      totalAccepteTtc: devis
+        .filter((item) => item.statut === "accepte")
+        .reduce((total, item) => total + Number(item.total_ttc || 0), 0),
     };
-  }, [factures]);
+  }, [devis]);
 
- async function genererNumeroFacture() {
-  return await genererNumeroDocumentClient("facture");
-}
-
-  async function ouvrirCreation() {
+  function ouvrirCreation() {
     setMessageErreur("");
     setMessageSucces("");
 
-    const numero = await genererNumeroFacture();
-
-    setFactureEdition(null);
+    setDevisEdition(null);
     setForm({
       ...formVide,
-      numero,
-      date_facture: dateAujourdhui(),
-      date_echeance: ajouterJours(dateAujourdhui(), 30),
+      numero: "",
+      date_devis: dateAujourdhui(),
+      date_validite: ajouterJours(dateAujourdhui(), 30),
     });
     setLignes([ligneVide()]);
     setModalOuverte(true);
   }
 
-  async function ouvrirEdition(facture: Facture) {
+  async function ouvrirEdition(item: Devis) {
     try {
       setMessageErreur("");
       setMessageSucces("");
 
-      if (estAvoirFacture(facture)) {
-        setMessageErreur("Un avoir ne peut pas être modifié.");
-        return;
-      }
-
-      if (facture.statut !== "brouillon") {
-        setMessageErreur(
-          "Seules les factures en brouillon peuvent être modifiées."
-        );
+      if (item.statut !== "brouillon") {
+        setMessageErreur("Seuls les devis en brouillon peuvent être modifiés.");
         return;
       }
 
       const { data: lignesData, error: lignesError } = await supabase
-        .from("factures_lignes")
+        .from("devis_lignes")
         .select("*")
-        .eq("facture_id", facture.id)
-        .eq("entreprise_id", facture.entreprise_id)
+        .eq("devis_id", item.id)
+        .eq("entreprise_id", item.entreprise_id)
         .order("ordre", { ascending: true });
 
       if (lignesError) throw lignesError;
 
-      setFactureEdition(facture);
+      setDevisEdition(item);
       setForm({
-        client_id: facture.client_id || "",
-        numero: facture.numero || "",
-        objet: facture.objet || "",
-        description: facture.description || "",
-        date_facture: facture.date_facture || dateAujourdhui(),
-        date_echeance:
-          facture.date_echeance || ajouterJours(dateAujourdhui(), 30),
+        client_id: item.client_id || "",
+        numero: item.numero || "",
+        objet: item.objet || "",
+        description: item.description || "",
+        date_devis: item.date_devis || dateAujourdhui(),
+        date_validite: item.date_validite || ajouterJours(dateAujourdhui(), 30),
         statut: "brouillon",
-        type_facture:
-          facture.type_facture === "acompte" || facture.type_facture === "solde"
-            ? facture.type_facture
-            : "simple",
-        conditions: facture.conditions || "",
+        conditions: item.conditions || "",
       });
 
       const lignesForm = (lignesData || []).map((ligne: any) =>
@@ -501,8 +427,8 @@ export default function PageFactures() {
       setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide()]);
       setModalOuverte(true);
     } catch (error: any) {
-      console.error("Erreur ouverture édition facture :", error);
-      setMessageErreur(error?.message || "Impossible d’ouvrir la facture.");
+      console.error("Erreur ouverture édition devis :", error);
+      setMessageErreur(error?.message || "Impossible d’ouvrir le devis.");
     }
   }
 
@@ -510,14 +436,14 @@ export default function PageFactures() {
     if (chargementAction) return;
 
     setModalOuverte(false);
-    setFactureEdition(null);
+    setDevisEdition(null);
     setForm(formVide);
     setLignes([ligneVide()]);
   }
 
   function modifierLigne(
     index: number,
-    champ: keyof LigneFactureForm,
+    champ: keyof LigneDevisForm,
     valeur: any
   ) {
     setLignes((anciennesLignes) =>
@@ -548,7 +474,7 @@ export default function PageFactures() {
     });
   }
 
-  async function enregistrerFacture() {
+  async function enregistrerDevis() {
     try {
       setChargementAction(true);
       setMessageErreur("");
@@ -559,13 +485,8 @@ export default function PageFactures() {
         return;
       }
 
-      if (!form.numero.trim()) {
-        setMessageErreur("Veuillez renseigner un numéro de facture.");
-        return;
-      }
-
       if (!form.objet.trim()) {
-        setMessageErreur("Veuillez renseigner l’objet de la facture.");
+        setMessageErreur("Veuillez renseigner l’objet du devis.");
         return;
       }
 
@@ -574,7 +495,7 @@ export default function PageFactures() {
         .filter((ligne) => ligne.designation.trim());
 
       if (lignesValides.length === 0) {
-        setMessageErreur("Veuillez ajouter au moins une ligne de facture.");
+        setMessageErreur("Veuillez ajouter au moins une ligne de devis.");
         return;
       }
 
@@ -584,61 +505,57 @@ export default function PageFactures() {
       const client = clients.find((item) => item.id === form.client_id) || null;
       const clientNom = client ? nomClient(client, null) : null;
 
-      const payloadFacture = {
+      const numeroFinal = form.numero.trim() || null;
+
+      const payloadDevis: any = {
         entreprise_id: entrepriseId,
         client_id: form.client_id || null,
         client_nom: clientNom,
-        numero: form.numero.trim(),
+        numero: numeroFinal,
         objet: form.objet.trim(),
         description: form.description.trim() || null,
-        date_facture: form.date_facture,
-        date_echeance: form.date_echeance,
+        date_devis: form.date_devis,
+        date_validite: form.date_validite,
         statut: "brouillon",
-        type_facture: form.type_facture,
         total_ht,
         total_tva,
         total_ttc,
-        montant_paye: Number(factureEdition?.montant_paye || 0),
-        reste_a_payer: Number(
-          (total_ttc - Number(factureEdition?.montant_paye || 0)).toFixed(2)
-        ),
         conditions: form.conditions.trim() || null,
-        est_avoir: false,
       };
 
-      let factureId = factureEdition?.id || "";
+      let devisId = devisEdition?.id || "";
 
-      if (factureEdition) {
-        const { error: factureError } = await supabase
-          .from("factures")
-          .update(payloadFacture)
-          .eq("id", factureEdition.id)
+      if (devisEdition) {
+        const { error: devisError } = await supabase
+          .from("devis")
+          .update(payloadDevis)
+          .eq("id", devisEdition.id)
           .eq("entreprise_id", entrepriseId);
 
-        if (factureError) throw factureError;
+        if (devisError) throw devisError;
 
         const { error: deleteLignesError } = await supabase
-          .from("factures_lignes")
+          .from("devis_lignes")
           .delete()
-          .eq("facture_id", factureEdition.id)
+          .eq("devis_id", devisEdition.id)
           .eq("entreprise_id", entrepriseId);
 
         if (deleteLignesError) throw deleteLignesError;
       } else {
-        const { data: factureCreee, error: factureError } = await supabase
-          .from("factures")
-          .insert(payloadFacture)
-          .select("id")
+        const { data: devisCree, error: devisError } = await supabase
+          .from("devis")
+          .insert(payloadDevis)
+          .select("id, numero")
           .single();
 
-        if (factureError) throw factureError;
+        if (devisError) throw devisError;
 
-        factureId = factureCreee.id;
+        devisId = devisCree.id;
       }
 
       const lignesPayload = lignesCalculees.map((ligne, index) => ({
         entreprise_id: entrepriseId,
-        facture_id: factureId,
+        devis_id: devisId,
         designation: ligne.designation.trim(),
         description: ligne.description.trim() || null,
         quantite: ligne.quantite,
@@ -652,106 +569,143 @@ export default function PageFactures() {
       }));
 
       const { error: lignesInsertError } = await supabase
-        .from("factures_lignes")
+        .from("devis_lignes")
         .insert(lignesPayload);
 
       if (lignesInsertError) throw lignesInsertError;
 
-      if (form.statut === "envoyee") {
+      if (form.statut === "envoye") {
         const { error: statutError } = await supabase
-          .from("factures")
+          .from("devis")
           .update({
-            statut: "envoyee",
+            statut: "envoye",
           })
-          .eq("id", factureId)
+          .eq("id", devisId)
           .eq("entreprise_id", entrepriseId);
 
         if (statutError) throw statutError;
       }
 
       setMessageSucces(
-        factureEdition
-          ? "Facture modifiée avec succès."
-          : "Facture créée avec succès."
+        devisEdition ? "Devis modifié avec succès." : "Devis créé avec succès."
       );
 
       fermerModal();
-      await chargerFactures();
+      await chargerDevis();
     } catch (error: any) {
-      console.error("Erreur enregistrement facture :", error);
-      setMessageErreur(error?.message || "Impossible d’enregistrer la facture.");
+      console.error("Erreur enregistrement devis :", error);
+      setMessageErreur(error?.message || "Impossible d’enregistrer le devis.");
     } finally {
       setChargementAction(false);
     }
   }
 
-  async function archiverFacture(facture: Facture) {
+  async function changerStatut(item: Devis, statut: string) {
     try {
       setMessageErreur("");
       setMessageSucces("");
 
-      if (estAvoirFacture(facture)) {
-        setMessageErreur("Un avoir ne peut pas être archivé depuis cette action.");
-        return;
-      }
-
-      if (facture.statut !== "payee") {
-        setMessageErreur("Seules les factures payées peuvent être archivées.");
-        return;
-      }
-
       const { error } = await supabase
-        .from("factures")
-        .update({ statut: "archive" })
-        .eq("id", facture.id)
-        .eq("entreprise_id", facture.entreprise_id);
+        .from("devis")
+        .update({ statut })
+        .eq("id", item.id)
+        .eq("entreprise_id", item.entreprise_id);
 
       if (error) throw error;
 
-      setMessageSucces("Facture archivée.");
-      await chargerFactures();
+      setMessageSucces(
+        `Devis marqué comme ${libelleStatut(statut).toLowerCase()}.`
+      );
+      await chargerDevis();
     } catch (error: any) {
-      console.error("Erreur archivage facture :", error);
-      setMessageErreur(error?.message || "Impossible d’archiver la facture.");
+      console.error("Erreur changement statut devis :", error);
+      setMessageErreur(error?.message || "Impossible de modifier le statut.");
     }
   }
 
-  async function synchroniserRetards() {
+  async function transformerEnFacture(item: Devis) {
     try {
       setChargementAction(true);
       setMessageErreur("");
       setMessageSucces("");
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setMessageErreur("Session expirée. Veuillez vous reconnecter.");
+      if (!entrepriseId) {
+        setMessageErreur("Entreprise introuvable.");
         return;
       }
 
-      const response = await fetch("/api/factures/synchroniser-retards", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const { data: lignesData, error: lignesError } = await supabase
+        .from("devis_lignes")
+        .select("*")
+        .eq("devis_id", item.id)
+        .eq("entreprise_id", item.entreprise_id)
+        .order("ordre", { ascending: true });
 
-      const resultat = await response.json().catch(() => null);
+      if (lignesError) throw lignesError;
 
-      if (!response.ok || !resultat?.success) {
-        throw new Error(
-          resultat?.error || "Impossible de synchroniser les retards."
-        );
+      const dateFacture = dateAujourdhui();
+
+      const { data: factureCreee, error: factureError } = await supabase
+        .from("factures")
+        .insert({
+          entreprise_id: entrepriseId,
+          client_id: item.client_id || null,
+          client_nom: item.client_nom || nomClient(item.client, item),
+          devis_id: item.id,
+          numero: null,
+          objet: item.objet || "Facture issue d’un devis",
+          description: item.description || null,
+          date_facture: dateFacture,
+          date_echeance: ajouterJours(dateFacture, 30),
+          statut: "brouillon",
+          type_facture: "simple",
+          total_ht: Number(item.total_ht || 0),
+          total_tva: Number(item.total_tva || 0),
+          total_ttc: Number(item.total_ttc || 0),
+          montant_paye: 0,
+          reste_a_payer: Number(item.total_ttc || 0),
+          conditions: item.conditions || null,
+          est_avoir: false,
+        } as any)
+        .select("id, numero")
+        .single();
+
+      if (factureError) throw factureError;
+
+      const lignesFacturePayload = ((lignesData || []) as any[]).map(
+        (ligne, index) => ({
+          entreprise_id: entrepriseId,
+          facture_id: factureCreee.id,
+          designation: ligne.designation || "",
+          description: ligne.description || null,
+          quantite: Number(ligne.quantite || 0),
+          unite: ligne.unite || "u",
+          prix_unitaire_ht: Number(ligne.prix_unitaire_ht || 0),
+          tva: Number(ligne.tva || 0),
+          total_ht: Number(ligne.total_ht || 0),
+          total_tva: Number(ligne.total_tva || 0),
+          total_ttc: Number(ligne.total_ttc || 0),
+          ordre: index + 1,
+        })
+      );
+
+      if (lignesFacturePayload.length > 0) {
+        const { error: lignesFactureError } = await supabase
+          .from("factures_lignes")
+          .insert(lignesFacturePayload);
+
+        if (lignesFactureError) throw lignesFactureError;
       }
 
-      setMessageSucces(resultat.message || "Retards synchronisés.");
-      await chargerFactures();
+      setMessageSucces(
+        `Facture ${factureCreee.numero || ""} créée depuis le devis.`
+      );
+
+      await chargerDevis();
     } catch (error: any) {
-      console.error("Erreur synchronisation retards :", error);
+      console.error("Erreur transformation devis en facture :", error);
       setMessageErreur(
-        error?.message || "Impossible de synchroniser les retards."
+        error?.message || "Impossible de transformer le devis en facture."
       );
     } finally {
       setChargementAction(false);
@@ -766,37 +720,27 @@ export default function PageFactures() {
         <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-              Facturation
+              Devis
             </p>
 
             <h1 className="mt-1 text-3xl font-black text-slate-950">
-              Factures & avoirs
+              Devis clients
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Gérez vos factures, les paiements, les relances, les avoirs, les
-              emails et les PDF.
+              Créez, envoyez, imprimez, téléchargez vos devis en PDF et
+              transformez-les en factures.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={synchroniserRetards}
-              disabled={chargementAction}
-              className="rounded-2xl border border-orange-200 px-4 py-3 text-sm font-semibold text-orange-700 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Synchroniser retards
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void ouvrirCreation()}
-              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Nouvelle facture
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={ouvrirCreation}
+            disabled={chargementAction}
+            className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Nouveau devis
+          </button>
         </div>
 
         {(messageErreur || messageSucces) && (
@@ -817,37 +761,37 @@ export default function PageFactures() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Factures</p>
+            <p className="text-sm text-slate-500">Total devis</p>
             <p className="mt-2 text-2xl font-black text-slate-950">
-              {statistiques.totalFactures}
+              {statistiques.total}
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Avoirs</p>
-            <p className="mt-2 text-2xl font-black text-purple-700">
-              {statistiques.totalAvoirs}
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total facturé TTC</p>
+            <p className="text-sm text-slate-500">Brouillons</p>
             <p className="mt-2 text-2xl font-black text-slate-950">
-              {formatMontant(statistiques.caTtc)}
+              {statistiques.brouillons}
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Reste à payer</p>
-            <p className="mt-2 text-2xl font-black text-red-600">
-              {formatMontant(statistiques.resteAPayer)}
+            <p className="text-sm text-slate-500">Envoyés</p>
+            <p className="mt-2 text-2xl font-black text-blue-700">
+              {statistiques.envoyes}
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total avoirs TTC</p>
-            <p className="mt-2 text-2xl font-black text-purple-700">
-              {formatMontant(statistiques.totalAvoirsTtc)}
+            <p className="text-sm text-slate-500">Acceptés</p>
+            <p className="mt-2 text-2xl font-black text-emerald-700">
+              {statistiques.acceptes}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Total accepté TTC</p>
+            <p className="mt-2 text-2xl font-black text-emerald-700">
+              {formatMontant(statistiques.totalAccepteTtc)}
             </p>
           </div>
         </div>
@@ -858,24 +802,23 @@ export default function PageFactures() {
               type="search"
               value={recherche}
               onChange={(event) => setRecherche(event.target.value)}
-              placeholder="Rechercher une facture, un client, un numéro..."
+              placeholder="Rechercher un devis, un client, un numéro..."
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
             />
 
             <div className="flex flex-wrap gap-2">
               {[
-                ["toutes", "Toutes"],
+                ["tous", "Tous"],
                 ["brouillon", "Brouillons"],
-                ["envoyee", "Envoyées"],
-                ["en_retard", "Retards"],
-                ["payee", "Payées"],
-                ["avoirs", "Avoirs"],
+                ["envoye", "Envoyés"],
+                ["accepte", "Acceptés"],
+                ["refuse", "Refusés"],
                 ["archive", "Archives"],
               ].map(([valeur, label]) => (
                 <button
                   key={valeur}
                   type="button"
-                  onClick={() => setFiltre(valeur as any)}
+                  onClick={() => setFiltre(valeur as FiltreDevis)}
                   className={`rounded-xl px-3 py-2 text-xs font-semibold ${
                     filtre === valeur
                       ? "bg-slate-950 text-white"
@@ -892,134 +835,93 @@ export default function PageFactures() {
         {chargement ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <p className="font-semibold text-slate-900">
-              Chargement des factures...
+              Chargement des devis...
             </p>
             <p className="mt-1 text-sm text-slate-500">
               Récupération des données en cours.
             </p>
           </div>
-        ) : facturesFiltrees.length === 0 ? (
+        ) : devisFiltres.length === 0 ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
-              🧾
+              📄
             </div>
 
             <p className="text-lg font-bold text-slate-950">
-              Aucune facture trouvée
+              Aucun devis trouvé
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre première facture ou modifiez les filtres.
+              Créez votre premier devis ou modifiez les filtres.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {facturesFiltrees.map((facture) => {
-              const estAvoir = estAvoirFacture(facture);
-              const client = facture.client || null;
+            {devisFiltres.map((item) => {
+              const client = item.client || null;
               const emailClient = client?.email || "";
-              const estEnvoyeeOuRetard =
-                facture.statut === "envoyee" ||
-                facture.statut === "en_retard";
-              const resteAPayer = Number(facture.reste_a_payer || 0);
 
-              const messageEmailParDefaut = estAvoir
-                ? `Bonjour,
+              const messageEmailParDefaut = `Bonjour,
 
-Veuillez trouver ci-joint votre avoir ${facture.numero || ""} au format PDF.
-
-Cet avoir vient rectifier ou annuler une facture précédemment émise.
-
-Cordialement.`
-                : `Bonjour,
-
-Veuillez trouver ci-joint votre facture ${facture.numero || ""} au format PDF.
+Veuillez trouver ci-joint votre devis ${item.numero || ""} au format PDF.
 
 Cordialement.`;
 
               return (
                 <div
-                  key={facture.id}
-                  className={`rounded-3xl border bg-white p-5 shadow-sm ${
-                    estAvoir ? "border-purple-200" : "border-slate-200"
-                  }`}
+                  key={item.id}
+                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
-                            facture.statut
+                            item.statut
                           )}`}
                         >
-                          {libelleStatut(facture.statut)}
+                          {libelleStatut(item.statut)}
                         </span>
-
-                        <span
-                          className={`rounded-full border px-3 py-1 text-xs font-bold ${
-                            estAvoir
-                              ? "border-purple-200 bg-purple-50 text-purple-700"
-                              : "border-blue-200 bg-blue-50 text-blue-700"
-                          }`}
-                        >
-                          {estAvoir
-                            ? "Avoir"
-                            : libelleTypeFacture(facture.type_facture)}
-                        </span>
-
-                        {facture.avoir_annule_facture && (
-                          <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
-                            Facture annulée par avoir
-                          </span>
-                        )}
                       </div>
 
                       <h2 className="mt-3 text-xl font-black text-slate-950">
-                        {facture.numero || "Sans numéro"}
+                        {item.numero || "Sans numéro"}
                       </h2>
 
                       <p className="mt-1 text-sm font-semibold text-slate-700">
-                        {facture.objet || "Sans objet"}
+                        {item.objet || "Sans objet"}
                       </p>
 
                       <p className="mt-1 text-sm text-slate-500">
-                        Client : {nomClient(client, facture)}
+                        Client : {nomClient(client, item)}
                       </p>
 
                       <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                         <div className="rounded-2xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Date</p>
                           <p className="font-bold text-slate-900">
-                            {formatDate(facture.date_facture)}
+                            {formatDate(item.date_devis)}
                           </p>
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Échéance</p>
+                          <p className="text-xs text-slate-500">Validité</p>
                           <p className="font-bold text-slate-900">
-                            {estAvoir ? "—" : formatDate(facture.date_echeance)}
+                            {formatDate(item.date_validite)}
                           </p>
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Total TTC</p>
-                          <p
-                            className={`font-black ${
-                              estAvoir ? "text-purple-700" : "text-slate-950"
-                            }`}
-                          >
-                            {formatMontant(facture.total_ttc)}
+                          <p className="font-black text-slate-950">
+                            {formatMontant(item.total_ttc)}
                           </p>
                         </div>
 
                         <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">
-                            Reste à payer
-                          </p>
-                          <p className="font-black text-red-600">
-                            {estAvoir
-                              ? "—"
-                              : formatMontant(facture.reste_a_payer)}
+                          <p className="text-xs text-slate-500">Client</p>
+                          <p className="truncate font-bold text-slate-900">
+                            {nomClient(client, item)}
                           </p>
                         </div>
                       </div>
@@ -1027,13 +929,13 @@ Cordialement.`;
 
                     <div className="flex max-w-full flex-wrap gap-2 xl:max-w-md xl:justify-end">
                       <BoutonTelechargerDocumentPdf
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
                       />
 
                       <Link
-                        href={`/chef/factures/${facture.id}/impression`}
+                        href={`/chef/devis/${item.id}/impression`}
                         target="_blank"
                         className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       >
@@ -1041,86 +943,65 @@ Cordialement.`;
                       </Link>
 
                       <BoutonEnvoyerDocumentEmail
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
                         defaultEmail={emailClient}
                         defaultMessage={messageEmailParDefaut}
-                        onEnvoye={chargerFactures}
+                        onEnvoye={chargerDevis}
                       />
 
                       <HistoriqueEmailsDocument
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
                       />
 
-                      {!estAvoir && estEnvoyeeOuRetard && resteAPayer > 0 && (
-                        <BoutonRelancerFacture
-                          factureId={facture.id}
-                          numero={facture.numero}
-                          defaultEmail={emailClient}
-                          resteAPayer={resteAPayer}
-                          dateEcheance={facture.date_echeance}
-                          onRelanceEnvoyee={chargerFactures}
-                        />
-                      )}
-
-                      {!estAvoir && (
-                        <>
-                          <HistoriquePaiementsFacture
-                            factureId={facture.id}
-                            numero={facture.numero}
-                            onPaiementSupprime={chargerFactures}
-                          />
-
-                          {resteAPayer > 0 && facture.statut !== "brouillon" && (
-                            <BoutonEncaisserFacture
-  factureId={facture.id}
-  numero={facture.numero}
-  totalTtc={Number(facture.total_ttc || 0)}
-  montantPaye={Number(facture.montant_paye || 0)}
-  resteAPayer={resteAPayer}
-  onPaiementEnregistre={chargerFactures}
-/>
-                              
-                              
-                              
-                              
-                              
-                            
-                          )}
-
-                          {facture.statut !== "brouillon" &&
-                            facture.statut !== "archive" && (
-                              <BoutonCreerAvoirFacture
-                                factureId={facture.id}
-                                numero={facture.numero}
-                                onAvoirCree={chargerFactures}
-                              />
-                            )}
-
-                          <HistoriqueAvoirsFacture
-                            factureId={facture.id}
-                            numero={facture.numero}
-                          />
-                        </>
-                      )}
-
-                      {!estAvoir && facture.statut === "brouillon" && (
+                      {item.statut === "brouillon" && (
                         <button
                           type="button"
-                          onClick={() => void ouvrirEdition(facture)}
+                          onClick={() => void ouvrirEdition(item)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
                         >
                           Modifier
                         </button>
                       )}
 
-                      {!estAvoir && facture.statut === "payee" && (
+                      {item.statut === "envoye" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void changerStatut(item, "accepte")}
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Accepter
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void changerStatut(item, "refuse")}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Refuser
+                          </button>
+                        </>
+                      )}
+
+                      {item.statut === "accepte" && (
                         <button
                           type="button"
-                          onClick={() => void archiverFacture(facture)}
+                          onClick={() => void transformerEnFacture(item)}
+                          disabled={chargementAction}
+                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Transformer en facture
+                        </button>
+                      )}
+
+                      {item.statut !== "archive" && (
+                        <button
+                          type="button"
+                          onClick={() => void changerStatut(item, "archive")}
                           className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
                         >
                           Archiver
@@ -1140,12 +1021,12 @@ Cordialement.`;
               <div className="flex items-start justify-between border-b border-slate-200 p-5">
                 <div>
                   <h2 className="text-xl font-black text-slate-950">
-                    {factureEdition ? "Modifier la facture" : "Nouvelle facture"}
+                    {devisEdition ? "Modifier le devis" : "Nouveau devis"}
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
                     Les modifications sont autorisées uniquement sur les
-                    brouillons.
+                    brouillons. Le numéro sera généré à l’enregistrement.
                   </p>
                 </div>
 
@@ -1186,35 +1067,23 @@ Cordialement.`;
                     </select>
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Numéro
-                    </label>
-
-                    <input
-                      value={form.numero}
-                      onChange={(event) =>
-                        setForm((ancien) => ({
-                          ...ancien,
-                          numero: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    />
-                  </div>
+                  <ChampNumeroDocumentVerrouille
+                    typeDocument="devis"
+                    numero={form.numero}
+                  />
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Date facture
+                      Date devis
                     </label>
 
                     <input
                       type="date"
-                      value={form.date_facture}
+                      value={form.date_devis}
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          date_facture: event.target.value,
+                          date_devis: event.target.value,
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
@@ -1223,42 +1092,20 @@ Cordialement.`;
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Date échéance
+                      Date de validité
                     </label>
 
                     <input
                       type="date"
-                      value={form.date_echeance}
+                      value={form.date_validite}
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          date_echeance: event.target.value,
+                          date_validite: event.target.value,
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Type
-                    </label>
-
-                    <select
-                      value={form.type_facture}
-                      onChange={(event) =>
-                        setForm((ancien) => ({
-                          ...ancien,
-                          type_facture: event.target
-                            .value as FormFacture["type_facture"],
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    >
-                      <option value="simple">Facture simple</option>
-                      <option value="acompte">Facture d’acompte</option>
-                      <option value="solde">Facture de solde</option>
-                    </select>
                   </div>
 
                   <div>
@@ -1271,13 +1118,13 @@ Cordialement.`;
                       onChange={(event) =>
                         setForm((ancien) => ({
                           ...ancien,
-                          statut: event.target.value as FormFacture["statut"],
+                          statut: event.target.value as FormDevis["statut"],
                         }))
                       }
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     >
                       <option value="brouillon">Brouillon</option>
-                      <option value="envoyee">Envoyée</option>
+                      <option value="envoye">Envoyé</option>
                     </select>
                   </div>
                 </div>
@@ -1295,7 +1142,7 @@ Cordialement.`;
                         objet: event.target.value,
                       }))
                     }
-                    placeholder="Ex : Entretien espaces verts"
+                    placeholder="Ex : Taille de haie, abattage, entretien..."
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
@@ -1321,7 +1168,7 @@ Cordialement.`;
                 <div className="rounded-3xl border border-slate-200">
                   <div className="flex items-center justify-between border-b border-slate-200 p-4">
                     <h3 className="font-bold text-slate-950">
-                      Lignes de facture
+                      Lignes de devis
                     </h3>
 
                     <button
@@ -1386,7 +1233,11 @@ Cordialement.`;
                             step="0.01"
                             value={ligne.quantite}
                             onChange={(event) =>
-                              modifierLigne(index, "quantite", event.target.value)
+                              modifierLigne(
+                                index,
+                                "quantite",
+                                event.target.value
+                              )
                             }
                             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
                           />
@@ -1530,7 +1381,7 @@ Cordialement.`;
 
                 <button
                   type="button"
-                  onClick={enregistrerFacture}
+                  onClick={enregistrerDevis}
                   disabled={chargementAction}
                   className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >

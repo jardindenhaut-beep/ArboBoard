@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseClient";
 
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
@@ -199,14 +200,14 @@ function libelleTypeFacture(type?: string | null) {
   return "Facture";
 }
 
-function ligneVide(): LigneFactureForm {
+function ligneVide(tvaDefaut = 20): LigneFactureForm {
   return {
     designation: "",
     description: "",
     quantite: 1,
     unite: "u",
     prix_unitaire_ht: 0,
-    tva: 20,
+    tva: tvaDefaut,
     total_ht: 0,
     total_tva: 0,
     total_ttc: 0,
@@ -264,6 +265,10 @@ export default function PageFactures() {
   const [factures, setFactures] = useState<Facture[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
+  const [tvaDefaut, setTvaDefaut] = useState(20);
+  const [delaiPaiementDefaut, setDelaiPaiementDefaut] = useState(30);
+  const [conditionsFacturesDefaut, setConditionsFacturesDefaut] = useState("");
+
   const [chargement, setChargement] = useState(true);
   const [chargementAction, setChargementAction] = useState(false);
   const [messageErreur, setMessageErreur] = useState("");
@@ -310,6 +315,16 @@ export default function PageFactures() {
       }
 
       setEntrepriseId(profil.entreprise_id);
+
+      const parametresEntreprise = await chargerParametresEntrepriseClient(
+        profil.entreprise_id
+      );
+
+      setTvaDefaut(parametresEntreprise.tva_defaut);
+      setDelaiPaiementDefaut(parametresEntreprise.delai_paiement_defaut);
+      setConditionsFacturesDefaut(
+        parametresEntreprise.conditions_generales_factures
+      );
 
       const [
         { data: clientsData, error: clientsError },
@@ -425,14 +440,18 @@ export default function PageFactures() {
     setMessageErreur("");
     setMessageSucces("");
 
+    const dateDuJour = dateAujourdhui();
+
     setFactureEdition(null);
     setForm({
       ...formVide,
       numero: "",
-      date_facture: dateAujourdhui(),
-      date_echeance: ajouterJours(dateAujourdhui(), 30),
+      date_facture: dateDuJour,
+      date_echeance: ajouterJours(dateDuJour, delaiPaiementDefaut),
+      conditions: conditionsFacturesDefaut,
     });
-    setLignes([ligneVide()]);
+
+    setLignes([ligneVide(tvaDefaut)]);
     setModalOuverte(true);
   }
 
@@ -470,7 +489,11 @@ export default function PageFactures() {
         description: facture.description || "",
         date_facture: facture.date_facture || dateAujourdhui(),
         date_echeance:
-          facture.date_echeance || ajouterJours(dateAujourdhui(), 30),
+          facture.date_echeance ||
+          ajouterJours(
+            facture.date_facture || dateAujourdhui(),
+            delaiPaiementDefaut
+          ),
         statut: "brouillon",
         type_facture:
           facture.type_facture === "acompte" || facture.type_facture === "solde"
@@ -494,7 +517,7 @@ export default function PageFactures() {
         })
       );
 
-      setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide()]);
+      setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide(tvaDefaut)]);
       setModalOuverte(true);
     } catch (error: any) {
       console.error("Erreur ouverture édition facture :", error);
@@ -508,7 +531,7 @@ export default function PageFactures() {
     setModalOuverte(false);
     setFactureEdition(null);
     setForm(formVide);
-    setLignes([ligneVide()]);
+    setLignes([ligneVide(tvaDefaut)]);
   }
 
   function modifierLigne(
@@ -534,7 +557,7 @@ export default function PageFactures() {
   }
 
   function ajouterLigne() {
-    setLignes((anciennesLignes) => [...anciennesLignes, ligneVide()]);
+    setLignes((anciennesLignes) => [...anciennesLignes, ligneVide(tvaDefaut)]);
   }
 
   function supprimerLigne(index: number) {
@@ -1026,31 +1049,31 @@ Cordialement.`;
                         numero={facture.numero}
                       />
 
-                     <Link
-  href={`/chef/factures/${facture.id}/impression`}
-  target="_blank"
-  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
->
-  Imprimer
-</Link>
+                      <Link
+                        href={`/chef/factures/${facture.id}/impression`}
+                        target="_blank"
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        Imprimer
+                      </Link>
 
-{!estAvoir && facture.devis_id && (
-  <Link
-    href="/chef/devis"
-    className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-  >
-    Voir devis d’origine
-  </Link>
-)}
+                      {!estAvoir && facture.devis_id && (
+                        <Link
+                          href="/chef/devis"
+                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Voir devis d’origine
+                        </Link>
+                      )}
 
-<BoutonEnvoyerDocumentEmail
-  typeDocument={estAvoir ? "avoir" : "facture"}
-  documentId={facture.id}
-  numero={facture.numero}
-  defaultEmail={emailClient}
-  defaultMessage={messageEmailParDefaut}
-  onEnvoye={chargerFactures}
-/>
+                      <BoutonEnvoyerDocumentEmail
+                        typeDocument={estAvoir ? "avoir" : "facture"}
+                        documentId={facture.id}
+                        numero={facture.numero}
+                        defaultEmail={emailClient}
+                        defaultMessage={messageEmailParDefaut}
+                        onEnvoye={chargerFactures}
+                      />
 
                       <HistoriqueEmailsDocument
                         typeDocument={estAvoir ? "avoir" : "facture"}
@@ -1196,12 +1219,20 @@ Cordialement.`;
                     <input
                       type="date"
                       value={form.date_facture}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const nouvelleDate = event.target.value;
+
                         setForm((ancien) => ({
                           ...ancien,
-                          date_facture: event.target.value,
-                        }))
-                      }
+                          date_facture: nouvelleDate,
+                          date_echeance: factureEdition
+                            ? ancien.date_echeance
+                            : ajouterJours(
+                                nouvelleDate,
+                                delaiPaiementDefaut
+                              ),
+                        }));
+                      }}
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     />
                   </div>

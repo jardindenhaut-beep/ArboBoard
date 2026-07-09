@@ -7,6 +7,7 @@ import {
   Text,
   View,
   StyleSheet,
+  Image,
   pdf,
 } from "@react-pdf/renderer";
 
@@ -138,6 +139,18 @@ function bordureDocument(typeDocument: TypeDocumentPdf) {
   return "#bfdbfe";
 }
 
+function logoValide(logoUrl: unknown) {
+  const url = String(logoUrl || "").trim();
+
+  if (!url) return null;
+
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return null;
+  }
+
+  return url;
+}
+
 function nomFichierPdf(typeDocument: TypeDocumentPdf, document: any) {
   const numero = texte(document?.numero, `${typeDocument}-${Date.now()}`);
 
@@ -209,6 +222,22 @@ const styles = StyleSheet.create({
   documentCol: {
     width: "38%",
   },
+entrepriseHeader: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  gap: 10,
+},
+
+logoEntreprise: {
+  width: 54,
+  height: 54,
+  objectFit: "contain",
+  marginRight: 10,
+},
+
+entrepriseTexteWrap: {
+  flex: 1,
+},
 
   entrepriseNom: {
     fontSize: 18,
@@ -626,45 +655,61 @@ function BlocEntreprise({ entreprise }: { entreprise: any }) {
     entreprise?.ville
   );
 
+  const logoUrl = logoValide(entreprise?.logo_url);
+
   return (
     <View style={styles.entrepriseCol}>
-      <Text style={styles.entrepriseNom}>
-        {texte(entreprise?.nom_entreprise, "Entreprise")}
-      </Text>
-
-      {entreprise?.forme_juridique ? (
-        <Text style={styles.entrepriseInfos}>{entreprise.forme_juridique}</Text>
-      ) : null}
-
-      {adresseEntreprise ? (
-        <Text style={[styles.entrepriseInfos, { marginTop: 7 }]}>
-          {adresseEntreprise}
-        </Text>
-      ) : null}
-
-      <View style={{ marginTop: 8 }}>
-        {entreprise?.telephone ? (
-          <Text style={styles.entrepriseInfos}>
-            Téléphone : {entreprise.telephone}
-          </Text>
+      <View style={styles.entrepriseHeader}>
+        {logoUrl ? (
+          <Image src={logoUrl} style={styles.logoEntreprise} />
         ) : null}
 
-       {entreprise?.email || entreprise?.email_contact ? (
-  <Text style={styles.entrepriseInfos}>
-    Email : {entreprise.email || entreprise.email_contact}
-  </Text>
-) : null}
+        <View style={styles.entrepriseTexteWrap}>
+          <Text style={styles.entrepriseNom}>
+            {texte(entreprise?.nom_entreprise, "Entreprise")}
+          </Text>
 
-{entreprise?.siret ? (
-  <Text style={styles.entrepriseInfos}>SIRET : {entreprise.siret}</Text>
-) : null}
+          {entreprise?.forme_juridique ? (
+            <Text style={styles.entrepriseInfos}>
+              {entreprise.forme_juridique}
+            </Text>
+          ) : null}
 
-{entreprise?.numero_tva_intracommunautaire || entreprise?.numero_tva ? (
-  <Text style={styles.entrepriseInfos}>
-    TVA intracommunautaire :{" "}
-    {entreprise.numero_tva_intracommunautaire || entreprise.numero_tva}
-  </Text>
-) : null}
+          {adresseEntreprise ? (
+            <Text style={[styles.entrepriseInfos, { marginTop: 7 }]}>
+              {adresseEntreprise}
+            </Text>
+          ) : null}
+
+          <View style={{ marginTop: 8 }}>
+            {entreprise?.telephone ? (
+              <Text style={styles.entrepriseInfos}>
+                Téléphone : {entreprise.telephone}
+              </Text>
+            ) : null}
+
+            {entreprise?.email || entreprise?.email_contact ? (
+              <Text style={styles.entrepriseInfos}>
+                Email : {entreprise.email || entreprise.email_contact}
+              </Text>
+            ) : null}
+
+            {entreprise?.siret ? (
+              <Text style={styles.entrepriseInfos}>
+                SIRET : {entreprise.siret}
+              </Text>
+            ) : null}
+
+            {entreprise?.numero_tva_intracommunautaire ||
+            entreprise?.numero_tva ? (
+              <Text style={styles.entrepriseInfos}>
+                TVA intracommunautaire :{" "}
+                {entreprise.numero_tva_intracommunautaire ||
+                  entreprise.numero_tva}
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </View>
     </View>
   );

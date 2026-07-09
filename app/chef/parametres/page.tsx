@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type EntrepriseParametres = {
@@ -52,6 +52,7 @@ export default function PageParametresChef() {
   const [form, setForm] = useState<EntrepriseParametres>(formVide);
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
+  const [uploadLogoEnCours, setUploadLogoEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -153,6 +154,79 @@ export default function PageParametresChef() {
       [champ]: valeur,
     }));
   }
+
+  async function uploaderLogo(event: ChangeEvent<HTMLInputElement>) {
+  try {
+    setErreur(null);
+    setMessage(null);
+
+    const fichier = event.target.files?.[0];
+
+    if (!fichier) {
+      return;
+    }
+
+    if (!entrepriseId) {
+      throw new Error("Entreprise introuvable.");
+    }
+
+    const typesAutorises = ["image/png", "image/jpeg", "image/webp"];
+
+    if (!typesAutorises.includes(fichier.type)) {
+      throw new Error("Format non autorisé. Utilise un logo en PNG, JPG ou WEBP.");
+    }
+
+    const tailleMax = 2 * 1024 * 1024;
+
+    if (fichier.size > tailleMax) {
+      throw new Error("Le logo est trop lourd. Taille maximale : 2 Mo.");
+    }
+
+    setUploadLogoEnCours(true);
+
+    const extension =
+      fichier.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ||
+      "png";
+
+    const cheminLogo = `${entrepriseId}/logo-${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("logos-entreprises")
+      .upload(cheminLogo, fichier, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: fichier.type,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage
+      .from("logos-entreprises")
+      .getPublicUrl(cheminLogo);
+
+    if (!data.publicUrl) {
+      throw new Error("Impossible de récupérer l’URL publique du logo.");
+    }
+
+    modifierChamp("logo_url", data.publicUrl);
+
+    setMessage(
+      "Logo envoyé avec succès. Clique sur Enregistrer les paramètres pour le sauvegarder."
+    );
+  } catch (error) {
+    console.error(error);
+    setErreur(
+      error instanceof Error
+        ? error.message
+        : "Erreur lors de l’envoi du logo."
+    );
+  } finally {
+    setUploadLogoEnCours(false);
+    event.target.value = "";
+  }
+}
 
   async function enregistrerParametres() {
     try {
@@ -360,14 +434,46 @@ export default function PageParametresChef() {
             onChange={(valeur) => modifierChamp("prefixe_avoir", valeur)}
           />
 
-          <ChampTexte
-            label="URL du logo"
-            placeholder="Temporaire, upload logo ajouté ensuite"
-            value={form.logo_url}
-            onChange={(valeur) => modifierChamp("logo_url", valeur)}
-          />
-        </div>
+         <div className="md:col-span-2">
+  <label className="block">
+    <span className="text-sm font-medium text-slate-700">
+      Logo entreprise
+    </span>
+
+    <input
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      onChange={uploaderLogo}
+      disabled={uploadLogoEnCours}
+      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-emerald-700 hover:file:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+    />
+
+    <p className="mt-1 text-xs text-slate-500">
+      Formats acceptés : PNG, JPG ou WEBP. Taille maximum : 2 Mo.
+    </p>
+  </label>
+
+  {uploadLogoEnCours ? (
+    <p className="mt-2 text-sm text-slate-500">Envoi du logo...</p>
+  ) : null}
+
+  {form.logo_url ? (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="mb-2 text-xs font-medium text-slate-500">
+        Logo actuellement enregistré :
+      </p>
+
+      <img
+        src={form.logo_url}
+        alt="Logo entreprise"
+        className="max-h-24 max-w-xs rounded-lg bg-white object-contain p-2"
+      />
+    </div>
+  ) : null}
+   </div>
+ </div>
       </section>
+    
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">

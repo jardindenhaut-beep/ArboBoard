@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseClient";
 
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
@@ -181,14 +182,14 @@ function classeStatut(statut?: string | null) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function ligneVide(): LigneDevisForm {
+function ligneVide(tvaDefaut = 20): LigneDevisForm {
   return {
     designation: "",
     description: "",
     quantite: 1,
     unite: "u",
     prix_unitaire_ht: 0,
-    tva: 20,
+    tva: tvaDefaut,
     total_ht: 0,
     total_tva: 0,
     total_ttc: 0,
@@ -245,6 +246,9 @@ export default function PageDevis() {
   const [entrepriseId, setEntrepriseId] = useState("");
   const [devis, setDevis] = useState<Devis[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+ 
+  const [tvaDefaut, setTvaDefaut] = useState(20);
+  const [conditionsDevisDefaut, setConditionsDevisDefaut] = useState("");
 
   const [chargement, setChargement] = useState(true);
   const [chargementAction, setChargementAction] = useState(false);
@@ -293,7 +297,14 @@ export default function PageDevis() {
 
       setEntrepriseId(profil.entreprise_id);
 
-    const [
+const parametresEntreprise = await chargerParametresEntrepriseClient(
+  profil.entreprise_id
+);
+
+setTvaDefaut(parametresEntreprise.tva_defaut);
+setConditionsDevisDefaut(parametresEntreprise.conditions_generales_devis);
+
+const [
   { data: clientsData, error: clientsError },
   { data: devisData, error: devisError },
   { data: facturesData, error: facturesError },
@@ -401,14 +412,18 @@ const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
     setMessageSucces("");
 
     setDevisEdition(null);
-    setForm({
-      ...formVide,
-      numero: "",
-      date_devis: dateAujourdhui(),
-      date_validite: ajouterJours(dateAujourdhui(), 30),
-    });
-    setLignes([ligneVide()]);
-    setModalOuverte(true);
+   const dateDuJour = dateAujourdhui();
+
+setForm({
+  ...formVide,
+  numero: "",
+  date_devis: dateDuJour,
+  date_validite: ajouterJours(dateDuJour, 30),
+  conditions: conditionsDevisDefaut,
+});
+
+setLignes([ligneVide(tvaDefaut)]);
+setModalOuverte(true);
   }
 
   async function ouvrirEdition(item: Devis) {
@@ -457,7 +472,7 @@ const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
         })
       );
 
-      setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide()]);
+      setLignes(lignesForm.length > 0 ? lignesForm : [ligneVide(tvaDefaut)]);
       setModalOuverte(true);
     } catch (error: any) {
       console.error("Erreur ouverture édition devis :", error);
@@ -471,7 +486,7 @@ const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
     setModalOuverte(false);
     setDevisEdition(null);
     setForm(formVide);
-    setLignes([ligneVide()]);
+    setLignes([ligneVide(tvaDefaut)]);
   }
 
   function modifierLigne(
@@ -496,9 +511,9 @@ const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
     );
   }
 
-  function ajouterLigne() {
-    setLignes((anciennesLignes) => [...anciennesLignes, ligneVide()]);
-  }
+ function ajouterLigne() {
+  setLignes((anciennesLignes) => [...anciennesLignes, ligneVide(tvaDefaut)]);
+}
 
   function supprimerLigne(index: number) {
     setLignes((anciennesLignes) => {

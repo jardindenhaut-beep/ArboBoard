@@ -1,4 +1,6 @@
 import React from "react";
+import { chargerParametresEntrepriseDocument } from "@/lib/documents/chargerParametresEntreprise";
+
 import {
   Document,
   Page,
@@ -647,21 +649,22 @@ function BlocEntreprise({ entreprise }: { entreprise: any }) {
           </Text>
         ) : null}
 
-        {entreprise?.email_contact ? (
-          <Text style={styles.entrepriseInfos}>
-            Email : {entreprise.email_contact}
-          </Text>
-        ) : null}
+       {entreprise?.email || entreprise?.email_contact ? (
+  <Text style={styles.entrepriseInfos}>
+    Email : {entreprise.email || entreprise.email_contact}
+  </Text>
+) : null}
 
-        {entreprise?.siret ? (
-          <Text style={styles.entrepriseInfos}>SIRET : {entreprise.siret}</Text>
-        ) : null}
+{entreprise?.siret ? (
+  <Text style={styles.entrepriseInfos}>SIRET : {entreprise.siret}</Text>
+) : null}
 
-        {entreprise?.numero_tva ? (
-          <Text style={styles.entrepriseInfos}>
-            TVA intracommunautaire : {entreprise.numero_tva}
-          </Text>
-        ) : null}
+{entreprise?.numero_tva_intracommunautaire || entreprise?.numero_tva ? (
+  <Text style={styles.entrepriseInfos}>
+    TVA intracommunautaire :{" "}
+    {entreprise.numero_tva_intracommunautaire || entreprise.numero_tva}
+  </Text>
+) : null}
       </View>
     </View>
   );
@@ -939,37 +942,56 @@ function BlocConditions({
 }) {
   const estDevis = typeDocument === "devis";
 
+  const conditionsParametres = estDevis
+    ? entreprise?.conditions_generales_devis
+    : entreprise?.conditions_generales_factures;
+
+  const conditionsFinales =
+    document?.conditions || conditionsParametres || null;
+
+  const assuranceProfessionnelle =
+    entreprise?.assurance_professionnelle ||
+    entreprise?.assurance_nom ||
+    null;
+
+  const mentionsLegales =
+    entreprise?.mentions_legales ||
+    entreprise?.mentions_legales_documents ||
+    null;
+
   return (
     <View>
-      {document?.conditions ? (
+      {conditionsFinales ? (
         <View style={styles.conditionsBox}>
-          <Text style={styles.conditionsTitle}>CONDITIONS</Text>
-          <Text style={styles.conditionsText}>{document.conditions}</Text>
+          <Text style={styles.conditionsTitle}>
+            {estDevis
+              ? "CONDITIONS GÉNÉRALES DU DEVIS"
+              : "CONDITIONS GÉNÉRALES DE FACTURE"}
+          </Text>
+          <Text style={styles.conditionsText}>{conditionsFinales}</Text>
         </View>
       ) : null}
 
-      {entreprise?.assurance_nom ? (
+      {assuranceProfessionnelle ? (
         <View style={styles.conditionsBox}>
           <Text style={styles.conditionsTitle}>ASSURANCE PROFESSIONNELLE</Text>
 
           <Text style={styles.conditionsText}>
-            {entreprise.assurance_nom}
-            {entreprise.assurance_numero_contrat
+            {assuranceProfessionnelle}
+            {entreprise?.assurance_numero_contrat
               ? ` - Contrat n° ${entreprise.assurance_numero_contrat}`
               : ""}
-            {entreprise.assurance_zone_couverture
+            {entreprise?.assurance_zone_couverture
               ? ` - Zone : ${entreprise.assurance_zone_couverture}`
               : ""}
           </Text>
         </View>
       ) : null}
 
-      {entreprise?.mentions_legales_documents ? (
+      {mentionsLegales ? (
         <View style={styles.conditionsBox}>
           <Text style={styles.conditionsTitle}>MENTIONS LÉGALES</Text>
-          <Text style={styles.conditionsText}>
-            {entreprise.mentions_legales_documents}
-          </Text>
+          <Text style={styles.conditionsText}>{mentionsLegales}</Text>
         </View>
       ) : null}
 
@@ -1057,10 +1079,28 @@ export async function genererPdfDocument({
   lignes = [],
   factureOrigine = null,
 }: GenererPdfParams): Promise<PieceJointePdf> {
+  const entrepriseId =
+    document?.entreprise_id || entreprise?.id || entreprise?.entreprise_id;
+
+  const parametresEntreprise = entrepriseId
+    ? await chargerParametresEntrepriseDocument(entrepriseId)
+    : null;
+
+  const entreprisePourPdf = {
+    ...entreprise,
+    ...parametresEntreprise,
+    nom_entreprise:
+      parametresEntreprise?.nom_entreprise ||
+      entreprise?.nom_entreprise ||
+      entreprise?.nom ||
+      entreprise?.raison_sociale ||
+      "Entreprise",
+  };
+
   const element = (
     <DocumentPdf
       typeDocument={typeDocument}
-      entreprise={entreprise}
+      entreprise={entreprisePourPdf}
       document={document}
       client={client}
       lignes={lignes}

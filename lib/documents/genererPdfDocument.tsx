@@ -90,6 +90,14 @@ function adresseComplete(
     .join("\n");
 }
 
+function adresseChantierDocument(document: any) {
+  return adresseComplete(
+    document?.adresse_chantier,
+    document?.code_postal_chantier,
+    document?.ville_chantier
+  );
+}
+
 function titreDocument(typeDocument: TypeDocumentPdf) {
   if (typeDocument === "devis") return "DEVIS";
   if (typeDocument === "avoir") return "AVOIR";
@@ -106,6 +114,7 @@ function libelleStatut(statut: string | null | undefined) {
   if (statut === "envoye") return "Envoyé";
   if (statut === "envoyee") return "Envoyée";
   if (statut === "accepte") return "Accepté";
+  if (statut === "facture") return "Facturé";
   if (statut === "refuse") return "Refusé";
   if (statut === "payee") return "Payée";
   if (statut === "en_retard") return "En retard";
@@ -222,22 +231,23 @@ const styles = StyleSheet.create({
   documentCol: {
     width: "38%",
   },
-entrepriseHeader: {
-  flexDirection: "row",
-  alignItems: "flex-start",
-  gap: 10,
-},
 
-logoEntreprise: {
-  width: 54,
-  height: 54,
-  objectFit: "contain",
-  marginRight: 10,
-},
+  entrepriseHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
 
-entrepriseTexteWrap: {
-  flex: 1,
-},
+  logoEntreprise: {
+    width: 54,
+    height: 54,
+    objectFit: "contain",
+    marginRight: 10,
+  },
+
+  entrepriseTexteWrap: {
+    flex: 1,
+  },
 
   entrepriseNom: {
     fontSize: 18,
@@ -349,6 +359,53 @@ entrepriseTexteWrap: {
     fontSize: 9,
     lineHeight: 1.5,
     color: "#334155",
+  },
+
+  chantierBox: {
+    marginTop: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#a7f3d0",
+    borderStyle: "solid",
+    borderRadius: 12,
+    backgroundColor: "#ecfdf5",
+  },
+
+  chantierTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#047857",
+    marginBottom: 7,
+  },
+
+  chantierRow: {
+    flexDirection: "row",
+  },
+
+  chantierColLeft: {
+    width: "50%",
+    paddingRight: 12,
+  },
+
+  chantierColRight: {
+    width: "50%",
+    paddingLeft: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: "#a7f3d0",
+    borderLeftStyle: "solid",
+  },
+
+  chantierLabel: {
+    fontSize: 7.5,
+    fontWeight: "bold",
+    color: "#059669",
+    marginBottom: 4,
+  },
+
+  chantierTexte: {
+    fontSize: 8.5,
+    lineHeight: 1.45,
+    color: "#064e3b",
   },
 
   avoirBox: {
@@ -828,7 +885,9 @@ function BlocClientEtObjet({
       </View>
 
       <View style={styles.blocObjet}>
-        <Text style={styles.labelSection}>OBJET DU {titreDocument(typeDocument)}</Text>
+        <Text style={styles.labelSection}>
+          OBJET DU {titreDocument(typeDocument)}
+        </Text>
 
         <Text style={styles.titreBloc}>
           {texte(document?.objet, "Sans objet")}
@@ -839,6 +898,39 @@ function BlocClientEtObjet({
         ) : (
           <Text style={styles.textePetit}>Aucune description renseignée.</Text>
         )}
+      </View>
+    </View>
+  );
+}
+
+function BlocChantier({ document }: { document: any }) {
+  const adresseChantier = adresseChantierDocument(document);
+  const notesChantier = String(document?.notes_chantier || "").trim();
+
+  if (!adresseChantier && !notesChantier) {
+    return null;
+  }
+
+  return (
+    <View style={styles.chantierBox}>
+      <Text style={styles.chantierTitle}>Lieu d’intervention / chantier</Text>
+
+      <View style={styles.chantierRow}>
+        <View style={styles.chantierColLeft}>
+          <Text style={styles.chantierLabel}>ADRESSE CHANTIER</Text>
+
+          <Text style={styles.chantierTexte}>
+            {adresseChantier || "Adresse chantier non renseignée."}
+          </Text>
+        </View>
+
+        <View style={styles.chantierColRight}>
+          <Text style={styles.chantierLabel}>NOTES CHANTIER</Text>
+
+          <Text style={styles.chantierTexte}>
+            {notesChantier || "Aucune note chantier."}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -1088,6 +1180,8 @@ function DocumentPdf({
           client={client}
         />
 
+        <BlocChantier document={document} />
+
         {estAvoir ? (
           <BlocAvoir document={document} factureOrigine={factureOrigine} />
         ) : null}
@@ -1109,7 +1203,8 @@ function DocumentPdf({
         </View>
 
         <Text style={styles.footer}>
-          Document généré par Arboboard - {texte(entreprise?.nom_entreprise, "Entreprise")}
+          Document généré par Arboboard -{" "}
+          {texte(entreprise?.nom_entreprise, "Entreprise")}
         </Text>
       </Page>
     </Document>

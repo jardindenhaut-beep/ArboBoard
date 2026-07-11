@@ -21,6 +21,17 @@ type Client = {
   adresse?: string | null;
   code_postal?: string | null;
   ville?: string | null;
+  adresse_chantier?: string | null;
+  code_postal_chantier?: string | null;
+  ville_chantier?: string | null;
+  notes_chantier?: string | null;
+};
+
+type FactureLiee = {
+  id: string;
+  devis_id?: string | null;
+  numero?: string | null;
+  statut?: string | null;
 };
 
 type Devis = {
@@ -31,6 +42,10 @@ type Devis = {
   numero?: string | null;
   objet?: string | null;
   description?: string | null;
+  adresse_chantier?: string | null;
+  code_postal_chantier?: string | null;
+  ville_chantier?: string | null;
+  notes_chantier?: string | null;
   date_devis?: string | null;
   date_validite?: string | null;
   statut?: string | null;
@@ -41,14 +56,7 @@ type Devis = {
   created_at?: string | null;
   updated_at?: string | null;
   client?: Client | null;
-    facture_liee?: FactureLiee | null;
-};
-
-type FactureLiee = {
-  id: string;
-  devis_id?: string | null;
-  numero?: string | null;
-  statut?: string | null;
+  facture_liee?: FactureLiee | null;
 };
 
 type LigneDevisForm = {
@@ -69,6 +77,10 @@ type FormDevis = {
   numero: string;
   objet: string;
   description: string;
+  adresse_chantier: string;
+  code_postal_chantier: string;
+  ville_chantier: string;
+  notes_chantier: string;
   date_devis: string;
   date_validite: string;
   statut: "brouillon" | "envoye";
@@ -99,6 +111,10 @@ const formVide: FormDevis = {
   numero: "",
   objet: "",
   description: "",
+  adresse_chantier: "",
+  code_postal_chantier: "",
+  ville_chantier: "",
+  notes_chantier: "",
   date_devis: dateAujourdhui(),
   date_validite: ajouterJours(dateAujourdhui(), 30),
   statut: "brouillon",
@@ -168,8 +184,8 @@ function classeStatut(statut?: string | null) {
   }
 
   if (statut === "facture") {
-  return "border-purple-200 bg-purple-50 text-purple-700";
-}
+    return "border-purple-200 bg-purple-50 text-purple-700";
+  }
 
   if (statut === "refuse") {
     return "border-red-200 bg-red-50 text-red-700";
@@ -242,11 +258,41 @@ function calculerTotaux(lignes: LigneDevisForm[]) {
   };
 }
 
+function champsChantierDepuisClient(client?: Client | null) {
+  if (!client) {
+    return {
+      adresse_chantier: "",
+      code_postal_chantier: "",
+      ville_chantier: "",
+      notes_chantier: "",
+    };
+  }
+
+  return {
+    adresse_chantier: client.adresse_chantier || client.adresse || "",
+    code_postal_chantier:
+      client.code_postal_chantier || client.code_postal || "",
+    ville_chantier: client.ville_chantier || client.ville || "",
+    notes_chantier: client.notes_chantier || "",
+  };
+}
+
+function adresseChantierTexte(item: Devis) {
+  return [
+    item.adresse_chantier,
+    [item.code_postal_chantier, item.ville_chantier]
+      .filter(Boolean)
+      .join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export default function PageDevis() {
   const [entrepriseId, setEntrepriseId] = useState("");
   const [devis, setDevis] = useState<Devis[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
- 
+
   const [tvaDefaut, setTvaDefaut] = useState(20);
   const [conditionsDevisDefaut, setConditionsDevisDefaut] = useState("");
 
@@ -297,61 +343,63 @@ export default function PageDevis() {
 
       setEntrepriseId(profil.entreprise_id);
 
-const parametresEntreprise = await chargerParametresEntrepriseClient(
-  profil.entreprise_id
-);
+      const parametresEntreprise = await chargerParametresEntrepriseClient(
+        profil.entreprise_id
+      );
 
-setTvaDefaut(parametresEntreprise.tva_defaut);
-setConditionsDevisDefaut(parametresEntreprise.conditions_generales_devis);
+      setTvaDefaut(parametresEntreprise.tva_defaut);
+      setConditionsDevisDefaut(
+        parametresEntreprise.conditions_generales_devis
+      );
 
-const [
-  { data: clientsData, error: clientsError },
-  { data: devisData, error: devisError },
-  { data: facturesData, error: facturesError },
-] = await Promise.all([
-  supabase
-    .from("clients")
-    .select("*")
-    .eq("entreprise_id", profil.entreprise_id)
-    .order("created_at", { ascending: false }),
+      const [
+        { data: clientsData, error: clientsError },
+        { data: devisData, error: devisError },
+        { data: facturesData, error: facturesError },
+      ] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("*")
+          .eq("entreprise_id", profil.entreprise_id)
+          .order("created_at", { ascending: false }),
 
-  supabase
-    .from("devis")
-    .select("*")
-    .eq("entreprise_id", profil.entreprise_id)
-    .order("date_devis", { ascending: false })
-    .order("created_at", { ascending: false }),
+        supabase
+          .from("devis")
+          .select("*")
+          .eq("entreprise_id", profil.entreprise_id)
+          .order("date_devis", { ascending: false })
+          .order("created_at", { ascending: false }),
 
-  supabase
-    .from("factures")
-    .select("id, devis_id, numero, statut")
-    .eq("entreprise_id", profil.entreprise_id)
-    .not("devis_id", "is", null)
-   .or("est_avoir.is.false,est_avoir.is.null"),
-]);
+        supabase
+          .from("factures")
+          .select("id, devis_id, numero, statut")
+          .eq("entreprise_id", profil.entreprise_id)
+          .not("devis_id", "is", null)
+          .or("est_avoir.is.false,est_avoir.is.null"),
+      ]);
 
-if (clientsError) throw clientsError;
-if (devisError) throw devisError;
-if (facturesError) throw facturesError;
+      if (clientsError) throw clientsError;
+      if (devisError) throw devisError;
+      if (facturesError) throw facturesError;
 
-    const listeClients = (clientsData || []) as Client[];
-const mapClients = new Map(
-  listeClients.map((client) => [client.id, client])
-);
+      const listeClients = (clientsData || []) as Client[];
+      const mapClients = new Map(
+        listeClients.map((client) => [client.id, client])
+      );
 
-const listeFacturesLiees = (facturesData || []) as FactureLiee[];
+      const listeFacturesLiees = (facturesData || []) as FactureLiee[];
 
-const mapFacturesParDevis = new Map(
-  listeFacturesLiees
-    .filter((facture) => facture.devis_id)
-    .map((facture) => [facture.devis_id as string, facture])
-);
+      const mapFacturesParDevis = new Map(
+        listeFacturesLiees
+          .filter((facture) => facture.devis_id)
+          .map((facture) => [facture.devis_id as string, facture])
+      );
 
-const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
-  ...item,
-  client: item.client_id ? mapClients.get(item.client_id) || null : null,
-  facture_liee: mapFacturesParDevis.get(item.id) || null,
-}));
+      const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
+        ...item,
+        client: item.client_id ? mapClients.get(item.client_id) || null : null,
+        facture_liee: mapFacturesParDevis.get(item.id) || null,
+      }));
 
       setClients(listeClients);
       setDevis(listeDevis);
@@ -382,6 +430,10 @@ const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
         item.objet,
         item.description,
         item.statut,
+        item.adresse_chantier,
+        item.code_postal_chantier,
+        item.ville_chantier,
+        item.notes_chantier,
         nomClient(item.client, item),
         item.client?.email,
         item.client?.telephone,
@@ -411,19 +463,23 @@ const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
     setMessageErreur("");
     setMessageSucces("");
 
+    const dateDuJour = dateAujourdhui();
+
     setDevisEdition(null);
-   const dateDuJour = dateAujourdhui();
+    setForm({
+      ...formVide,
+      numero: "",
+      date_devis: dateDuJour,
+      date_validite: ajouterJours(dateDuJour, 30),
+      conditions: conditionsDevisDefaut,
+      adresse_chantier: "",
+      code_postal_chantier: "",
+      ville_chantier: "",
+      notes_chantier: "",
+    });
 
-setForm({
-  ...formVide,
-  numero: "",
-  date_devis: dateDuJour,
-  date_validite: ajouterJours(dateDuJour, 30),
-  conditions: conditionsDevisDefaut,
-});
-
-setLignes([ligneVide(tvaDefaut)]);
-setModalOuverte(true);
+    setLignes([ligneVide(tvaDefaut)]);
+    setModalOuverte(true);
   }
 
   async function ouvrirEdition(item: Devis) {
@@ -451,6 +507,10 @@ setModalOuverte(true);
         numero: item.numero || "",
         objet: item.objet || "",
         description: item.description || "",
+        adresse_chantier: item.adresse_chantier || "",
+        code_postal_chantier: item.code_postal_chantier || "",
+        ville_chantier: item.ville_chantier || "",
+        notes_chantier: item.notes_chantier || "",
         date_devis: item.date_devis || dateAujourdhui(),
         date_validite: item.date_validite || ajouterJours(dateAujourdhui(), 30),
         statut: "brouillon",
@@ -489,6 +549,27 @@ setModalOuverte(true);
     setLignes([ligneVide(tvaDefaut)]);
   }
 
+  function selectionnerClient(clientId: string) {
+    const client = clients.find((item) => item.id === clientId) || null;
+    const champsChantier = champsChantierDepuisClient(client);
+
+    setForm((ancien) => ({
+      ...ancien,
+      client_id: clientId,
+      ...champsChantier,
+    }));
+  }
+
+  function copierAdresseClientVersChantier() {
+    const client = clients.find((item) => item.id === form.client_id) || null;
+    const champsChantier = champsChantierDepuisClient(client);
+
+    setForm((ancien) => ({
+      ...ancien,
+      ...champsChantier,
+    }));
+  }
+
   function modifierLigne(
     index: number,
     champ: keyof LigneDevisForm,
@@ -511,9 +592,9 @@ setModalOuverte(true);
     );
   }
 
- function ajouterLigne() {
-  setLignes((anciennesLignes) => [...anciennesLignes, ligneVide(tvaDefaut)]);
-}
+  function ajouterLigne() {
+    setLignes((anciennesLignes) => [...anciennesLignes, ligneVide(tvaDefaut)]);
+  }
 
   function supprimerLigne(index: number) {
     setLignes((anciennesLignes) => {
@@ -562,6 +643,10 @@ setModalOuverte(true);
         numero: numeroFinal,
         objet: form.objet.trim(),
         description: form.description.trim() || null,
+        adresse_chantier: form.adresse_chantier.trim() || null,
+        code_postal_chantier: form.code_postal_chantier.trim() || null,
+        ville_chantier: form.ville_chantier.trim() || null,
+        notes_chantier: form.notes_chantier.trim() || null,
         date_devis: form.date_devis,
         date_validite: form.date_validite,
         statut: "brouillon",
@@ -671,55 +756,55 @@ setModalOuverte(true);
     }
   }
 
-async function transformerEnFacture(item: Devis) {
-  try {
-    setChargementAction(true);
-    setMessageErreur("");
-    setMessageSucces("");
+  async function transformerEnFacture(item: Devis) {
+    try {
+      setChargementAction(true);
+      setMessageErreur("");
+      setMessageSucces("");
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!session?.access_token) {
-      setMessageErreur("Session expirée. Veuillez vous reconnecter.");
-      return;
-    }
+      if (!session?.access_token) {
+        setMessageErreur("Session expirée. Veuillez vous reconnecter.");
+        return;
+      }
 
-    const response = await fetch("/api/devis/transformer-en-facture", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        devisId: item.id,
-      }),
-    });
+      const response = await fetch("/api/devis/transformer-en-facture", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          devisId: item.id,
+        }),
+      });
 
-    const resultat = await response.json().catch(() => null);
+      const resultat = await response.json().catch(() => null);
 
-    if (!response.ok || !resultat?.success) {
-      throw new Error(
-        resultat?.error || "Impossible de transformer le devis en facture."
+      if (!response.ok || !resultat?.success) {
+        throw new Error(
+          resultat?.error || "Impossible de transformer le devis en facture."
+        );
+      }
+
+      setMessageSucces(
+        resultat.message ||
+          `Facture ${resultat.numero || ""} créée depuis le devis.`
       );
+
+      await chargerDevis();
+    } catch (error: any) {
+      console.error("Erreur transformation devis en facture :", error);
+      setMessageErreur(
+        error?.message || "Impossible de transformer le devis en facture."
+      );
+    } finally {
+      setChargementAction(false);
     }
-
-    setMessageSucces(
-      resultat.message ||
-        `Facture ${resultat.numero || ""} créée depuis le devis.`
-    );
-
-    await chargerDevis();
-  } catch (error: any) {
-    console.error("Erreur transformation devis en facture :", error);
-    setMessageErreur(
-      error?.message || "Impossible de transformer le devis en facture."
-    );
-  } finally {
-    setChargementAction(false);
   }
-}
 
   const totauxFormulaire = useMemo(() => calculerTotaux(lignes), [lignes]);
 
@@ -811,7 +896,7 @@ async function transformerEnFacture(item: Devis) {
               type="search"
               value={recherche}
               onChange={(event) => setRecherche(event.target.value)}
-              placeholder="Rechercher un devis, un client, un numéro..."
+              placeholder="Rechercher un devis, un client, un numéro, une adresse chantier..."
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
             />
 
@@ -870,6 +955,7 @@ async function transformerEnFacture(item: Devis) {
             {devisFiltres.map((item) => {
               const client = item.client || null;
               const emailClient = client?.email || "";
+              const adresseChantier = adresseChantierTexte(item);
 
               const messageEmailParDefaut = `Bonjour,
 
@@ -905,6 +991,18 @@ Cordialement.`;
                       <p className="mt-1 text-sm text-slate-500">
                         Client : {nomClient(client, item)}
                       </p>
+
+                      {adresseChantier && (
+                        <p className="mt-2 rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                          Chantier : {adresseChantier}
+                        </p>
+                      )}
+
+                      {item.notes_chantier && (
+                        <p className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                          Notes chantier : {item.notes_chantier}
+                        </p>
+                      )}
 
                       <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                         <div className="rounded-2xl bg-slate-50 p-3">
@@ -962,22 +1060,22 @@ Cordialement.`;
                       />
 
                       <HistoriqueEmailsDocument
-  typeDocument="devis"
-  documentId={item.id}
-  numero={item.numero}
-/>
+                        typeDocument="devis"
+                        documentId={item.id}
+                        numero={item.numero}
+                      />
 
-{item.facture_liee && (
-  <Link
-    href="/chef/factures"
-    className="rounded-xl border border-purple-200 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50"
-  >
-    Voir facture {item.facture_liee.numero || ""}
-  </Link>
-)}
+                      {item.facture_liee && (
+                        <Link
+                          href="/chef/factures"
+                          className="rounded-xl border border-purple-200 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50"
+                        >
+                          Voir facture {item.facture_liee.numero || ""}
+                        </Link>
+                      )}
 
-{item.statut === "brouillon" && (
-  <button
+                      {item.statut === "brouillon" && (
+                        <button
                           type="button"
                           onClick={() => void ouvrirEdition(item)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
@@ -1068,12 +1166,7 @@ Cordialement.`;
 
                     <select
                       value={form.client_id}
-                      onChange={(event) =>
-                        setForm((ancien) => ({
-                          ...ancien,
-                          client_id: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => selectionnerClient(event.target.value)}
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     >
                       <option value="">Client non renseigné</option>
@@ -1182,6 +1275,103 @@ Cordialement.`;
                     rows={3}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
+                </div>
+
+                <div className="rounded-3xl border border-emerald-200 bg-emerald-50/30 p-5">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-bold text-slate-950">
+                        Adresse chantier du devis
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Ces informations seront enregistrées sur ce devis.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={copierAdresseClientVersChantier}
+                      disabled={!form.client_id}
+                      className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Copier depuis le client
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Adresse chantier
+                    </label>
+
+                    <input
+                      value={form.adresse_chantier}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          adresse_chantier: event.target.value,
+                        }))
+                      }
+                      placeholder="Adresse du chantier"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr]">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Code postal chantier
+                      </label>
+
+                      <input
+                        value={form.code_postal_chantier}
+                        onChange={(event) =>
+                          setForm((ancien) => ({
+                            ...ancien,
+                            code_postal_chantier: event.target.value,
+                          }))
+                        }
+                        placeholder="03000"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Ville chantier
+                      </label>
+
+                      <input
+                        value={form.ville_chantier}
+                        onChange={(event) =>
+                          setForm((ancien) => ({
+                            ...ancien,
+                            ville_chantier: event.target.value,
+                          }))
+                        }
+                        placeholder="Ville du chantier"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Notes chantier
+                    </label>
+
+                    <textarea
+                      value={form.notes_chantier}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          notes_chantier: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex : accès camion compliqué, portail étroit, chien présent, stationnement..."
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
                 </div>
 
                 <div className="rounded-3xl border border-slate-200">

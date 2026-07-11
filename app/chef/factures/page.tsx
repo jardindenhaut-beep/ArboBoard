@@ -26,6 +26,10 @@ type Client = {
   adresse?: string | null;
   code_postal?: string | null;
   ville?: string | null;
+  adresse_chantier?: string | null;
+  code_postal_chantier?: string | null;
+  ville_chantier?: string | null;
+  notes_chantier?: string | null;
 };
 
 type Facture = {
@@ -36,6 +40,10 @@ type Facture = {
   numero?: string | null;
   objet?: string | null;
   description?: string | null;
+  adresse_chantier?: string | null;
+  code_postal_chantier?: string | null;
+  ville_chantier?: string | null;
+  notes_chantier?: string | null;
   date_facture?: string | null;
   date_echeance?: string | null;
   statut?: string | null;
@@ -74,6 +82,10 @@ type FormFacture = {
   numero: string;
   objet: string;
   description: string;
+  adresse_chantier: string;
+  code_postal_chantier: string;
+  ville_chantier: string;
+  notes_chantier: string;
   date_facture: string;
   date_echeance: string;
   statut: "brouillon" | "envoyee";
@@ -105,6 +117,10 @@ const formVide: FormFacture = {
   numero: "",
   objet: "",
   description: "",
+  adresse_chantier: "",
+  code_postal_chantier: "",
+  ville_chantier: "",
+  notes_chantier: "",
   date_facture: dateAujourdhui(),
   date_echeance: ajouterJours(dateAujourdhui(), 30),
   statut: "brouillon",
@@ -260,6 +276,36 @@ function calculerTotaux(lignes: LigneFactureForm[]) {
   };
 }
 
+function champsChantierDepuisClient(client?: Client | null) {
+  if (!client) {
+    return {
+      adresse_chantier: "",
+      code_postal_chantier: "",
+      ville_chantier: "",
+      notes_chantier: "",
+    };
+  }
+
+  return {
+    adresse_chantier: client.adresse_chantier || client.adresse || "",
+    code_postal_chantier:
+      client.code_postal_chantier || client.code_postal || "",
+    ville_chantier: client.ville_chantier || client.ville || "",
+    notes_chantier: client.notes_chantier || "",
+  };
+}
+
+function adresseChantierTexte(facture: Facture) {
+  return [
+    facture.adresse_chantier,
+    [facture.code_postal_chantier, facture.ville_chantier]
+      .filter(Boolean)
+      .join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export default function PageFactures() {
   const [entrepriseId, setEntrepriseId] = useState("");
   const [factures, setFactures] = useState<Facture[]>([]);
@@ -399,6 +445,10 @@ export default function PageFactures() {
         facture.description,
         facture.statut,
         facture.type_facture,
+        facture.adresse_chantier,
+        facture.code_postal_chantier,
+        facture.ville_chantier,
+        facture.notes_chantier,
         nomClient(facture.client, facture),
         facture.client?.email,
         facture.client?.telephone,
@@ -449,6 +499,10 @@ export default function PageFactures() {
       date_facture: dateDuJour,
       date_echeance: ajouterJours(dateDuJour, delaiPaiementDefaut),
       conditions: conditionsFacturesDefaut,
+      adresse_chantier: "",
+      code_postal_chantier: "",
+      ville_chantier: "",
+      notes_chantier: "",
     });
 
     setLignes([ligneVide(tvaDefaut)]);
@@ -487,6 +541,10 @@ export default function PageFactures() {
         numero: facture.numero || "",
         objet: facture.objet || "",
         description: facture.description || "",
+        adresse_chantier: facture.adresse_chantier || "",
+        code_postal_chantier: facture.code_postal_chantier || "",
+        ville_chantier: facture.ville_chantier || "",
+        notes_chantier: facture.notes_chantier || "",
         date_facture: facture.date_facture || dateAujourdhui(),
         date_echeance:
           facture.date_echeance ||
@@ -532,6 +590,27 @@ export default function PageFactures() {
     setFactureEdition(null);
     setForm(formVide);
     setLignes([ligneVide(tvaDefaut)]);
+  }
+
+  function selectionnerClient(clientId: string) {
+    const client = clients.find((item) => item.id === clientId) || null;
+    const champsChantier = champsChantierDepuisClient(client);
+
+    setForm((ancien) => ({
+      ...ancien,
+      client_id: clientId,
+      ...champsChantier,
+    }));
+  }
+
+  function copierAdresseClientVersChantier() {
+    const client = clients.find((item) => item.id === form.client_id) || null;
+    const champsChantier = champsChantierDepuisClient(client);
+
+    setForm((ancien) => ({
+      ...ancien,
+      ...champsChantier,
+    }));
   }
 
   function modifierLigne(
@@ -609,6 +688,10 @@ export default function PageFactures() {
         numero: numeroFinal,
         objet: form.objet.trim(),
         description: form.description.trim() || null,
+        adresse_chantier: form.adresse_chantier.trim() || null,
+        code_postal_chantier: form.code_postal_chantier.trim() || null,
+        ville_chantier: form.ville_chantier.trim() || null,
+        notes_chantier: form.notes_chantier.trim() || null,
         date_facture: form.date_facture,
         date_echeance: form.date_echeance,
         statut: "brouillon",
@@ -875,7 +958,7 @@ export default function PageFactures() {
               type="search"
               value={recherche}
               onChange={(event) => setRecherche(event.target.value)}
-              placeholder="Rechercher une facture, un client, un numéro..."
+              placeholder="Rechercher une facture, un client, un numéro, une adresse chantier..."
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
             />
 
@@ -939,6 +1022,7 @@ export default function PageFactures() {
                 facture.statut === "envoyee" ||
                 facture.statut === "en_retard";
               const resteAPayer = Number(facture.reste_a_payer || 0);
+              const adresseChantier = adresseChantierTexte(facture);
 
               const messageEmailParDefaut = estAvoir
                 ? `Bonjour,
@@ -1002,6 +1086,18 @@ Cordialement.`;
                       <p className="mt-1 text-sm text-slate-500">
                         Client : {nomClient(client, facture)}
                       </p>
+
+                      {adresseChantier && (
+                        <p className="mt-2 rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                          Chantier : {adresseChantier}
+                        </p>
+                      )}
+
+                      {facture.notes_chantier && (
+                        <p className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                          Notes chantier : {facture.notes_chantier}
+                        </p>
+                      )}
 
                       <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                         <div className="rounded-2xl bg-slate-50 p-3">
@@ -1188,12 +1284,7 @@ Cordialement.`;
 
                     <select
                       value={form.client_id}
-                      onChange={(event) =>
-                        setForm((ancien) => ({
-                          ...ancien,
-                          client_id: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => selectionnerClient(event.target.value)}
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                     >
                       <option value="">Client non renseigné</option>
@@ -1332,6 +1423,103 @@ Cordialement.`;
                     rows={3}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
+                </div>
+
+                <div className="rounded-3xl border border-emerald-200 bg-emerald-50/30 p-5">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-bold text-slate-950">
+                        Adresse chantier de la facture
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Ces informations seront enregistrées sur cette facture.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={copierAdresseClientVersChantier}
+                      disabled={!form.client_id}
+                      className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Copier depuis le client
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Adresse chantier
+                    </label>
+
+                    <input
+                      value={form.adresse_chantier}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          adresse_chantier: event.target.value,
+                        }))
+                      }
+                      placeholder="Adresse du chantier"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr]">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Code postal chantier
+                      </label>
+
+                      <input
+                        value={form.code_postal_chantier}
+                        onChange={(event) =>
+                          setForm((ancien) => ({
+                            ...ancien,
+                            code_postal_chantier: event.target.value,
+                          }))
+                        }
+                        placeholder="03000"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Ville chantier
+                      </label>
+
+                      <input
+                        value={form.ville_chantier}
+                        onChange={(event) =>
+                          setForm((ancien) => ({
+                            ...ancien,
+                            ville_chantier: event.target.value,
+                          }))
+                        }
+                        placeholder="Ville du chantier"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Notes chantier
+                    </label>
+
+                    <textarea
+                      value={form.notes_chantier}
+                      onChange={(event) =>
+                        setForm((ancien) => ({
+                          ...ancien,
+                          notes_chantier: event.target.value,
+                        }))
+                      }
+                      placeholder="Ex : accès camion compliqué, portail étroit, chien présent, stationnement..."
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
                 </div>
 
                 <div className="rounded-3xl border border-slate-200">

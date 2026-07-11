@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
@@ -23,6 +24,29 @@ type Client = {
   statut: StatutClient | string | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+type DevisClient = {
+  id: string;
+  numero: string | null;
+  objet: string | null;
+  statut: string | null;
+  date_devis: string | null;
+  total_ttc: number | null;
+};
+
+type FactureClient = {
+  id: string;
+  numero: string | null;
+  objet: string | null;
+  statut: string | null;
+  date_facture: string | null;
+  date_echeance: string | null;
+  total_ttc: number | null;
+  montant_paye: number | null;
+  reste_a_payer: number | null;
+  est_avoir: boolean | null;
+  type_facture: string | null;
 };
 
 type FormulaireClient = {
@@ -92,7 +116,7 @@ function badgeTypeClient(type: string | null | undefined) {
   return "bg-emerald-50 text-emerald-700 border-emerald-200";
 }
 
-function formatDate(date: string | null) {
+function formatDate(date: string | null | undefined) {
   if (!date) return "—";
 
   try {
@@ -106,6 +130,17 @@ function formatDate(date: string | null) {
   }
 }
 
+function formatMontant(montant: number | null | undefined) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(montant || 0));
+}
+
+function estAvoirFacture(facture: FactureClient) {
+  return !!facture.est_avoir || facture.type_facture === "avoir";
+}
+
 export default function ClientsPage() {
   const [entrepriseId, setEntrepriseId] = useState<string>("");
   const [clients, setClients] = useState<Client[]>([]);
@@ -114,14 +149,22 @@ export default function ClientsPage() {
 
   const [recherche, setRecherche] = useState("");
   const [filtreType, setFiltreType] = useState<"tous" | TypeClient>("tous");
-  const [filtreStatut, setFiltreStatut] = useState<"actif" | "archive" | "tous">(
-    "actif"
-  );
+  const [filtreStatut, setFiltreStatut] = useState<
+    "actif" | "archive" | "tous"
+  >("actif");
 
   const [modalOuverte, setModalOuverte] = useState(false);
   const [clientEdition, setClientEdition] = useState<Client | null>(null);
   const [formulaire, setFormulaire] =
     useState<FormulaireClient>(FORMULAIRE_VIDE);
+
+  const [ficheClientOuverte, setFicheClientOuverte] = useState(false);
+  const [clientSelectionne, setClientSelectionne] = useState<Client | null>(
+    null
+  );
+  const [devisClient, setDevisClient] = useState<DevisClient[]>([]);
+  const [facturesClient, setFacturesClient] = useState<FactureClient[]>([]);
+  const [chargementFicheClient, setChargementFicheClient] = useState(false);
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
@@ -216,15 +259,47 @@ export default function ClientsPage() {
       total: clients.length,
       actifs: actifs.length,
       archives: archives.length,
-      particuliers: actifs.filter((client) => client.type_client === "particulier")
-        .length,
-      entreprises: actifs.filter((client) => client.type_client === "entreprise")
-        .length,
+      particuliers: actifs.filter(
+        (client) => client.type_client === "particulier"
+      ).length,
+      entreprises: actifs.filter(
+        (client) => client.type_client === "entreprise"
+      ).length,
       collectivites: actifs.filter(
         (client) => client.type_client === "collectivite"
       ).length,
     };
   }, [clients]);
+
+  const statsFicheClient = useMemo(() => {
+    const facturesClassiques = facturesClient.filter(
+      (facture) => !estAvoirFacture(facture)
+    );
+
+    const totalFactureTtc = facturesClassiques.reduce(
+      (total, facture) => total + Number(facture.total_ttc || 0),
+      0
+    );
+
+    const totalPaye = facturesClassiques.reduce(
+      (total, facture) => total + Number(facture.montant_paye || 0),
+      0
+    );
+
+    const resteAPayer = facturesClassiques.reduce(
+      (total, facture) => total + Number(facture.reste_a_payer || 0),
+      0
+    );
+
+    return {
+      totalDevis: devisClient.length,
+      totalFactures: facturesClassiques.length,
+      totalAvoirs: facturesClient.filter(estAvoirFacture).length,
+      totalFactureTtc,
+      totalPaye,
+      resteAPayer,
+    };
+  }, [devisClient, facturesClient]);
 
   function ouvrirCreation() {
     setClientEdition(null);
@@ -254,12 +329,67 @@ export default function ClientsPage() {
     setModalOuverte(true);
   }
 
+  async function ouvrirFicheClient(client: Client) {
+    if (!entrepriseId) return;
+
+    try {
+      setMessageErreur("");
+      setMessageSucces("");
+      setChargementFicheClient(true);
+      setClientSelectionne(client);
+      setFicheClientOuverte(true);
+
+      const [
+        { data: devisData, error: devisError },
+        { data: facturesData, error: facturesError },
+      ] = await Promise.all([
+        supabase
+          .from("devis")
+          .select("id, numero, objet, statut, date_devis, total_ttc")
+          .eq("entreprise_id", entrepriseId)
+          .eq("client_id", client.id)
+          .order("date_devis", { ascending: false })
+          .order("created_at", { ascending: false }),
+
+        supabase
+          .from("factures")
+          .select(
+            "id, numero, objet, statut, date_facture, date_echeance, total_ttc, montant_paye, reste_a_payer, est_avoir, type_facture"
+          )
+          .eq("entreprise_id", entrepriseId)
+          .eq("client_id", client.id)
+          .order("date_facture", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (devisError) throw devisError;
+      if (facturesError) throw facturesError;
+
+      setDevisClient((devisData || []) as DevisClient[]);
+      setFacturesClient((facturesData || []) as FactureClient[]);
+    } catch (error: any) {
+      console.error("Erreur ouverture fiche client :", error);
+      setMessageErreur(
+        error?.message || "Impossible de charger la fiche client."
+      );
+    } finally {
+      setChargementFicheClient(false);
+    }
+  }
+
   function fermerModal() {
     if (enregistrement) return;
 
     setModalOuverte(false);
     setClientEdition(null);
     setFormulaire(FORMULAIRE_VIDE);
+  }
+
+  function fermerFicheClient() {
+    setFicheClientOuverte(false);
+    setClientSelectionne(null);
+    setDevisClient([]);
+    setFacturesClient([]);
   }
 
   function modifierChamp(champ: keyof FormulaireClient, valeur: string) {
@@ -271,7 +401,10 @@ export default function ClientsPage() {
 
   function formulaireValide() {
     if (formulaire.type_client === "particulier") {
-      return formulaire.nom.trim().length > 0 || formulaire.prenom.trim().length > 0;
+      return (
+        formulaire.nom.trim().length > 0 ||
+        formulaire.prenom.trim().length > 0
+      );
     }
 
     return (
@@ -454,14 +587,18 @@ export default function ClientsPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Total
+          </p>
           <p className="mt-2 text-2xl font-bold text-slate-950">
             {statistiques.total}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Actifs</p>
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Actifs
+          </p>
           <p className="mt-2 text-2xl font-bold text-slate-950">
             {statistiques.actifs}
           </p>
@@ -529,7 +666,9 @@ export default function ClientsPage() {
           <select
             value={filtreStatut}
             onChange={(event) =>
-              setFiltreStatut(event.target.value as "actif" | "archive" | "tous")
+              setFiltreStatut(
+                event.target.value as "actif" | "archive" | "tous"
+              )
             }
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
           >
@@ -570,7 +709,7 @@ export default function ClientsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1080px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Client</th>
@@ -597,7 +736,9 @@ export default function ClientsPage() {
                         (client.prenom || client.nom) && (
                           <p className="mt-1 text-xs text-slate-500">
                             Contact :{" "}
-                            {`${client.prenom || ""} ${client.nom || ""}`.trim()}
+                            {`${client.prenom || ""} ${
+                              client.nom || ""
+                            }`.trim()}
                           </p>
                         )}
 
@@ -656,6 +797,13 @@ export default function ClientsPage() {
 
                     <td className="px-4 py-4 align-top">
                       <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => void ouvrirFicheClient(client)}
+                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Voir fiche
+                        </button>
+
                         <button
                           onClick={() => ouvrirEdition(client)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
@@ -783,7 +931,9 @@ export default function ClientsPage() {
                   </label>
                   <input
                     value={formulaire.nom}
-                    onChange={(event) => modifierChamp("nom", event.target.value)}
+                    onChange={(event) =>
+                      modifierChamp("nom", event.target.value)
+                    }
                     placeholder="Nom"
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
@@ -870,7 +1020,9 @@ export default function ClientsPage() {
                 </label>
                 <textarea
                   value={formulaire.notes}
-                  onChange={(event) => modifierChamp("notes", event.target.value)}
+                  onChange={(event) =>
+                    modifierChamp("notes", event.target.value)
+                  }
                   placeholder="Informations utiles : accès chantier, habitudes client, remarques..."
                   rows={4}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
@@ -898,6 +1050,262 @@ export default function ClientsPage() {
                   ? "Modifier le client"
                   : "Créer le client"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ficheClientOuverte && clientSelectionne && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+              <div>
+                <p className="text-sm font-medium text-emerald-700">
+                  Fiche client
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-slate-950">
+                  {nomClient(clientSelectionne)}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Historique devis, factures, coordonnées et notes internes.
+                </p>
+              </div>
+
+              <button
+                onClick={fermerFicheClient}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="space-y-6 p-5">
+              {chargementFicheClient ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+                  <p className="font-semibold text-slate-900">
+                    Chargement de la fiche client...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Contact
+                      </p>
+                      <div className="mt-3 space-y-1 text-sm text-slate-700">
+                        <p>
+                          <span className="font-semibold">Type :</span>{" "}
+                          {libelleTypeClient(clientSelectionne.type_client)}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Téléphone :</span>{" "}
+                          {clientSelectionne.telephone || "—"}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Email :</span>{" "}
+                          {clientSelectionne.email || "—"}
+                        </p>
+                        <p>
+                          <span className="font-semibold">Statut :</span>{" "}
+                          {clientSelectionne.statut === "archive"
+                            ? "Archivé"
+                            : "Actif"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Adresse
+                      </p>
+                      <div className="mt-3 text-sm text-slate-700">
+                        <p>{clientSelectionne.adresse || "—"}</p>
+                        <p>
+                          {[clientSelectionne.code_postal, clientSelectionne.ville]
+                            .filter(Boolean)
+                            .join(" ") || "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Notes internes
+                      </p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
+                        {clientSelectionne.notes || "Aucune note interne."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-5">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Devis
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-slate-950">
+                        {statsFicheClient.totalDevis}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Factures
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-slate-950">
+                        {statsFicheClient.totalFactures}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Avoirs
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-purple-700">
+                        {statsFicheClient.totalAvoirs}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Total facturé TTC
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-slate-950">
+                        {formatMontant(statsFicheClient.totalFactureTtc)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">
+                        Reste à payer
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-red-600">
+                        {formatMontant(statsFicheClient.resteAPayer)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-slate-200 bg-white">
+                      <div className="border-b border-slate-200 p-4">
+                        <h3 className="font-bold text-slate-950">
+                          Historique devis
+                        </h3>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {devisClient.length === 0 ? (
+                          <p className="p-4 text-sm text-slate-500">
+                            Aucun devis pour ce client.
+                          </p>
+                        ) : (
+                          devisClient.map((devis) => (
+                            <div key={devis.id} className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-semibold text-slate-950">
+                                    {devis.numero || "Sans numéro"}
+                                  </p>
+                                  <p className="text-sm text-slate-600">
+                                    {devis.objet || "Sans objet"}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {formatDate(devis.date_devis)} —{" "}
+                                    {devis.statut || "brouillon"}
+                                  </p>
+                                </div>
+
+                                <div className="text-right">
+                                  <p className="font-bold text-slate-950">
+                                    {formatMontant(devis.total_ttc)}
+                                  </p>
+
+                                  <Link
+                                    href="/chef/devis"
+                                    className="mt-2 inline-flex rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Ouvrir devis
+                                  </Link>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white">
+                      <div className="border-b border-slate-200 p-4">
+                        <h3 className="font-bold text-slate-950">
+                          Historique factures
+                        </h3>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {facturesClient.length === 0 ? (
+                          <p className="p-4 text-sm text-slate-500">
+                            Aucune facture pour ce client.
+                          </p>
+                        ) : (
+                          facturesClient.map((facture) => {
+                            const estAvoir = estAvoirFacture(facture);
+
+                            return (
+                              <div key={facture.id} className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-semibold text-slate-950">
+                                      {facture.numero || "Sans numéro"}
+                                    </p>
+                                    <p className="text-sm text-slate-600">
+                                      {facture.objet || "Sans objet"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {formatDate(facture.date_facture)} —{" "}
+                                      {estAvoir
+                                        ? "avoir"
+                                        : facture.statut || "brouillon"}
+                                    </p>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <p
+                                      className={`font-bold ${
+                                        estAvoir
+                                          ? "text-purple-700"
+                                          : "text-slate-950"
+                                      }`}
+                                    >
+                                      {formatMontant(facture.total_ttc)}
+                                    </p>
+
+                                    {!estAvoir && (
+                                      <p className="text-xs text-red-600">
+                                        Reste :{" "}
+                                        {formatMontant(
+                                          facture.reste_a_payer
+                                        )}
+                                      </p>
+                                    )}
+
+                                    <Link
+                                      href="/chef/factures"
+                                      className="mt-2 inline-flex rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                    >
+                                      Ouvrir facture
+                                    </Link>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -20,7 +20,11 @@ type Client = {
   adresse: string | null;
   code_postal: string | null;
   ville: string | null;
+  adresse_chantier: string | null;
+  code_postal_chantier: string | null;
+  ville_chantier: string | null;
   notes: string | null;
+  notes_chantier: string | null;
   statut: StatutClient | string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -59,7 +63,11 @@ type FormulaireClient = {
   adresse: string;
   code_postal: string;
   ville: string;
+  adresse_chantier: string;
+  code_postal_chantier: string;
+  ville_chantier: string;
   notes: string;
+  notes_chantier: string;
   statut: StatutClient;
 };
 
@@ -73,7 +81,11 @@ const FORMULAIRE_VIDE: FormulaireClient = {
   adresse: "",
   code_postal: "",
   ville: "",
+  adresse_chantier: "",
+  code_postal_chantier: "",
+  ville_chantier: "",
   notes: "",
+  notes_chantier: "",
   statut: "actif",
 };
 
@@ -139,6 +151,23 @@ function formatMontant(montant: number | null | undefined) {
 
 function estAvoirFacture(facture: FactureClient) {
   return !!facture.est_avoir || facture.type_facture === "avoir";
+}
+
+function adresseClientComplete(client: Client) {
+  return [client.adresse, [client.code_postal, client.ville].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function adresseChantierComplete(client: Client) {
+  return [
+    client.adresse_chantier,
+    [client.code_postal_chantier, client.ville_chantier]
+      .filter(Boolean)
+      .join(" "),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export default function ClientsPage() {
@@ -238,7 +267,11 @@ export default function ClientsPage() {
         client.adresse,
         client.code_postal,
         client.ville,
+        client.adresse_chantier,
+        client.code_postal_chantier,
+        client.ville_chantier,
         client.notes,
+        client.notes_chantier,
       ]
         .filter(Boolean)
         .join(" ")
@@ -321,7 +354,11 @@ export default function ClientsPage() {
       adresse: client.adresse || "",
       code_postal: client.code_postal || "",
       ville: client.ville || "",
+      adresse_chantier: client.adresse_chantier || "",
+      code_postal_chantier: client.code_postal_chantier || "",
+      ville_chantier: client.ville_chantier || "",
       notes: client.notes || "",
+      notes_chantier: client.notes_chantier || "",
       statut: (client.statut as StatutClient) || "actif",
     });
     setMessageErreur("");
@@ -399,6 +436,15 @@ export default function ClientsPage() {
     }));
   }
 
+  function copierAdresseClientVersChantier() {
+    setFormulaire((ancien) => ({
+      ...ancien,
+      adresse_chantier: ancien.adresse,
+      code_postal_chantier: ancien.code_postal,
+      ville_chantier: ancien.ville,
+    }));
+  }
+
   function formulaireValide() {
     if (formulaire.type_client === "particulier") {
       return (
@@ -444,7 +490,11 @@ export default function ClientsPage() {
         adresse: nettoyerTexte(formulaire.adresse),
         code_postal: nettoyerTexte(formulaire.code_postal),
         ville: nettoyerTexte(formulaire.ville),
+        adresse_chantier: nettoyerTexte(formulaire.adresse_chantier),
+        code_postal_chantier: nettoyerTexte(formulaire.code_postal_chantier),
+        ville_chantier: nettoyerTexte(formulaire.ville_chantier),
         notes: nettoyerTexte(formulaire.notes),
+        notes_chantier: nettoyerTexte(formulaire.notes_chantier),
         statut: formulaire.statut,
       };
 
@@ -646,7 +696,7 @@ export default function ClientsPage() {
           <input
             value={recherche}
             onChange={(event) => setRecherche(event.target.value)}
-            placeholder="Rechercher par nom, téléphone, email, ville, note..."
+            placeholder="Rechercher par nom, téléphone, email, ville, note, chantier..."
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
           />
 
@@ -747,6 +797,12 @@ export default function ClientsPage() {
                           {client.notes}
                         </p>
                       )}
+
+                      {client.notes_chantier && (
+                        <p className="mt-2 line-clamp-2 max-w-xs text-xs text-emerald-700">
+                          Chantier : {client.notes_chantier}
+                        </p>
+                      )}
                     </td>
 
                     <td className="px-4 py-4 align-top">
@@ -776,6 +832,23 @@ export default function ClientsPage() {
                             .filter(Boolean)
                             .join(" ") || "—"}
                         </p>
+
+                        {(client.adresse_chantier ||
+                          client.code_postal_chantier ||
+                          client.ville_chantier) && (
+                          <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                            <p className="font-semibold">Chantier</p>
+                            <p>{client.adresse_chantier || "—"}</p>
+                            <p>
+                              {[
+                                client.code_postal_chantier,
+                                client.ville_chantier,
+                              ]
+                                .filter(Boolean)
+                                .join(" ") || "—"}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -838,7 +911,7 @@ export default function ClientsPage() {
 
       {modalOuverte && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-slate-200 p-5">
               <div>
                 <h2 className="text-xl font-bold text-slate-950">
@@ -858,176 +931,273 @@ export default function ClientsPage() {
               </button>
             </div>
 
-            <div className="space-y-5 p-5">
-              <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-6 p-5">
+              <section className="rounded-3xl border border-slate-200 p-5">
+                <h3 className="mb-4 text-lg font-bold text-slate-950">
+                  Informations client
+                </h3>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Type de client
+                    </label>
+                    <select
+                      value={formulaire.type_client}
+                      onChange={(event) =>
+                        modifierChamp("type_client", event.target.value)
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="particulier">Particulier</option>
+                      <option value="entreprise">Entreprise</option>
+                      <option value="collectivite">Collectivité</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Statut
+                    </label>
+                    <select
+                      value={formulaire.statut}
+                      onChange={(event) =>
+                        modifierChamp("statut", event.target.value)
+                      }
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="actif">Actif</option>
+                      <option value="archive">Archivé</option>
+                    </select>
+                  </div>
+                </div>
+
+                {formulaire.type_client !== "particulier" && (
+                  <div className="mt-4">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Nom entreprise / collectivité
+                    </label>
+                    <input
+                      value={formulaire.entreprise}
+                      onChange={(event) =>
+                        modifierChamp("entreprise", event.target.value)
+                      }
+                      placeholder="Ex : Mairie de..., SCI..., SAS..."
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Prénom
+                    </label>
+                    <input
+                      value={formulaire.prenom}
+                      onChange={(event) =>
+                        modifierChamp("prenom", event.target.value)
+                      }
+                      placeholder="Prénom"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Nom
+                    </label>
+                    <input
+                      value={formulaire.nom}
+                      onChange={(event) =>
+                        modifierChamp("nom", event.target.value)
+                      }
+                      placeholder="Nom"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Téléphone
+                    </label>
+                    <input
+                      value={formulaire.telephone}
+                      onChange={(event) =>
+                        modifierChamp("telephone", event.target.value)
+                      }
+                      placeholder="06 00 00 00 00"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Email
+                    </label>
+                    <input
+                      value={formulaire.email}
+                      onChange={(event) =>
+                        modifierChamp("email", event.target.value)
+                      }
+                      placeholder="client@email.fr"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 p-5">
+                <h3 className="mb-4 text-lg font-bold text-slate-950">
+                  Adresse client / facturation
+                </h3>
+
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Type de client
+                    Adresse
                   </label>
-                  <select
-                    value={formulaire.type_client}
+                  <input
+                    value={formulaire.adresse}
                     onChange={(event) =>
-                      modifierChamp("type_client", event.target.value)
+                      modifierChamp("adresse", event.target.value)
                     }
+                    placeholder="Adresse complète"
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr]">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Code postal
+                    </label>
+                    <input
+                      value={formulaire.code_postal}
+                      onChange={(event) =>
+                        modifierChamp("code_postal", event.target.value)
+                      }
+                      placeholder="03000"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Ville
+                    </label>
+                    <input
+                      value={formulaire.ville}
+                      onChange={(event) =>
+                        modifierChamp("ville", event.target.value)
+                      }
+                      placeholder="Ville"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-3xl border border-emerald-200 bg-emerald-50/30 p-5">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-950">
+                      Adresse chantier par défaut
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      À utiliser si le lieu d’intervention est différent de
+                      l’adresse client.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={copierAdresseClientVersChantier}
+                    className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
                   >
-                    <option value="particulier">Particulier</option>
-                    <option value="entreprise">Entreprise</option>
-                    <option value="collectivite">Collectivité</option>
-                  </select>
+                    Copier adresse client
+                  </button>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Statut
-                  </label>
-                  <select
-                    value={formulaire.statut}
-                    onChange={(event) =>
-                      modifierChamp("statut", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  >
-                    <option value="actif">Actif</option>
-                    <option value="archive">Archivé</option>
-                  </select>
-                </div>
-              </div>
-
-              {formulaire.type_client !== "particulier" && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Nom entreprise / collectivité
+                    Adresse chantier
                   </label>
                   <input
-                    value={formulaire.entreprise}
+                    value={formulaire.adresse_chantier}
                     onChange={(event) =>
-                      modifierChamp("entreprise", event.target.value)
+                      modifierChamp("adresse_chantier", event.target.value)
                     }
-                    placeholder="Ex : Mairie de..., SCI..., SAS..."
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-              )}
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Prénom
-                  </label>
-                  <input
-                    value={formulaire.prenom}
-                    onChange={(event) =>
-                      modifierChamp("prenom", event.target.value)
-                    }
-                    placeholder="Prénom"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="Adresse du chantier"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Nom
-                  </label>
-                  <input
-                    value={formulaire.nom}
-                    onChange={(event) =>
-                      modifierChamp("nom", event.target.value)
-                    }
-                    placeholder="Nom"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-              </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr]">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Code postal chantier
+                    </label>
+                    <input
+                      value={formulaire.code_postal_chantier}
+                      onChange={(event) =>
+                        modifierChamp(
+                          "code_postal_chantier",
+                          event.target.value
+                        )
+                      }
+                      placeholder="03000"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Téléphone
-                  </label>
-                  <input
-                    value={formulaire.telephone}
-                    onChange={(event) =>
-                      modifierChamp("telephone", event.target.value)
-                    }
-                    placeholder="06 00 00 00 00"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Email
-                  </label>
-                  <input
-                    value={formulaire.email}
-                    onChange={(event) =>
-                      modifierChamp("email", event.target.value)
-                    }
-                    placeholder="client@email.fr"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Adresse
-                </label>
-                <input
-                  value={formulaire.adresse}
-                  onChange={(event) =>
-                    modifierChamp("adresse", event.target.value)
-                  }
-                  placeholder="Adresse complète"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Code postal
-                  </label>
-                  <input
-                    value={formulaire.code_postal}
-                    onChange={(event) =>
-                      modifierChamp("code_postal", event.target.value)
-                    }
-                    placeholder="03000"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Ville chantier
+                    </label>
+                    <input
+                      value={formulaire.ville_chantier}
+                      onChange={(event) =>
+                        modifierChamp("ville_chantier", event.target.value)
+                      }
+                      placeholder="Ville du chantier"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
                 </div>
 
-                <div>
+                <div className="mt-4">
                   <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Ville
+                    Notes chantier / accès
                   </label>
-                  <input
-                    value={formulaire.ville}
+                  <textarea
+                    value={formulaire.notes_chantier}
                     onChange={(event) =>
-                      modifierChamp("ville", event.target.value)
+                      modifierChamp("notes_chantier", event.target.value)
                     }
-                    placeholder="Ville"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="Ex : portail étroit, accès camion compliqué, chien présent, stationnement devant la maison, code portail..."
+                    rows={4}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
-              </div>
+              </section>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
+              <section className="rounded-3xl border border-slate-200 p-5">
+                <h3 className="mb-4 text-lg font-bold text-slate-950">
                   Notes internes
-                </label>
+                </h3>
+
                 <textarea
                   value={formulaire.notes}
                   onChange={(event) =>
                     modifierChamp("notes", event.target.value)
                   }
-                  placeholder="Informations utiles : accès chantier, habitudes client, remarques..."
+                  placeholder="Informations utiles : habitudes client, remarques commerciales, préférences..."
                   rows={4}
                   className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
-              </div>
+              </section>
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
@@ -1067,7 +1237,8 @@ export default function ClientsPage() {
                   {nomClient(clientSelectionne)}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Historique devis, factures, coordonnées et notes internes.
+                  Historique devis, factures, coordonnées, adresses et notes
+                  chantier.
                 </p>
               </div>
 
@@ -1088,7 +1259,7 @@ export default function ClientsPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="grid gap-4 lg:grid-cols-4">
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-xs uppercase tracking-wide text-slate-400">
                         Contact
@@ -1117,26 +1288,41 @@ export default function ClientsPage() {
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-xs uppercase tracking-wide text-slate-400">
-                        Adresse
-                      </p>
-                      <div className="mt-3 text-sm text-slate-700">
-                        <p>{clientSelectionne.adresse || "—"}</p>
-                        <p>
-                          {[clientSelectionne.code_postal, clientSelectionne.ville]
-                            .filter(Boolean)
-                            .join(" ") || "—"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs uppercase tracking-wide text-slate-400">
-                        Notes internes
+                        Adresse client
                       </p>
                       <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
-                        {clientSelectionne.notes || "Aucune note interne."}
+                        {adresseClientComplete(clientSelectionne) || "—"}
                       </p>
                     </div>
+
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-emerald-600">
+                        Adresse chantier
+                      </p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-emerald-900">
+                        {adresseChantierComplete(clientSelectionne) ||
+                          "Identique ou non renseignée."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-emerald-600">
+                        Notes chantier
+                      </p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-emerald-900">
+                        {clientSelectionne.notes_chantier ||
+                          "Aucune note chantier."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">
+                      Notes internes
+                    </p>
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
+                      {clientSelectionne.notes || "Aucune note interne."}
+                    </p>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-5">

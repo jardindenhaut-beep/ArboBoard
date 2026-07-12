@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import BoutonEnvoyerPvFinChantierEmail from "@/components/interventions/BoutonEnvoyerPvFinChantierEmail";
 
 type PvFinChantierResume = {
   id: string;
@@ -12,6 +13,19 @@ type PvFinChantierResume = {
   reserves_client: string | null;
   commentaire_client: string | null;
   commentaire_entreprise: string | null;
+  envoye_client_at: string | null;
+  envoye_client_email: string | null;
+};
+
+type FicheResume = {
+  id: string;
+  client_id: string | null;
+  client_nom: string | null;
+};
+
+type ClientResume = {
+  id: string;
+  email: string | null;
 };
 
 type Props = {
@@ -20,6 +34,22 @@ type Props = {
   problemeSignale?: boolean | null;
   descriptionProbleme?: string | null;
 };
+
+function formatDateHeure(date: string | null | undefined) {
+  if (!date) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(date));
+  } catch {
+    return date;
+  }
+}
 
 export default function ResumeRetourTerrainFiche({
   entrepriseId,
@@ -30,7 +60,10 @@ export default function ResumeRetourTerrainFiche({
   const [chargement, setChargement] = useState(true);
   const [nombrePhotos, setNombrePhotos] = useState(0);
   const [pv, setPv] = useState<PvFinChantierResume | null>(null);
+  const [fiche, setFiche] = useState<FicheResume | null>(null);
+  const [clientEmail, setClientEmail] = useState("");
   const [erreur, setErreur] = useState("");
+  const [envoiOuvert, setEnvoiOuvert] = useState(false);
 
   useEffect(() => {
     chargerResume();
@@ -44,7 +77,7 @@ export default function ResumeRetourTerrainFiche({
       setChargement(true);
       setErreur("");
 
-      const [photosResult, pvResult] = await Promise.all([
+      const [photosResult, pvResult, ficheResult] = await Promise.all([
         supabase
           .from("fiches_intervention_photos")
           .select("id", { count: "exact", head: true })
@@ -61,10 +94,19 @@ export default function ResumeRetourTerrainFiche({
             signature_entreprise_data_url,
             reserves_client,
             commentaire_client,
-            commentaire_entreprise
+            commentaire_entreprise,
+            envoye_client_at,
+            envoye_client_email
           `)
           .eq("entreprise_id", entrepriseId)
           .eq("fiche_id", ficheId)
+          .maybeSingle(),
+
+        supabase
+          .from("fiches_intervention")
+          .select("id, client_id, client_nom")
+          .eq("entreprise_id", entrepriseId)
+          .eq("id", ficheId)
           .maybeSingle(),
       ]);
 
@@ -81,6 +123,21 @@ export default function ResumeRetourTerrainFiche({
       } else {
         setPv((pvResult.data || null) as PvFinChantierResume | null);
       }
+
+      if (ficheResult.error) {
+        console.error("Erreur chargement fiche résumé :", ficheResult.error);
+        setFiche(null);
+        setClientEmail("");
+      } else {
+        const ficheData = (ficheResult.data || null) as FicheResume | null;
+        setFiche(ficheData);
+
+        if (ficheData?.client_id) {
+          await chargerEmailClient(ficheData.client_id);
+        } else {
+          setClientEmail("");
+        }
+      }
     } catch (error: any) {
       console.error("Erreur chargement résumé retour terrain :", error);
       setErreur(
@@ -88,8 +145,33 @@ export default function ResumeRetourTerrainFiche({
       );
       setNombrePhotos(0);
       setPv(null);
+      setFiche(null);
+      setClientEmail("");
     } finally {
       setChargement(false);
+    }
+  }
+
+  async function chargerEmailClient(clientId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, email")
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", clientId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Erreur chargement email client résumé PV :", error);
+        setClientEmail("");
+        return;
+      }
+
+      const client = (data || null) as ClientResume | null;
+      setClientEmail(client?.email || "");
+    } catch (error) {
+      console.error("Erreur chargement email client :", error);
+      setClientEmail("");
     }
   }
 
@@ -97,6 +179,7 @@ export default function ResumeRetourTerrainFiche({
   const clientSigne = Boolean(pv?.signature_client_data_url);
   const entrepriseSigne = Boolean(pv?.signature_entreprise_data_url);
   const chantierTermine = pv?.chantier_termine === true;
+  const pvEnvoye = Boolean(pv?.envoye_client_at);
 
   const reservesOuProbleme = Boolean(
     pv?.reserves_client ||
@@ -188,6 +271,12 @@ export default function ResumeRetourTerrainFiche({
           ✍️ Entreprise {entrepriseSigne ? "signée" : "non signée"}
         </span>
 
+        {pvEnvoye && (
+          <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+            📧 Envoyé client
+          </span>
+        )}
+
         {reservesOuProbleme && (
           <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
             ⚠️ Réserve / problème
@@ -195,10 +284,39 @@ export default function ResumeRetourTerrainFiche({
         )}
       </div>
 
+      {pvEnvoye && (
+        <p className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          PV envoyé le {formatDateHeure(pv?.envoye_client_at)}
+          {pv?.envoye_client_email ? ` à ${pv.envoye_client_email}` : ""}.
+        </p>
+      )}
+
       {problemeSignale && descriptionProbleme && (
         <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {descriptionProbleme}
         </p>
+      )}
+
+      {pvEnregistre && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setEnvoiOuvert((ancien) => !ancien)}
+            className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+          >
+            {envoiOuvert ? "Masquer l’envoi email" : "📧 Envoyer le PV au client"}
+          </button>
+
+          {envoiOuvert && (
+            <div className="mt-3">
+              <BoutonEnvoyerPvFinChantierEmail
+                ficheId={ficheId}
+                clientEmail={clientEmail}
+                clientNom={fiche?.client_nom}
+              />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

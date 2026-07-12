@@ -10,6 +10,7 @@ import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDoc
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
 import BoutonCreerFicheInterventionDepuisDevis from "@/components/devis/BoutonCreerFicheInterventionDepuisDevis";
+import FichesInterventionLieesDevis from "@/components/devis/FichesInterventionLieesDevis";
 
 type Client = {
   id: string;
@@ -1072,6 +1073,10 @@ Cordialement.`;
   factureLiee={item.facture_liee || null}
 />
 
+<FichesInterventionLieesDevis
+  entrepriseId={entrepriseId}
+  devisId={item.id}
+/>
                       {item.facture_liee && (
                         <Link
                           href="/chef/factures"

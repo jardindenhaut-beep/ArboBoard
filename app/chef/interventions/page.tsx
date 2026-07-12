@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
-import BlocPhotosChantier from "@/components/interventions/BlocPhotosChantier";
-import BlocPvFinChantier from "@/components/interventions/BlocPvFinChantier";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
 
 type StatutFiche =
@@ -343,7 +341,7 @@ function iconeType(article: ArticleIntervention | null | undefined) {
 }
 
 function titreFiche(fiche: FicheIntervention) {
-  return fiche.titre || "Fiche d’intervention";
+  return fiche.titre || fiche.type_intervention || "Fiche d’intervention";
 }
 
 function adresseFiche(fiche: FicheIntervention) {
@@ -379,8 +377,6 @@ export default function FichesInterventionPage() {
   );
 
   const [modalCreationOuverte, setModalCreationOuverte] = useState(false);
-  const [modalDetailFiche, setModalDetailFiche] =
-    useState<FicheIntervention | null>(null);
 
   const [formulaire, setFormulaire] =
     useState<FormulaireCreation>(FORMULAIRE_VIDE);
@@ -388,6 +384,7 @@ export default function FichesInterventionPage() {
   const [elementsSelectionnes, setElementsSelectionnes] = useState<string[]>(
     []
   );
+
   const [salariesSelectionnes, setSalariesSelectionnes] = useState<string[]>(
     []
   );
@@ -607,7 +604,8 @@ export default function FichesInterventionPage() {
 
     setSalariesFiches((data || []) as FicheSalarie[]);
   }
-    const articlesParCategorie = useMemo(() => {
+
+  const articlesParCategorie = useMemo(() => {
     const resultat: Record<string, ArticleIntervention[]> = {};
 
     for (const article of articles) {
@@ -626,8 +624,9 @@ export default function FichesInterventionPage() {
   const typeSelectionne = useMemo(() => {
     if (!formulaire.type_intervention_id) return null;
     return (
-      articles.find((article) => article.id === formulaire.type_intervention_id) ||
-      null
+      articles.find(
+        (article) => article.id === formulaire.type_intervention_id
+      ) || null
     );
   }, [articles, formulaire.type_intervention_id]);
 
@@ -697,12 +696,8 @@ export default function FichesInterventionPage() {
     return salaries.find((salarie) => salarie.id === salarieId) || null;
   }
 
-  function elementsDeFiche(ficheId: string, categorie?: string) {
-    return elementsFiches.filter((element) => {
-      if (element.fiche_id !== ficheId) return false;
-      if (!categorie) return true;
-      return element.categorie === categorie;
-    });
+  function elementsDeFiche(ficheId: string) {
+    return elementsFiches.filter((element) => element.fiche_id === ficheId);
   }
 
   function salariesDeFiche(ficheId: string) {
@@ -1084,6 +1079,7 @@ export default function FichesInterventionPage() {
       await chargerFiches(entrepriseId);
 
       fermerCreation();
+
       setMessageSucces(
         "Fiche d’intervention créée et planifiée. Elle est prête pour le suivi salarié."
       );
@@ -1117,6 +1113,7 @@ export default function FichesInterventionPage() {
       if (error) throw error;
 
       await chargerFiches(entrepriseId);
+
       setMessageSucces(`Statut mis à jour : ${libelleStatut(statut)}.`);
     } catch (error: any) {
       console.error("Erreur changement statut fiche :", error);
@@ -1258,9 +1255,11 @@ export default function FichesInterventionPage() {
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-sm font-medium text-emerald-700">Arboboard</p>
+
           <h1 className="mt-1 text-3xl font-bold text-slate-950">
             Fiches d’intervention
           </h1>
+
           <p className="mt-2 max-w-4xl text-sm text-slate-600">
             Préparez vos chantiers depuis les devis : travaux, matériel,
             matériaux, consignes, équipe, horaires, photos, PV de fin de
@@ -1366,9 +1365,11 @@ export default function FichesInterventionPage() {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
               📋
             </div>
+
             <p className="font-semibold text-slate-900">
               Chargement des fiches...
             </p>
+
             <p className="mt-1 text-sm text-slate-500">
               Récupération des chantiers depuis Supabase.
             </p>
@@ -1378,9 +1379,11 @@ export default function FichesInterventionPage() {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
               📋
             </div>
+
             <p className="font-semibold text-slate-900">
               Aucune fiche d’intervention trouvée
             </p>
+
             <p className="mt-1 text-sm text-slate-500">
               Créez une fiche depuis un devis pour préparer un chantier.
             </p>
@@ -1398,8 +1401,9 @@ export default function FichesInterventionPage() {
               const devisLie = devisDeFiche(fiche);
               const equipe = salariesDeFiche(fiche.id);
               const typeArticle =
-                articles.find((article) => article.nom === fiche.type_intervention) ||
-                null;
+                articles.find(
+                  (article) => article.nom === fiche.type_intervention
+                ) || null;
 
               return (
                 <article
@@ -1417,6 +1421,7 @@ export default function FichesInterventionPage() {
                           <h2 className="text-lg font-bold text-slate-950">
                             {titreFiche(fiche)}
                           </h2>
+
                           <p className="text-xs font-medium text-slate-500">
                             {fiche.type_intervention || "Intervention"}
                             {devisLie?.numero
@@ -1455,8 +1460,11 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium text-slate-400">
                         Date prévue
                       </p>
+
                       <p className="mt-1 text-sm font-bold text-slate-900">
-                        {formatDate(fiche.date_prevue || fiche.date_intervention)}
+                        {formatDate(
+                          fiche.date_prevue || fiche.date_intervention
+                        )}
                       </p>
                     </div>
 
@@ -1464,12 +1472,15 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium text-slate-400">
                         Horaires prévus
                       </p>
+
                       <p className="mt-1 text-sm font-bold text-slate-900">
                         {formatHeure(
                           fiche.heure_debut_prevue || fiche.heure_debut
                         )}{" "}
                         →{" "}
-                        {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
+                        {formatHeure(
+                          fiche.heure_fin_prevue || fiche.heure_fin
+                        )}
                       </p>
                     </div>
 
@@ -1477,6 +1488,7 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium text-slate-400">
                         Équipe
                       </p>
+
                       <p className="mt-1 text-sm font-bold text-slate-900">
                         {equipe.length > 0
                           ? `${equipe.length} salarié(s)`
@@ -1498,6 +1510,7 @@ export default function FichesInterventionPage() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                       Éléments fiche
                     </p>
+
                     {renduElementsMini(fiche)}
                   </div>
 
@@ -1511,12 +1524,12 @@ export default function FichesInterventionPage() {
                       </Link>
                     )}
 
-                    <button
-                      onClick={() => setModalDetailFiche(fiche)}
+                    <Link
+                      href={`/chef/interventions/${fiche.id}`}
                       className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
                     >
                       Ouvrir fiche
-                    </button>
+                    </Link>
 
                     <button
                       onClick={() => changerStatutFiche(fiche, "en_cours")}
@@ -1554,6 +1567,7 @@ export default function FichesInterventionPage() {
                 <h2 className="text-xl font-bold text-slate-950">
                   Créer une fiche depuis un devis
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
                   Le chef prépare la fiche complète avant l’envoi au planning et
                   aux salariés.
@@ -1575,10 +1589,12 @@ export default function FichesInterventionPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                       📄
                     </div>
+
                     <div>
                       <h3 className="font-bold text-slate-950">
                         1. Sélection du devis
                       </h3>
+
                       <p className="text-sm text-slate-500">
                         La fiche récupère le client, l’adresse chantier et les
                         informations du devis.
@@ -1592,6 +1608,7 @@ export default function FichesInterventionPage() {
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                   >
                     <option value="">Sélectionner un devis</option>
+
                     {devis.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.numero || "Devis sans numéro"} ·{" "}
@@ -1607,6 +1624,7 @@ export default function FichesInterventionPage() {
                       <p className="font-bold text-emerald-950">
                         {devisSelectionne.objet || "Devis sélectionné"}
                       </p>
+
                       <p className="mt-1 text-sm text-emerald-700">
                         {devisSelectionne.client_nom || "Client"} ·{" "}
                         {devisSelectionne.numero || "Sans numéro"} ·{" "}
@@ -1621,10 +1639,12 @@ export default function FichesInterventionPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-xl">
                       🌳
                     </div>
+
                     <div>
                       <h3 className="font-bold text-slate-950">
                         2. Type d’intervention
                       </h3>
+
                       <p className="text-sm text-slate-500">
                         Choisissez le symbole principal de la fiche.
                       </p>
@@ -1654,10 +1674,12 @@ export default function FichesInterventionPage() {
                               <span className="text-2xl">
                                 {article.icone || "🛠️"}
                               </span>
+
                               <div>
                                 <p className="font-bold text-slate-950">
                                   {article.nom}
                                 </p>
+
                                 {article.description && (
                                   <p className="mt-1 line-clamp-2 text-xs text-slate-500">
                                     {article.description}
@@ -1677,10 +1699,12 @@ export default function FichesInterventionPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-xl">
                       🧾
                     </div>
+
                     <div>
                       <h3 className="font-bold text-slate-950">
                         3. Informations chantier
                       </h3>
+
                       <p className="text-sm text-slate-500">
                         Le titre, l’adresse et les notes sont modifiables avant
                         planification.
@@ -1693,6 +1717,7 @@ export default function FichesInterventionPage() {
                       <label className="mb-1 block text-sm font-medium text-slate-700">
                         Titre de la fiche
                       </label>
+
                       <input
                         value={formulaire.titre}
                         onChange={(event) =>
@@ -1707,6 +1732,7 @@ export default function FichesInterventionPage() {
                       <label className="mb-1 block text-sm font-medium text-slate-700">
                         Date prévue
                       </label>
+
                       <input
                         type="date"
                         value={formulaire.date_prevue}
@@ -1721,6 +1747,7 @@ export default function FichesInterventionPage() {
                       <label className="mb-1 block text-sm font-medium text-slate-700">
                         Heures prévues
                       </label>
+
                       <div className="grid grid-cols-2 gap-2">
                         <input
                           type="time"
@@ -1753,6 +1780,7 @@ export default function FichesInterventionPage() {
                     <label className="mb-1 block text-sm font-medium text-slate-700">
                       Adresse chantier
                     </label>
+
                     <input
                       value={formulaire.adresse_chantier}
                       onChange={(event) =>
@@ -1768,6 +1796,7 @@ export default function FichesInterventionPage() {
                       <label className="mb-1 block text-sm font-medium text-slate-700">
                         Code postal
                       </label>
+
                       <input
                         value={formulaire.code_postal_chantier}
                         onChange={(event) =>
@@ -1785,6 +1814,7 @@ export default function FichesInterventionPage() {
                       <label className="mb-1 block text-sm font-medium text-slate-700">
                         Ville
                       </label>
+
                       <input
                         value={formulaire.ville_chantier}
                         onChange={(event) =>
@@ -1800,6 +1830,7 @@ export default function FichesInterventionPage() {
                     <label className="mb-1 block text-sm font-medium text-slate-700">
                       Notes chantier / accès
                     </label>
+
                     <textarea
                       value={formulaire.notes_chantier}
                       onChange={(event) =>
@@ -1817,10 +1848,12 @@ export default function FichesInterventionPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-50 text-xl">
                       👥
                     </div>
+
                     <div>
                       <h3 className="font-bold text-slate-950">
                         4. Équipe affectée
                       </h3>
+
                       <p className="text-sm text-slate-500">
                         Sélectionnez les salariés qui verront la fiche côté
                         salarié.
@@ -1851,6 +1884,7 @@ export default function FichesInterventionPage() {
                             <p className="font-bold text-slate-950">
                               {nomSalarie(salarie)}
                             </p>
+
                             <p className="mt-1 text-xs text-slate-500">
                               {salarie.email || salarie.telephone || "Salarié"}
                             </p>
@@ -1866,10 +1900,12 @@ export default function FichesInterventionPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-xl">
                       📝
                     </div>
+
                     <div>
                       <h3 className="font-bold text-slate-950">
                         5. Notes internes chef
                       </h3>
+
                       <p className="text-sm text-slate-500">
                         Informations non visibles client.
                       </p>
@@ -1899,6 +1935,7 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         Devis
                       </p>
+
                       <p className="font-semibold text-slate-800">
                         {devisSelectionne?.numero || "Non sélectionné"}
                       </p>
@@ -1908,6 +1945,7 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         Client
                       </p>
+
                       <p className="font-semibold text-slate-800">
                         {devisSelectionne?.client_nom || "—"}
                       </p>
@@ -1917,9 +1955,12 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         Type
                       </p>
+
                       <p className="font-semibold text-slate-800">
                         {typeSelectionne
-                          ? `${typeSelectionne.icone || ""} ${typeSelectionne.nom}`
+                          ? `${typeSelectionne.icone || ""} ${
+                              typeSelectionne.nom
+                            }`
                           : "Non sélectionné"}
                       </p>
                     </div>
@@ -1928,6 +1969,7 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         Sélections
                       </p>
+
                       <p className="font-semibold text-slate-800">
                         {elementsSelectionnes.length} élément(s)
                       </p>
@@ -1937,6 +1979,7 @@ export default function FichesInterventionPage() {
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         Équipe
                       </p>
+
                       <p className="font-semibold text-slate-800">
                         {salariesSelectionnes.length} salarié(s)
                       </p>
@@ -1949,6 +1992,7 @@ export default function FichesInterventionPage() {
                     <p className="font-bold text-blue-950">
                       Lignes du devis à reprendre
                     </p>
+
                     <p className="mt-1 text-sm text-blue-700">
                       Tu peux sélectionner directement les lignes du devis comme
                       travaux prévus.
@@ -1963,7 +2007,9 @@ export default function FichesInterventionPage() {
                           <button
                             key={ligne.id}
                             type="button"
-                            onClick={() => selectionnerLigneDevisCommeTravail(ligne)}
+                            onClick={() =>
+                              selectionnerLigneDevisCommeTravail(ligne)
+                            }
                             className={`w-full rounded-2xl border p-3 text-left text-sm transition ${
                               actif
                                 ? "border-blue-500 bg-white ring-4 ring-blue-100"
@@ -1973,6 +2019,7 @@ export default function FichesInterventionPage() {
                             <p className="font-semibold text-slate-950">
                               📄 {ligne.designation || "Ligne du devis"}
                             </p>
+
                             <p className="mt-1 text-xs text-slate-500">
                               {Number(ligne.quantite || 1)} {ligne.unite || "u"}
                             </p>
@@ -1995,6 +2042,7 @@ export default function FichesInterventionPage() {
                         <p className="font-bold text-slate-950">
                           {bloc.icone} {bloc.titre}
                         </p>
+
                         <p className="mt-1 text-xs text-slate-500">
                           {bloc.description}
                         </p>
@@ -2016,7 +2064,8 @@ export default function FichesInterventionPage() {
                     <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
                       {(articlesParCategorie[bloc.categorie] || []).map(
                         (article) => {
-                          const actif = elementsSelectionnes.includes(article.id);
+                          const actif =
+                            elementsSelectionnes.includes(article.id);
 
                           return (
                             <button
@@ -2032,10 +2081,12 @@ export default function FichesInterventionPage() {
                               <span className="text-xl">
                                 {article.icone || "•"}
                               </span>
+
                               <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-semibold text-slate-900">
                                   {article.nom}
                                 </span>
+
                                 {article.description && (
                                   <span className="block truncate text-xs text-slate-500">
                                     {article.description}
@@ -2070,232 +2121,6 @@ export default function FichesInterventionPage() {
                   ? "Création..."
                   : "Créer la fiche et planifier"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modalDetailFiche && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="max-h-[94vh] w-full max-w-7xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 p-5">
-              <div>
-                <p className="text-sm font-medium text-emerald-700">
-                  Fiche chantier
-                </p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-950">
-                  {titreFiche(modalDetailFiche)}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {modalDetailFiche.client_nom || "Client"} ·{" "}
-                  {adresseFiche(modalDetailFiche)}
-                </p>
-              </div>
-
-              <button
-                onClick={() => setModalDetailFiche(null)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Fermer
-              </button>
-            </div>
-
-            <div className="grid gap-5 p-5 lg:grid-cols-[1fr_420px]">
-              <div className="space-y-5">
-                <section className="rounded-3xl border border-slate-200 p-5">
-                  <h3 className="font-bold text-slate-950">
-                    Suivi terrain en 3 étapes
-                  </h3>
-
-                  <div className="mt-4">{renduEtapes(modalDetailFiche)}</div>
-
-                  <ResumeRetourTerrainFiche
-                    entrepriseId={entrepriseId}
-                    ficheId={modalDetailFiche.id}
-                    problemeSignale={modalDetailFiche.probleme_signale}
-                    descriptionProbleme={modalDetailFiche.description_probleme}
-                  />
-                </section>
-
-                {CATEGORIES_ELEMENTS.map((bloc) => {
-                  const elements = elementsDeFiche(
-                    modalDetailFiche.id,
-                    bloc.categorie
-                  );
-
-                  return (
-                    <section
-                      key={bloc.categorie}
-                      className="rounded-3xl border border-slate-200 p-5"
-                    >
-                      <h3 className="font-bold text-slate-950">
-                        {bloc.icone} {bloc.titre}
-                      </h3>
-
-                      {elements.length === 0 ? (
-                        <p className="mt-3 text-sm text-slate-500">
-                          Aucun élément dans cette catégorie.
-                        </p>
-                      ) : (
-                        <div className="mt-4 grid gap-2 md:grid-cols-2">
-                          {elements.map((element) => (
-                            <div
-                              key={element.id}
-                              className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
-                            >
-                              <p className="font-semibold text-slate-950">
-                                {element.icone || "•"} {element.nom}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                Quantité prévue :{" "}
-                                {Number(element.quantite_prevue || 1)}{" "}
-                                {element.unite || "u"}
-                              </p>
-                              {element.commentaire_chef && (
-                                <p className="mt-2 text-xs text-slate-500">
-                                  {element.commentaire_chef}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-                  );
-                })}
-
-                <BlocPhotosChantier
-                  entrepriseId={entrepriseId}
-                  ficheId={modalDetailFiche.id}
-                  userId={null}
-                />
-
-                <BlocPvFinChantier
-                  entrepriseId={entrepriseId}
-                  ficheId={modalDetailFiche.id}
-                  clientId={modalDetailFiche.client_id}
-                  clientNom={modalDetailFiche.client_nom}
-                  signataireEntrepriseNom=""
-                />
-              </div>
-
-              <aside className="space-y-5">
-                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                  <h3 className="font-bold text-slate-950">Résumé</h3>
-
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Statut
-                      </p>
-                      <span
-                        className={`mt-1 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-                          modalDetailFiche.statut
-                        )}`}
-                      >
-                        {libelleStatut(modalDetailFiche.statut)}
-                      </span>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Date prévue
-                      </p>
-                      <p className="font-semibold text-slate-800">
-                        {formatDate(
-                          modalDetailFiche.date_prevue ||
-                            modalDetailFiche.date_intervention
-                        )}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Horaires
-                      </p>
-                      <p className="font-semibold text-slate-800">
-                        {formatHeure(
-                          modalDetailFiche.heure_debut_prevue ||
-                            modalDetailFiche.heure_debut
-                        )}{" "}
-                        →{" "}
-                        {formatHeure(
-                          modalDetailFiche.heure_fin_prevue ||
-                            modalDetailFiche.heure_fin
-                        )}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Devis lié
-                      </p>
-                      <p className="font-semibold text-slate-800">
-                        {devisDeFiche(modalDetailFiche)?.numero || "—"}
-                      </p>
-                    </div>
-
-                    {modalDetailFiche.probleme_signale && (
-                      <div className="rounded-2xl border border-red-200 bg-red-50 p-3">
-                        <p className="text-sm font-semibold text-red-700">
-                          Problème signalé
-                        </p>
-                        {modalDetailFiche.description_probleme && (
-                          <p className="mt-1 text-sm text-red-700">
-                            {modalDetailFiche.description_probleme}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 p-5">
-                  <h3 className="font-bold text-slate-950">Équipe</h3>
-
-                  <div className="mt-4 space-y-2">
-                    {salariesDeFiche(modalDetailFiche.id).length === 0 ? (
-                      <p className="text-sm text-slate-500">
-                        Aucun salarié affecté.
-                      </p>
-                    ) : (
-                      salariesDeFiche(modalDetailFiche.id).map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-2xl border border-slate-200 bg-white p-3"
-                        >
-                          <p className="font-semibold text-slate-950">
-                            {item.salarie_nom || "Salarié"}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Prévu : {formatHeure(item.heure_arrivee_prevue)} →{" "}
-                            {formatHeure(item.heure_depart_prevue)}
-                          </p>
-
-                          {(item.heure_arrivee_reelle ||
-                            item.heure_depart_reelle) && (
-                            <p className="mt-1 text-xs text-emerald-700">
-                              Réel : {formatHeure(item.heure_arrivee_reelle)} →{" "}
-                              {formatHeure(item.heure_depart_reelle)}
-                            </p>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
-                  <h3 className="font-bold text-emerald-950">
-                    Retour terrain
-                  </h3>
-                  <p className="mt-2 text-sm text-emerald-800">
-                    Les photos et le PV ci-contre sont remplis depuis le
-                    planning salarié. Le chef peut les consulter, compléter le
-                    PV et télécharger le PDF.
-                  </p>
-                </section>
-              </aside>
             </div>
           </div>
         </div>

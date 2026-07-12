@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
@@ -357,6 +358,8 @@ function adresseFiche(fiche: FicheIntervention) {
 }
 
 export default function FichesInterventionPage() {
+  const router = useRouter();
+
   const [entrepriseId, setEntrepriseId] = useState("");
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -1130,6 +1133,8 @@ export default function FichesInterventionPage() {
       setMessageSucces(
         `Fiche d’intervention ${fiche.numero || ""} créée et planifiée.`
       );
+
+      router.push(`/chef/interventions/${fiche.id}`);
     } catch (error: any) {
       console.error("Erreur création fiche intervention :", error);
       setMessageErreur(

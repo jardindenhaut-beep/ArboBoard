@@ -310,7 +310,8 @@ function libelleStatut(statut: string | null | undefined) {
 
 function badgeStatut(statut: string | null | undefined) {
   if (statut === "planifiee") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (statut === "en_cours") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (statut === "en_cours")
+    return "bg-amber-50 text-amber-700 border-amber-200";
   if (statut === "terminee")
     return "bg-emerald-50 text-emerald-700 border-emerald-200";
   if (statut === "annulee") return "bg-red-50 text-red-700 border-red-200";
@@ -394,12 +395,32 @@ export default function FichesInterventionPage() {
   const [creationRapideNom, setCreationRapideNom] = useState("");
   const [creationRapideIcone, setCreationRapideIcone] = useState("🛠️");
 
+  const [devisIdDepuisUrl, setDevisIdDepuisUrl] = useState("");
+  const [devisIdUrlTraite, setDevisIdUrlTraite] = useState("");
+
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setDevisIdDepuisUrl(params.get("devisId") || "");
+  }, []);
+
+  useEffect(() => {
     initialiserPage();
   }, []);
+
+  useEffect(() => {
+    if (!devisIdDepuisUrl) return;
+    if (!entrepriseId) return;
+    if (devis.length === 0) return;
+    if (devisIdUrlTraite === devisIdDepuisUrl) return;
+
+    ouvrirCreationDepuisDevisUrl(devisIdDepuisUrl);
+    setDevisIdUrlTraite(devisIdDepuisUrl);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devisIdDepuisUrl, entrepriseId, devis, devisIdUrlTraite]);
 
   async function initialiserPage() {
     try {
@@ -481,7 +502,7 @@ export default function FichesInterventionPage() {
       .from("devis")
       .select("*")
       .eq("entreprise_id", idEntreprise)
-      .in("statut", ["accepte", "envoye", "brouillon"])
+      .in("statut", ["accepte", "envoye", "brouillon", "facture"])
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -720,6 +741,32 @@ export default function FichesInterventionPage() {
     setMessageErreur("");
     setMessageSucces("");
     setModalCreationOuverte(true);
+  }
+
+  async function ouvrirCreationDepuisDevisUrl(devisId: string) {
+    const devisTrouve = devis.find((item) => item.id === devisId);
+
+    if (!devisTrouve) {
+      setMessageErreur(
+        "Le devis demandé n’a pas été trouvé dans la liste des devis disponibles."
+      );
+      return;
+    }
+
+    setFormulaire(FORMULAIRE_VIDE);
+    setElementsSelectionnes([]);
+    setSalariesSelectionnes([]);
+    setLignesDevis([]);
+    setCreationRapideCategorie(null);
+    setCreationRapideNom("");
+    setCreationRapideIcone("🛠️");
+    setMessageErreur("");
+    setMessageSucces(
+      `Devis ${devisTrouve.numero || ""} chargé pour créer une fiche intervention.`
+    );
+    setModalCreationOuverte(true);
+
+    await selectionnerDevis(devisId);
   }
 
   function fermerCreation() {
@@ -1081,7 +1128,7 @@ export default function FichesInterventionPage() {
       fermerCreation();
 
       setMessageSucces(
-        "Fiche d’intervention créée et planifiée. Elle est prête pour le suivi salarié."
+        `Fiche d’intervention ${fiche.numero || ""} créée et planifiée.`
       );
     } catch (error: any) {
       console.error("Erreur création fiche intervention :", error);

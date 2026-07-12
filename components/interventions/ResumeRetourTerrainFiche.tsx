@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import BoutonEnvoyerPvFinChantierEmail from "@/components/interventions/BoutonEnvoyerPvFinChantierEmail";
+import BoutonTelechargerPvFinChantierPdf from "@/components/interventions/BoutonTelechargerPvFinChantierPdf";
 
 type PvFinChantierResume = {
   id: string;
@@ -140,9 +141,11 @@ export default function ResumeRetourTerrainFiche({
       }
     } catch (error: any) {
       console.error("Erreur chargement résumé retour terrain :", error);
+
       setErreur(
         error?.message || "Impossible de charger le résumé du retour terrain."
       );
+
       setNombrePhotos(0);
       setPv(null);
       setFiche(null);
@@ -298,17 +301,23 @@ export default function ResumeRetourTerrainFiche({
       )}
 
       {pvEnregistre && (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setEnvoiOuvert((ancien) => !ancien)}
-            className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-          >
-            {envoiOuvert ? "Masquer l’envoi email" : "📧 Envoyer le PV au client"}
-          </button>
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <BoutonTelechargerPvFinChantierPdf ficheId={ficheId} />
+
+            <button
+              type="button"
+              onClick={() => setEnvoiOuvert((ancien) => !ancien)}
+              className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+            >
+              {envoiOuvert
+                ? "Masquer l’envoi email"
+                : "📧 Envoyer le PV au client"}
+            </button>
+          </div>
 
           {envoiOuvert && (
-            <div className="mt-3">
+            <div>
               <BoutonEnvoyerPvFinChantierEmail
                 ficheId={ficheId}
                 clientEmail={clientEmail}

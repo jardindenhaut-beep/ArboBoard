@@ -1,170 +1,69 @@
+import { NextRequest, NextResponse } from "next/server";
 import React from "react";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@supabase/supabase-js";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { Resend } from "resend";
-import { chargerParametresEntrepriseDocument } from "@/lib/documents/chargerParametresEntreprise";
 import { PvFinChantierDocument } from "../../../../../lib/interventions/genererPdfPvFinChantier";
+import { chargerParametresEntrepriseDocument } from "../../../../../lib/documents/chargerParametresEntreprise";
 
 export const runtime = "nodejs";
 
-function reponseErreur(message: string, statut = 400) {
-  return Response.json({ error: message }, { status: statut });
+type ProfilUtilisateur = {
+  id: string;
+  entreprise_id: string;
+  role: string | null;
+  email: string | null;
+  nom: string | null;
+  prenom: string | null;
+};
+
+function nettoyerEmail(email: unknown) {
+  if (typeof email !== "string") return "";
+  return email.trim().toLowerCase();
 }
 
-function nettoyerNomFichier(valeur: string) {
-  return valeur
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9-_]/g, "-")
-    .replace(/-+/g, "-")
-    .toLowerCase();
-}
+function roleAutorise(role: string | null | undefined) {
+  const valeur = (role || "").trim().toLowerCase();
 
-function texteHtml(valeur: string) {
-  return valeur
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function ligneAdresse(fiche: any) {
-  const adresse = fiche?.adresse_chantier || fiche?.adresse || "";
-  const codePostal = fiche?.code_postal_chantier || fiche?.code_postal || "";
-  const ville = fiche?.ville_chantier || fiche?.ville || "";
-
-  const villeComplete = [codePostal, ville].filter(Boolean).join(" ");
-
-  return [adresse, villeComplete].filter(Boolean).join(", ");
-}
-
-function formatDate(date: string | null | undefined) {
-  if (!date) return "";
-
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
-  } catch {
-    return date;
-  }
-}
-
-async function genererPdfPv({
-  supabaseAdmin,
-  entrepriseId,
-  fiche,
-  pv,
-  parametresEntreprise,
-}: {
-  supabaseAdmin: any;
-  entrepriseId: string;
-  fiche: any;
-  pv: any;
-  parametresEntreprise: any;
-}) {
-  const [elementsResult, photosResult, equipeResult] = await Promise.all([
-    supabaseAdmin
-      .from("fiches_intervention_elements")
-      .select("*")
-      .eq("entreprise_id", entrepriseId)
-      .eq("fiche_id", fiche.id)
-      .order("ordre", { ascending: true }),
-
-    supabaseAdmin
-      .from("fiches_intervention_photos")
-      .select("*")
-      .eq("entreprise_id", entrepriseId)
-      .eq("fiche_id", fiche.id)
-      .order("created_at", { ascending: true }),
-
-    supabaseAdmin
-      .from("fiches_intervention_salaries")
-      .select("*")
-      .eq("entreprise_id", entrepriseId)
-      .eq("fiche_id", fiche.id)
-      .order("created_at", { ascending: true }),
-  ]);
-
-  if (elementsResult.error) {
-    throw new Error(
-      elementsResult.error.message ||
-        "Impossible de charger les éléments de la fiche."
-    );
-  }
-
-  if (photosResult.error) {
-    throw new Error(
-      photosResult.error.message || "Impossible de charger les photos."
-    );
-  }
-
-  if (equipeResult.error) {
-    throw new Error(
-      equipeResult.error.message || "Impossible de charger l’équipe."
-    );
-  }
-
-  const photosAvecUrls = await Promise.all(
-    ((photosResult.data || []) as any[]).map(async (photo) => {
-      const chemin = photo.storage_path || photo.url;
-
-      if (!chemin) {
-        return {
-          ...photo,
-          signed_url: null,
-        };
-      }
-
-      const { data, error } = await supabaseAdmin.storage
-        .from("interventions-photos")
-        .createSignedUrl(chemin, 60 * 60);
-
-      if (error) {
-        console.error("Erreur URL signée photo PV email :", error);
-
-        return {
-          ...photo,
-          signed_url: null,
-        };
-      }
-
-      return {
-        ...photo,
-        signed_url: data?.signedUrl || null,
-      };
-    })
+  return (
+    valeur === "chef" ||
+    valeur === "admin" ||
+    valeur === "gerant" ||
+    valeur === "gérant"
   );
-
-  const documentPdf = React.createElement(PvFinChantierDocument, {
-    entreprise: parametresEntreprise,
-    fiche,
-    pv,
-    elements: elementsResult.data || [],
-    photos: photosAvecUrls,
-    equipe: equipeResult.data || [],
-  });
-
-  const buffer = await renderToBuffer(documentPdf as any);
-
-  return Buffer.from(buffer);
 }
 
-async function enregistrerHistoriqueEmail({
-  supabaseAdmin,
-  entrepriseId,
-  ficheId,
-  pvId,
-  destinataireEmail,
-  sujet,
-  message,
-  statut,
-  resendEmailId,
-  erreur,
-  envoyePar,
-}: {
+function echapperHtml(texte: string) {
+  return texte
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function texteVersHtml(texte: string) {
+  return echapperHtml(texte).replaceAll("\n", "<br />");
+}
+
+function nomProfil(profil: ProfilUtilisateur | null) {
+  if (!profil) return "Arboboard";
+
+  const complet = `${profil.prenom || ""} ${profil.nom || ""}`.trim();
+  return complet || profil.email || "Arboboard";
+}
+
+function nomFichierPdf(numero: string | null | undefined) {
+  const base =
+    numero && numero.trim().length > 0 ? numero.trim() : "PV-fin-chantier";
+
+  return `${base
+    .replaceAll("/", "-")
+    .replaceAll("\\", "-")
+    .replaceAll(" ", "-")}.pdf`;
+}
+
+async function enregistrerHistoriqueEmail(params: {
   supabaseAdmin: any;
   entrepriseId: string;
   ficheId: string;
@@ -177,19 +76,19 @@ async function enregistrerHistoriqueEmail({
   erreur?: string | null;
   envoyePar?: string | null;
 }) {
-  const { error } = await supabaseAdmin
+  const { error } = await params.supabaseAdmin
     .from("pv_fin_chantier_emails")
     .insert({
-      entreprise_id: entrepriseId,
-      fiche_id: ficheId,
-      pv_id: pvId,
-      destinataire_email: destinataireEmail,
-      sujet,
-      message,
-      statut,
-      resend_email_id: resendEmailId || null,
-      erreur: erreur || null,
-      envoye_par: envoyePar || null,
+      entreprise_id: params.entrepriseId,
+      fiche_id: params.ficheId,
+      pv_id: params.pvId,
+      destinataire_email: params.destinataireEmail,
+      sujet: params.sujet,
+      message: params.message,
+      statut: params.statut,
+      resend_email_id: params.resendEmailId || null,
+      erreur: params.erreur || null,
+      envoye_par: params.envoyePar || null,
     });
 
   if (error) {
@@ -197,244 +96,272 @@ async function enregistrerHistoriqueEmail({
   }
 }
 
-export async function POST(request: Request) {
-  let supabaseAdmin: any = null;
-  let contexteErreur:
-    | {
-        entrepriseId: string;
-        ficheId: string;
-        pvId: string | null;
-        destinataireEmail: string;
-        sujet: string;
-        message: string;
-        envoyePar: string | null;
-      }
-    | null = null;
+export async function POST(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendFromEmail =
+    process.env.RESEND_FROM_EMAIL || "Arboboard <contact@arboboard.fr>";
+
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    return NextResponse.json(
+      {
+        erreur:
+          "Configuration Supabase serveur manquante. Vérifiez les variables d’environnement.",
+      },
+      { status: 500 }
+    );
+  }
+
+  if (!resendApiKey) {
+    return NextResponse.json(
+      {
+        erreur:
+          "Configuration Resend manquante. Ajoutez RESEND_API_KEY dans les variables d’environnement.",
+      },
+      { status: 500 }
+    );
+  }
+
+  const authorization = request.headers.get("authorization") || "";
+  const token = authorization.replace("Bearer ", "").trim();
+
+  if (!token) {
+    return NextResponse.json(
+      { erreur: "Session absente. Veuillez vous reconnecter." },
+      { status: 401 }
+    );
+  }
+
+  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }) as any;
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }) as any;
+
+  const {
+    data: { user },
+    error: erreurUtilisateur,
+  } = await supabaseAuth.auth.getUser(token);
+
+  if (erreurUtilisateur || !user) {
+    return NextResponse.json(
+      { erreur: "Session invalide. Veuillez vous reconnecter." },
+      { status: 401 }
+    );
+  }
+
+  const { data: profilData, error: erreurProfil } = await supabaseAdmin
+    .from("profils_utilisateurs")
+    .select("id, entreprise_id, role, email, nom, prenom")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (erreurProfil || !profilData?.entreprise_id) {
+    return NextResponse.json(
+      {
+        erreur:
+          "Profil utilisateur introuvable. Impossible de vérifier les droits.",
+      },
+      { status: 403 }
+    );
+  }
+
+  const entrepriseId = String(profilData.entreprise_id);
+
+  const profil: ProfilUtilisateur = {
+    id: String(profilData.id),
+    entreprise_id: entrepriseId,
+    role: profilData.role || null,
+    email: profilData.email || null,
+    nom: profilData.nom || null,
+    prenom: profilData.prenom || null,
+  };
+
+  if (!roleAutorise(profil.role)) {
+    return NextResponse.json(
+      {
+        erreur:
+          "Action refusée. Seul un chef, administrateur ou gérant peut envoyer le PV au client.",
+      },
+      { status: 403 }
+    );
+  }
+
+  let body: any = {};
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const resendFromEmail =
-      process.env.RESEND_FROM_EMAIL || "Arboboard <contact@arboboard.fr>";
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { erreur: "Requête invalide." },
+      { status: 400 }
+    );
+  }
 
-    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return reponseErreur("Configuration Supabase serveur manquante.", 500);
-    }
-
-    if (!resendApiKey) {
-      return reponseErreur("Configuration Resend manquante.", 500);
-    }
-
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ")
-      ? authHeader.slice("Bearer ".length)
+  const ficheId =
+    typeof body.ficheId === "string"
+      ? body.ficheId
+      : typeof body.fiche_id === "string"
+      ? body.fiche_id
       : "";
 
-    if (!token) {
-      return reponseErreur("Utilisateur non authentifié.", 401);
-    }
+  const pvId =
+    typeof body.pvId === "string"
+      ? body.pvId
+      : typeof body.pv_id === "string"
+      ? body.pv_id
+      : "";
 
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-      },
-    });
+  const destinataireEmail =
+    nettoyerEmail(body.destinataireEmail) ||
+    nettoyerEmail(body.email) ||
+    nettoyerEmail(body.destinataire_email);
 
-    const {
-      data: { user },
-      error: erreurUser,
-    } = await supabaseAuth.auth.getUser(token);
+  const messagePersonnalise =
+    typeof body.message === "string" ? body.message.trim() : "";
 
-    if (erreurUser || !user) {
-      return reponseErreur("Session utilisateur invalide.", 401);
-    }
-
-    supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        persistSession: false,
-      },
-    });
-
-    const body = await request.json();
-
-    const ficheId = body?.ficheId as string | undefined;
-    const emailDestinataire = String(body?.emailDestinataire || "").trim();
-    const messagePersonnalise = String(body?.message || "").trim();
-
-    if (!ficheId) {
-      return reponseErreur("Identifiant de fiche manquant.", 400);
-    }
-
-    if (!emailDestinataire) {
-      return reponseErreur("Adresse email destinataire manquante.", 400);
-    }
-
-    const { data: profil, error: erreurProfil } = await supabaseAdmin
-      .from("profils_utilisateurs")
-      .select("id, entreprise_id, role, email")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (erreurProfil || !profil?.entreprise_id) {
-      return reponseErreur("Profil utilisateur introuvable.", 403);
-    }
-
-    const entrepriseId = profil.entreprise_id as string;
-
-    const { data: fiche, error: erreurFiche } = await supabaseAdmin
-      .from("fiches_intervention")
-      .select("*")
-      .eq("id", ficheId)
-      .eq("entreprise_id", entrepriseId)
-      .maybeSingle();
-
-    if (erreurFiche || !fiche) {
-      return reponseErreur("Fiche d’intervention introuvable.", 404);
-    }
-
-    const { data: pv, error: erreurPv } = await supabaseAdmin
-      .from("pv_fin_chantier")
-      .select("*")
-      .eq("entreprise_id", entrepriseId)
-      .eq("fiche_id", ficheId)
-      .maybeSingle();
-
-    if (erreurPv || !pv) {
-      return reponseErreur("PV de fin de chantier introuvable.", 404);
-    }
-
-    const parametresEntreprise =
-      await chargerParametresEntrepriseDocument(entrepriseId);
-
-    const nomEntreprise =
-      parametresEntreprise?.nom_entreprise || "Votre entreprise";
-    const emailEntreprise = parametresEntreprise?.email || "";
-    const telephoneEntreprise = parametresEntreprise?.telephone || "";
-    const adresseChantier = ligneAdresse(fiche);
-    const dateChantier = formatDate(
-      fiche.date_prevue || fiche.date_intervention
+  if (!ficheId) {
+    return NextResponse.json(
+      { erreur: "Fiche intervention manquante." },
+      { status: 400 }
     );
+  }
 
-    const numeroFiche = fiche.numero || fiche.id;
-    const nomBase = nettoyerNomFichier(`pv-fin-chantier-${numeroFiche}`);
+  if (!destinataireEmail) {
+    return NextResponse.json(
+      { erreur: "Email destinataire manquant." },
+      { status: 400 }
+    );
+  }
 
-    const sujet = `PV de fin de chantier - ${
-      fiche.titre || fiche.type_intervention || "Intervention"
-    }`;
+  const { data: ficheData, error: erreurFiche } = await supabaseAdmin
+    .from("fiches_intervention")
+    .select("*")
+    .eq("entreprise_id", entrepriseId)
+    .eq("id", ficheId)
+    .maybeSingle();
 
-    const messageFinal = messagePersonnalise
-      ? messagePersonnalise
-      : `Bonjour,
+  if (erreurFiche || !ficheData) {
+    return NextResponse.json(
+      {
+        erreur:
+          "Fiche intervention introuvable ou non rattachée à votre entreprise.",
+      },
+      { status: 404 }
+    );
+  }
 
-Veuillez trouver ci-joint le procès-verbal de fin de chantier concernant notre intervention${
-          dateChantier ? ` du ${dateChantier}` : ""
-        }.
+  let requetePv = supabaseAdmin
+    .from("pv_fin_chantier")
+    .select("*")
+    .eq("entreprise_id", entrepriseId)
+    .eq("fiche_id", ficheId);
 
-Cordialement.`;
+  if (pvId) {
+    requetePv = requetePv.eq("id", pvId);
+  }
 
-    contexteErreur = {
-      entrepriseId,
-      ficheId,
-      pvId: pv.id,
-      destinataireEmail: emailDestinataire,
-      sujet,
-      message: messageFinal,
-      envoyePar: user.id,
-    };
+  const { data: pvData, error: erreurPv } = await requetePv
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    const pdfBuffer = await genererPdfPv({
-      supabaseAdmin,
-      entrepriseId,
-      fiche,
-      pv,
+  if (erreurPv || !pvData) {
+    return NextResponse.json(
+      {
+        erreur:
+          "PV de fin de chantier introuvable. Enregistrez le PV avant de l’envoyer.",
+      },
+      { status: 404 }
+    );
+  }
+
+  const parametresEntreprise = await chargerParametresEntrepriseDocument(
+    entrepriseId
+  );
+
+  const sujet = `PV de fin de chantier ${
+    ficheData.numero ? `- ${ficheData.numero}` : ""
+  }`.trim();
+
+  const message =
+    messagePersonnalise ||
+    `Bonjour,
+
+Veuillez trouver en pièce jointe le PV de fin de chantier concernant l’intervention ${
+      ficheData.titre || ficheData.type_intervention || ""
+    }.
+
+Cordialement,
+${nomProfil(profil)}`;
+
+  try {
+    const DocumentPdf = PvFinChantierDocument as any;
+
+    const documentPdf = React.createElement(DocumentPdf, {
+      fiche: ficheData,
+      pv: pvData,
       parametresEntreprise,
+      photos: [],
     });
 
-    const messageHtml = texteHtml(messageFinal).replace(/\n/g, "<br />");
-
-    const html = `
-      <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
-        <p>${messageHtml}</p>
-
-        <div style="margin-top: 24px; padding: 16px; border: 1px solid #d1fae5; border-radius: 16px; background: #ecfdf5;">
-          <p style="margin: 0 0 8px 0; font-weight: 700; color: #064e3b;">Récapitulatif chantier</p>
-          <p style="margin: 0;"><strong>Client :</strong> ${texteHtml(
-            fiche.client_nom || "Client"
-          )}</p>
-          <p style="margin: 0;"><strong>Intervention :</strong> ${texteHtml(
-            fiche.titre || fiche.type_intervention || "Intervention"
-          )}</p>
-          ${
-            dateChantier
-              ? `<p style="margin: 0;"><strong>Date :</strong> ${texteHtml(
-                  dateChantier
-                )}</p>`
-              : ""
-          }
-          ${
-            adresseChantier
-              ? `<p style="margin: 0;"><strong>Adresse :</strong> ${texteHtml(
-                  adresseChantier
-                )}</p>`
-              : ""
-          }
-        </div>
-
-        <div style="margin-top: 24px; color: #475569; font-size: 13px;">
-          <p style="margin: 0; font-weight: 700;">${texteHtml(nomEntreprise)}</p>
-          ${
-            emailEntreprise
-              ? `<p style="margin: 0;">Email : ${texteHtml(emailEntreprise)}</p>`
-              : ""
-          }
-          ${
-            telephoneEntreprise
-              ? `<p style="margin: 0;">Téléphone : ${texteHtml(
-                  telephoneEntreprise
-                )}</p>`
-              : ""
-          }
-        </div>
-      </div>
-    `;
+    const pdfBuffer = await renderToBuffer(documentPdf as any);
 
     const resend = new Resend(resendApiKey);
 
     const resultatEmail = await resend.emails.send({
       from: resendFromEmail,
-      to: emailDestinataire,
+      to: [destinataireEmail],
       subject: sujet,
-      html,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
+          <p>${texteVersHtml(message)}</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #64748b;">
+            Email envoyé depuis Arboboard.
+          </p>
+        </div>
+      `,
       attachments: [
         {
-          filename: `${nomBase}.pdf`,
-          content: pdfBuffer,
+          filename: nomFichierPdf(ficheData.numero || pvData.numero),
+          content: pdfBuffer.toString("base64"),
         },
-      ],
+      ] as any,
     });
 
     if (resultatEmail.error) {
-      console.error("Erreur Resend envoi PV :", resultatEmail.error);
-
       await enregistrerHistoriqueEmail({
         supabaseAdmin,
         entrepriseId,
         ficheId,
-        pvId: pv.id,
-        destinataireEmail: emailDestinataire,
+        pvId: pvData.id || null,
+        destinataireEmail,
         sujet,
-        message: messageFinal,
+        message,
         statut: "erreur",
         resendEmailId: null,
-        erreur: resultatEmail.error.message || "Erreur Resend",
-        envoyePar: user.id,
+        erreur: resultatEmail.error.message,
+        envoyePar: profil.id,
       });
 
-      return reponseErreur(
-        resultatEmail.error.message || "Impossible d’envoyer l’email.",
-        500
+      return NextResponse.json(
+        {
+          erreur:
+            resultatEmail.error.message ||
+            "Resend a refusé l’envoi de l’email.",
+        },
+        { status: 500 }
       );
     }
 
@@ -442,52 +369,55 @@ Cordialement.`;
       .from("pv_fin_chantier")
       .update({
         envoye_client_at: new Date().toISOString(),
-        envoye_client_email: emailDestinataire,
+        envoye_client_email: destinataireEmail,
       })
-      .eq("id", pv.id)
-      .eq("entreprise_id", entrepriseId);
+      .eq("entreprise_id", entrepriseId)
+      .eq("id", pvData.id);
 
     await enregistrerHistoriqueEmail({
       supabaseAdmin,
       entrepriseId,
       ficheId,
-      pvId: pv.id,
-      destinataireEmail: emailDestinataire,
+      pvId: pvData.id || null,
+      destinataireEmail,
       sujet,
-      message: messageFinal,
+      message,
       statut: "envoye",
       resendEmailId: resultatEmail.data?.id || null,
       erreur: null,
-      envoyePar: user.id,
+      envoyePar: profil.id,
     });
 
-    return Response.json({
-      success: true,
+    return NextResponse.json({
+      succes: true,
       message: "PV envoyé au client.",
       emailId: resultatEmail.data?.id || null,
+      destinataireEmail,
     });
   } catch (error: any) {
     console.error("Erreur envoi email PV fin chantier :", error);
 
-    if (supabaseAdmin && contexteErreur) {
-      await enregistrerHistoriqueEmail({
-        supabaseAdmin,
-        entrepriseId: contexteErreur.entrepriseId,
-        ficheId: contexteErreur.ficheId,
-        pvId: contexteErreur.pvId,
-        destinataireEmail: contexteErreur.destinataireEmail,
-        sujet: contexteErreur.sujet,
-        message: contexteErreur.message,
-        statut: "erreur",
-        resendEmailId: null,
-        erreur: error?.message || "Erreur inconnue",
-        envoyePar: contexteErreur.envoyePar,
-      });
-    }
+    await enregistrerHistoriqueEmail({
+      supabaseAdmin,
+      entrepriseId,
+      ficheId,
+      pvId: pvData.id || null,
+      destinataireEmail,
+      sujet,
+      message,
+      statut: "erreur",
+      resendEmailId: null,
+      erreur: error?.message || "Erreur inconnue pendant l’envoi.",
+      envoyePar: profil.id,
+    });
 
-    return reponseErreur(
-      error?.message || "Impossible d’envoyer le PV par email.",
-      500
+    return NextResponse.json(
+      {
+        erreur:
+          error?.message ||
+          "Impossible de générer ou d’envoyer le PV de fin de chantier.",
+      },
+      { status: 500 }
     );
   }
 }

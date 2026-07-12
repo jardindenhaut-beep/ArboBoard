@@ -27,29 +27,92 @@ type Salarie = {
 type FicheIntervention = {
   id: string;
   entreprise_id: string;
+
+  numero: string | null;
+  devis_id: string | null;
+  facture_id: string | null;
+
   client_id: string | null;
   client_nom: string | null;
+
   salarie_id: string | null;
   salarie_nom: string | null;
+
   titre: string | null;
   type_intervention: string | null;
   statut: string | null;
+
   date_intervention: string | null;
   heure_debut: string | null;
   heure_fin: string | null;
+
+  date_prevue: string | null;
+  heure_debut_prevue: string | null;
+  heure_fin_prevue: string | null;
+
+  heure_debut_reelle: string | null;
+  heure_fin_reelle: string | null;
+
   adresse: string | null;
   code_postal: string | null;
   ville: string | null;
+
+  adresse_chantier: string | null;
+  code_postal_chantier: string | null;
+  ville_chantier: string | null;
+  notes_chantier: string | null;
+
   travaux_prevus: string | null;
   materiel_prevu: string | null;
   consignes_securite: string | null;
   notes_internes: string | null;
-  commentaire_salarie: string | null;
+
   validation_materiel_charge: boolean | null;
   validation_arrivee: boolean | null;
   validation_fin_intervention: boolean | null;
+
+  etape_materiel_statut: string | null;
+  etape_arrivee_statut: string | null;
+  etape_fin_statut: string | null;
+
+  commentaire_preparation: string | null;
+  commentaire_arrivee: string | null;
+  commentaire_fin: string | null;
+
+  probleme_signale: boolean | null;
+  description_probleme: string | null;
+
   created_at: string | null;
   updated_at: string | null;
+};
+
+type FicheSalarie = {
+  id: string;
+  fiche_id: string;
+  salarie_id: string | null;
+  salarie_nom: string | null;
+  role_chantier: string | null;
+  heure_arrivee_prevue: string | null;
+  heure_depart_prevue: string | null;
+  heure_arrivee_reelle: string | null;
+  heure_depart_reelle: string | null;
+};
+
+type FicheElement = {
+  id: string;
+  fiche_id: string;
+  article_id: string | null;
+  nom: string;
+  categorie: string;
+  icone: string | null;
+  couleur: string | null;
+  quantite_prevue: number | null;
+  quantite_reelle: number | null;
+  unite: string | null;
+  obligatoire: boolean | null;
+  coche_prepare: boolean | null;
+  commentaire_chef: string | null;
+  commentaire_salarie: string | null;
 };
 
 function dateISO(date: Date) {
@@ -64,6 +127,18 @@ function ajouterJours(date: Date, jours: number) {
   const copie = new Date(date);
   copie.setDate(copie.getDate() + jours);
   return copie;
+}
+
+function datePlanning(fiche: FicheIntervention) {
+  return fiche.date_prevue || fiche.date_intervention || null;
+}
+
+function heureDebutPlanning(fiche: FicheIntervention) {
+  return fiche.heure_debut_prevue || fiche.heure_debut || null;
+}
+
+function heureFinPlanning(fiche: FicheIntervention) {
+  return fiche.heure_fin_prevue || fiche.heure_fin || null;
 }
 
 function formatDate(date: string | null) {
@@ -95,7 +170,7 @@ function formatDateCourte(date: string | null) {
   }
 }
 
-function formatHeure(heure: string | null) {
+function formatHeure(heure: string | null | undefined) {
   if (!heure) return "—";
   return heure.slice(0, 5);
 }
@@ -120,23 +195,35 @@ function badgeStatut(statut: string | null | undefined) {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
-function libelleType(type: string | null | undefined) {
-  if (type === "entretien") return "Entretien";
-  if (type === "elagage") return "Élagage";
-  if (type === "abattage") return "Abattage";
-  if (type === "taille") return "Taille";
-  if (type === "tonte") return "Tonte";
-  if (type === "debroussaillage") return "Débroussaillage";
-  if (type === "creation") return "Création";
-  return "Autre";
+function badgeEtape(statut: string | null | undefined) {
+  if (statut === "valide") return "bg-emerald-100 text-emerald-700";
+  if (statut === "en_cours") return "bg-amber-100 text-amber-700";
+  if (statut === "probleme") return "bg-red-100 text-red-700";
+  return "bg-slate-100 text-slate-500";
+}
+
+function libelleEtape(statut: string | null | undefined) {
+  if (statut === "valide") return "Validée";
+  if (statut === "en_cours") return "En cours";
+  if (statut === "probleme") return "Problème";
+  if (statut === "a_preparer") return "À préparer";
+  return "En attente";
 }
 
 function titreFiche(fiche: FicheIntervention) {
   return fiche.titre || "Intervention sans titre";
 }
 
+function adresseFiche(fiche: FicheIntervention) {
+  const adresse = fiche.adresse_chantier || fiche.adresse || "";
+  const codePostal = fiche.code_postal_chantier || fiche.code_postal || "";
+  const ville = fiche.ville_chantier || fiche.ville || "";
+
+  return [adresse, codePostal, ville].filter(Boolean).join(", ") || "—";
+}
+
 function nomSalarie(salarie: Salarie | null | undefined) {
-  if (!salarie) return "Non affecté";
+  if (!salarie) return "Salarié";
 
   const complet = `${salarie.prenom || ""} ${salarie.nom || ""}`.trim();
 
@@ -144,23 +231,26 @@ function nomSalarie(salarie: Salarie | null | undefined) {
 }
 
 function comparerFiches(a: FicheIntervention, b: FicheIntervention) {
-  const dateA = a.date_intervention || "9999-12-31";
-  const dateB = b.date_intervention || "9999-12-31";
+  const dateA = datePlanning(a) || "9999-12-31";
+  const dateB = datePlanning(b) || "9999-12-31";
 
   if (dateA !== dateB) {
     return dateA.localeCompare(dateB);
   }
 
-  const heureA = a.heure_debut || "99:99";
-  const heureB = b.heure_debut || "99:99";
+  const heureA = heureDebutPlanning(a) || "99:99";
+  const heureB = heureDebutPlanning(b) || "99:99";
 
   return heureA.localeCompare(heureB);
 }
 
 export default function PlanningChefPage() {
   const [entrepriseId, setEntrepriseId] = useState("");
+
   const [fiches, setFiches] = useState<FicheIntervention[]>([]);
   const [salaries, setSalaries] = useState<Salarie[]>([]);
+  const [salariesFiches, setSalariesFiches] = useState<FicheSalarie[]>([]);
+  const [elementsFiches, setElementsFiches] = useState<FicheElement[]>([]);
 
   const [chargement, setChargement] = useState(true);
   const [actionEnCours, setActionEnCours] = useState(false);
@@ -213,8 +303,10 @@ export default function PlanningChefPage() {
       .from("fiches_intervention")
       .select("*")
       .eq("entreprise_id", idEntreprise)
-      .order("date_intervention", { ascending: true })
-      .order("heure_debut", { ascending: true })
+      .order("date_prevue", { ascending: true, nullsFirst: false })
+      .order("date_intervention", { ascending: true, nullsFirst: false })
+      .order("heure_debut_prevue", { ascending: true, nullsFirst: false })
+      .order("heure_debut", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -225,7 +317,24 @@ export default function PlanningChefPage() {
       return;
     }
 
-    setFiches(((data || []) as FicheIntervention[]).sort(comparerFiches));
+    const fichesChargees = ((data || []) as FicheIntervention[]).sort(
+      comparerFiches
+    );
+
+    setFiches(fichesChargees);
+
+    const idsFiches = fichesChargees.map((fiche) => fiche.id);
+
+    if (idsFiches.length === 0) {
+      setSalariesFiches([]);
+      setElementsFiches([]);
+      return;
+    }
+
+    await Promise.all([
+      chargerSalariesFiches(idEntreprise, idsFiches),
+      chargerElementsFiches(idEntreprise, idsFiches),
+    ]);
   }
 
   async function chargerSalaries(idEntreprise = entrepriseId) {
@@ -245,11 +354,74 @@ export default function PlanningChefPage() {
     const salariesActifs = ((data || []) as Salarie[]).filter(
       (salarie) =>
         salarie.statut !== "archive" &&
+        salarie.statut !== "archivee" &&
         salarie.statut !== "inactif" &&
         salarie.statut !== "supprime"
     );
 
     setSalaries(salariesActifs);
+  }
+
+  async function chargerSalariesFiches(idEntreprise: string, ficheIds: string[]) {
+    const { data, error } = await supabase
+      .from("fiches_intervention_salaries")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .in("fiche_id", ficheIds)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Erreur chargement équipes fiches :", error);
+      setSalariesFiches([]);
+      return;
+    }
+
+    setSalariesFiches((data || []) as FicheSalarie[]);
+  }
+
+  async function chargerElementsFiches(idEntreprise: string, ficheIds: string[]) {
+    const { data, error } = await supabase
+      .from("fiches_intervention_elements")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .in("fiche_id", ficheIds)
+      .order("ordre", { ascending: true });
+
+    if (error) {
+      console.error("Erreur chargement éléments planning :", error);
+      setElementsFiches([]);
+      return;
+    }
+
+    setElementsFiches((data || []) as FicheElement[]);
+  }
+
+  function equipeFiche(fiche: FicheIntervention) {
+    const equipe = salariesFiches.filter((item) => item.fiche_id === fiche.id);
+
+    if (equipe.length > 0) return equipe;
+
+    if (fiche.salarie_id || fiche.salarie_nom) {
+      return [
+        {
+          id: `legacy-${fiche.id}`,
+          fiche_id: fiche.id,
+          salarie_id: fiche.salarie_id,
+          salarie_nom: fiche.salarie_nom || "Salarié",
+          role_chantier: "Intervenant",
+          heure_arrivee_prevue: heureDebutPlanning(fiche),
+          heure_depart_prevue: heureFinPlanning(fiche),
+          heure_arrivee_reelle: fiche.heure_debut_reelle,
+          heure_depart_reelle: fiche.heure_fin_reelle,
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  function elementsFiche(fiche: FicheIntervention) {
+    return elementsFiches.filter((element) => element.fiche_id === fiche.id);
   }
 
   const fichesFiltrees = useMemo(() => {
@@ -280,30 +452,45 @@ export default function PlanningChefPage() {
           filtreStatut === "tous" || statut === filtreStatut;
 
         let correspondPeriode = true;
+        const dateFiche = datePlanning(fiche);
 
         if (periode !== "tous") {
-          if (!fiche.date_intervention) {
+          if (!dateFiche) {
             correspondPeriode = false;
           } else if (periode === "aujourdhui") {
-            correspondPeriode = fiche.date_intervention === aujourdHui;
+            correspondPeriode = dateFiche === aujourdHui;
           } else if (dateFin) {
-            correspondPeriode =
-              fiche.date_intervention >= aujourdHui &&
-              fiche.date_intervention <= dateFin;
+            correspondPeriode = dateFiche >= aujourdHui && dateFiche <= dateFin;
           }
         }
 
+        const equipe = equipeFiche(fiche)
+          .map((item) => item.salarie_nom)
+          .join(" ");
+
+        const elements = elementsFiche(fiche)
+          .map((item) => item.nom)
+          .join(" ");
+
         const zoneRecherche = [
+          fiche.numero,
           fiche.titre,
           fiche.client_nom,
           fiche.salarie_nom,
+          equipe,
           fiche.type_intervention,
           fiche.adresse,
           fiche.code_postal,
           fiche.ville,
+          fiche.adresse_chantier,
+          fiche.code_postal_chantier,
+          fiche.ville_chantier,
+          fiche.notes_chantier,
           fiche.travaux_prevus,
           fiche.materiel_prevu,
+          fiche.consignes_securite,
           fiche.notes_internes,
+          elements,
         ]
           .filter(Boolean)
           .join(" ")
@@ -315,13 +502,20 @@ export default function PlanningChefPage() {
         return correspondStatut && correspondPeriode && correspondRecherche;
       })
       .sort(comparerFiches);
-  }, [fiches, recherche, filtreStatut, periode]);
+  }, [
+    fiches,
+    salariesFiches,
+    elementsFiches,
+    recherche,
+    filtreStatut,
+    periode,
+  ]);
 
   const fichesGroupees = useMemo(() => {
     const groupes: Record<string, FicheIntervention[]> = {};
 
     fichesFiltrees.forEach((fiche) => {
-      const cle = fiche.date_intervention || "non_datee";
+      const cle = datePlanning(fiche) || "non_datee";
 
       if (!groupes[cle]) {
         groupes[cle] = [];
@@ -344,7 +538,7 @@ export default function PlanningChefPage() {
       total: fiches.filter((fiche) => fiche.statut !== "archivee").length,
       aujourdHui: fiches.filter(
         (fiche) =>
-          fiche.date_intervention === aujourdhui && fiche.statut !== "archivee"
+          datePlanning(fiche) === aujourdhui && fiche.statut !== "archivee"
       ).length,
       planifiees: fiches.filter((fiche) => fiche.statut === "planifiee").length,
       enCours: fiches.filter((fiche) => fiche.statut === "en_cours").length,
@@ -384,47 +578,108 @@ export default function PlanningChefPage() {
     }
   }
 
-  async function affecterSalarie(
-    fiche: FicheIntervention,
-    salarieId: string
-  ) {
-    if (!entrepriseId) return;
+  function renduEquipe(fiche: FicheIntervention) {
+    const equipe = equipeFiche(fiche);
 
-    try {
-      setActionEnCours(true);
-      setMessageErreur("");
-      setMessageSucces("");
-
-      const salarie = salaries.find((item) => item.id === salarieId);
-
-      const payload = {
-        salarie_id: salarieId || null,
-        salarie_nom: salarie ? nomSalarie(salarie) : null,
-      };
-
-      const { error } = await supabase
-        .from("fiches_intervention")
-        .update(payload)
-        .eq("id", fiche.id)
-        .eq("entreprise_id", entrepriseId);
-
-      if (error) throw error;
-
-      await chargerFiches(entrepriseId);
-
-      setMessageSucces(
-        salarie
-          ? `Intervention affectée à ${nomSalarie(salarie)}.`
-          : "Affectation salarié retirée."
+    if (equipe.length === 0) {
+      return (
+        <p className="text-sm text-slate-500">
+          Aucun salarié affecté. À compléter dans la fiche.
+        </p>
       );
-    } catch (error: any) {
-      console.error("Erreur affectation salarié :", error);
-      setMessageErreur(
-        error?.message || "Impossible d’affecter le salarié à l’intervention."
-      );
-    } finally {
-      setActionEnCours(false);
     }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {equipe.map((item) => (
+          <span
+            key={item.id}
+            className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700"
+          >
+            👤 {item.salarie_nom || "Salarié"}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  function renduElements(fiche: FicheIntervention) {
+    const elements = elementsFiche(fiche);
+
+    if (elements.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Éléments fiche
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {elements.slice(0, 10).map((element) => (
+            <span
+              key={element.id}
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+            >
+              <span>{element.icone || "•"}</span>
+              <span>{element.nom}</span>
+            </span>
+          ))}
+
+          {elements.length > 10 && (
+            <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+              +{elements.length - 10}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renduEtapes(fiche: FicheIntervention) {
+    return (
+      <div className="mt-4 grid gap-2 md:grid-cols-3">
+        <span
+          className={`rounded-full px-3 py-2 text-center text-xs font-semibold ${badgeEtape(
+            fiche.etape_materiel_statut ||
+              (fiche.validation_materiel_charge ? "valide" : "a_preparer")
+          )}`}
+        >
+          Matériel :{" "}
+          {libelleEtape(
+            fiche.etape_materiel_statut ||
+              (fiche.validation_materiel_charge ? "valide" : "a_preparer")
+          )}
+        </span>
+
+        <span
+          className={`rounded-full px-3 py-2 text-center text-xs font-semibold ${badgeEtape(
+            fiche.etape_arrivee_statut ||
+              (fiche.validation_arrivee ? "valide" : "en_attente")
+          )}`}
+        >
+          Arrivée :{" "}
+          {libelleEtape(
+            fiche.etape_arrivee_statut ||
+              (fiche.validation_arrivee ? "valide" : "en_attente")
+          )}
+        </span>
+
+        <span
+          className={`rounded-full px-3 py-2 text-center text-xs font-semibold ${badgeEtape(
+            fiche.etape_fin_statut ||
+              (fiche.validation_fin_intervention ? "valide" : "en_attente")
+          )}`}
+        >
+          Fin / PV :{" "}
+          {libelleEtape(
+            fiche.etape_fin_statut ||
+              (fiche.validation_fin_intervention ? "valide" : "en_attente")
+          )}
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -434,8 +689,9 @@ export default function PlanningChefPage() {
           <p className="text-sm font-medium text-emerald-700">Arboboard</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Planning</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Le planning est alimenté par vos fiches d’intervention. Planifiez,
-            affectez un salarié et suivez l’avancement terrain.
+            Le planning est alimenté automatiquement par les fiches
+            d’intervention créées depuis les devis. Il affiche la date prévue,
+            les horaires, l’équipe affectée et l’avancement terrain.
           </p>
         </div>
 
@@ -451,7 +707,7 @@ export default function PlanningChefPage() {
             href="/chef/interventions"
             className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
           >
-            + Créer une fiche
+            + Créer depuis devis
           </Link>
         </div>
       </section>
@@ -469,45 +725,45 @@ export default function PlanningChefPage() {
       )}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
+          <p className="mt-2 text-3xl font-bold text-slate-950">
             {statistiques.total}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-slate-400">
             Aujourd’hui
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
+          <p className="mt-2 text-3xl font-bold text-slate-950">
             {statistiques.aujourdHui}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
+        <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-blue-500">
             Planifiées
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
+          <p className="mt-2 text-3xl font-bold text-blue-900">
             {statistiques.planifiees}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
+        <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-amber-500">
             En cours
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
+          <p className="mt-2 text-3xl font-bold text-amber-900">
             {statistiques.enCours}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
+        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+          <p className="text-xs uppercase tracking-wide text-emerald-500">
             Terminées
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
+          <p className="mt-2 text-3xl font-bold text-emerald-900">
             {statistiques.terminees}
           </p>
         </div>
@@ -518,7 +774,7 @@ export default function PlanningChefPage() {
           <input
             value={recherche}
             onChange={(event) => setRecherche(event.target.value)}
-            placeholder="Rechercher client, salarié, ville, type d’intervention..."
+            placeholder="Rechercher client, salarié, ville, matériel, travaux..."
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
           />
 
@@ -571,14 +827,15 @@ export default function PlanningChefPage() {
               Aucune intervention dans le planning
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Créez une fiche d’intervention avec une date pour l’afficher ici.
+              Créez une fiche d’intervention avec une date prévue pour
+              l’afficher ici.
             </p>
 
             <Link
               href="/chef/interventions"
               className="mt-5 inline-flex rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              Créer une fiche
+              Créer depuis un devis
             </Link>
           </div>
         ) : (
@@ -588,7 +845,9 @@ export default function PlanningChefPage() {
                 <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-bold capitalize text-slate-950">
-                      {date === "non_datee" ? "Interventions non datées" : formatDate(date)}
+                      {date === "non_datee"
+                        ? "Interventions non datées"
+                        : formatDate(date)}
                     </h2>
                     <p className="text-sm text-slate-500">
                       {fichesDuJour.length} intervention
@@ -609,11 +868,11 @@ export default function PlanningChefPage() {
                       key={fiche.id}
                       className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
                     >
-                      <div className="grid gap-4 xl:grid-cols-[1fr_260px]">
+                      <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span
-                              className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
+                              className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
                                 fiche.statut
                               )}`}
                             >
@@ -621,8 +880,14 @@ export default function PlanningChefPage() {
                             </span>
 
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                              {libelleType(fiche.type_intervention)}
+                              {fiche.type_intervention || "Intervention"}
                             </span>
+
+                            {fiche.numero && (
+                              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                                {fiche.numero}
+                              </span>
+                            )}
                           </div>
 
                           <h3 className="mt-3 text-lg font-bold text-slate-950">
@@ -639,94 +904,55 @@ export default function PlanningChefPage() {
 
                             <p>
                               <span className="font-semibold text-slate-800">
-                                Salarié :
-                              </span>{" "}
-                              {fiche.salarie_nom || "Non affecté"}
-                            </p>
-
-                            <p>
-                              <span className="font-semibold text-slate-800">
                                 Horaires :
                               </span>{" "}
-                              {formatHeure(fiche.heure_debut)} →{" "}
-                              {formatHeure(fiche.heure_fin)}
+                              {formatHeure(heureDebutPlanning(fiche))} →{" "}
+                              {formatHeure(heureFinPlanning(fiche))}
                             </p>
 
-                            <p>
+                            <p className="md:col-span-2">
                               <span className="font-semibold text-slate-800">
                                 Adresse :
                               </span>{" "}
-                              {[fiche.adresse, fiche.code_postal, fiche.ville]
-                                .filter(Boolean)
-                                .join(", ") || "—"}
+                              {adresseFiche(fiche)}
                             </p>
                           </div>
 
-                          {fiche.travaux_prevus && (
-                            <div className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-700">
-                              <p className="font-semibold text-slate-900">
-                                Travaux prévus
-                              </p>
-                              <p className="mt-1 whitespace-pre-line">
-                                {fiche.travaux_prevus}
-                              </p>
+                          {fiche.notes_chantier && (
+                            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                              <span className="font-semibold">
+                                Notes chantier :
+                              </span>{" "}
+                              {fiche.notes_chantier}
                             </div>
                           )}
 
-                          <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                            <span
-                              className={`rounded-full px-3 py-1 font-medium ${
-                                fiche.validation_materiel_charge
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
-                            >
-                              Matériel chargé
-                            </span>
-
-                            <span
-                              className={`rounded-full px-3 py-1 font-medium ${
-                                fiche.validation_arrivee
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
-                            >
-                              Arrivé sur site
-                            </span>
-
-                            <span
-                              className={`rounded-full px-3 py-1 font-medium ${
-                                fiche.validation_fin_intervention
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
-                            >
-                              Intervention terminée
-                            </span>
+                          <div className="mt-4">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              Équipe
+                            </p>
+                            {renduEquipe(fiche)}
                           </div>
+
+                          {renduEtapes(fiche)}
+                          {renduElements(fiche)}
+
+                          {fiche.probleme_signale && (
+                            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                              <p className="font-semibold">Problème signalé</p>
+                              {fiche.description_probleme && (
+                                <p className="mt-1">
+                                  {fiche.description_probleme}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-3 rounded-2xl bg-white p-4">
-                          <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-500">
-                              Affecter un salarié
-                            </label>
-                            <select
-                              value={fiche.salarie_id || ""}
-                              onChange={(event) =>
-                                affecterSalarie(fiche, event.target.value)
-                              }
-                              disabled={actionEnCours}
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
-                            >
-                              <option value="">Non affecté</option>
-                              {salaries.map((salarie) => (
-                                <option key={salarie.id} value={salarie.id}>
-                                  {nomSalarie(salarie)}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          <p className="text-sm font-bold text-slate-950">
+                            Actions planning
+                          </p>
 
                           <div className="grid grid-cols-2 gap-2">
                             <button
@@ -736,7 +962,7 @@ export default function PlanningChefPage() {
                               disabled={actionEnCours}
                               className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
                             >
-                              Planifier
+                              Planifiée
                             </button>
 
                             <button
@@ -756,7 +982,7 @@ export default function PlanningChefPage() {
                               disabled={actionEnCours}
                               className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
                             >
-                              Terminer
+                              Terminée
                             </button>
 
                             <button
@@ -766,7 +992,7 @@ export default function PlanningChefPage() {
                               disabled={actionEnCours}
                               className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
                             >
-                              Annuler
+                              Annulée
                             </button>
                           </div>
 
@@ -774,8 +1000,14 @@ export default function PlanningChefPage() {
                             href="/chef/interventions"
                             className="flex w-full items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
                           >
-                            Modifier la fiche
+                            Ouvrir la fiche
                           </Link>
+
+                          <p className="text-xs text-slate-500">
+                            L’affectation de l’équipe se fait dans la fiche
+                            d’intervention pour éviter d’écraser les salariés
+                            déjà sélectionnés.
+                          </p>
                         </div>
                       </div>
                     </article>

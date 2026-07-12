@@ -152,7 +152,65 @@ async function genererPdfPv({
   return Buffer.from(buffer);
 }
 
+async function enregistrerHistoriqueEmail({
+  supabaseAdmin,
+  entrepriseId,
+  ficheId,
+  pvId,
+  destinataireEmail,
+  sujet,
+  message,
+  statut,
+  resendEmailId,
+  erreur,
+  envoyePar,
+}: {
+  supabaseAdmin: any;
+  entrepriseId: string;
+  ficheId: string;
+  pvId: string | null;
+  destinataireEmail: string;
+  sujet: string;
+  message: string;
+  statut: "envoye" | "erreur";
+  resendEmailId?: string | null;
+  erreur?: string | null;
+  envoyePar?: string | null;
+}) {
+  const { error } = await supabaseAdmin
+    .from("pv_fin_chantier_emails")
+    .insert({
+      entreprise_id: entrepriseId,
+      fiche_id: ficheId,
+      pv_id: pvId,
+      destinataire_email: destinataireEmail,
+      sujet,
+      message,
+      statut,
+      resend_email_id: resendEmailId || null,
+      erreur: erreur || null,
+      envoye_par: envoyePar || null,
+    });
+
+  if (error) {
+    console.error("Erreur insertion historique email PV :", error);
+  }
+}
+
 export async function POST(request: Request) {
+  let supabaseAdmin: any = null;
+  let contexteErreur:
+    | {
+        entrepriseId: string;
+        ficheId: string;
+        pvId: string | null;
+        destinataireEmail: string;
+        sujet: string;
+        message: string;
+        envoyePar: string | null;
+      }
+    | null = null;
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -193,7 +251,7 @@ export async function POST(request: Request) {
       return reponseErreur("Session utilisateur invalide.", 401);
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         persistSession: false,
       },
@@ -250,20 +308,14 @@ export async function POST(request: Request) {
     const parametresEntreprise =
       await chargerParametresEntrepriseDocument(entrepriseId);
 
-    const pdfBuffer = await genererPdfPv({
-      supabaseAdmin,
-      entrepriseId,
-      fiche,
-      pv,
-      parametresEntreprise,
-    });
-
     const nomEntreprise =
       parametresEntreprise?.nom_entreprise || "Votre entreprise";
     const emailEntreprise = parametresEntreprise?.email || "";
     const telephoneEntreprise = parametresEntreprise?.telephone || "";
     const adresseChantier = ligneAdresse(fiche);
-    const dateChantier = formatDate(fiche.date_prevue || fiche.date_intervention);
+    const dateChantier = formatDate(
+      fiche.date_prevue || fiche.date_intervention
+    );
 
     const numeroFiche = fiche.numero || fiche.id;
     const nomBase = nettoyerNomFichier(`pv-fin-chantier-${numeroFiche}`);
@@ -272,11 +324,35 @@ export async function POST(request: Request) {
       fiche.titre || fiche.type_intervention || "Intervention"
     }`;
 
-    const messageHtml = messagePersonnalise
-      ? texteHtml(messagePersonnalise).replace(/\n/g, "<br />")
-      : `Bonjour,<br /><br />Veuillez trouver ci-joint le procès-verbal de fin de chantier concernant notre intervention${
-          dateChantier ? ` du ${texteHtml(dateChantier)}` : ""
-        }.<br /><br />Cordialement.`;
+    const messageFinal = messagePersonnalise
+      ? messagePersonnalise
+      : `Bonjour,
+
+Veuillez trouver ci-joint le procès-verbal de fin de chantier concernant notre intervention${
+          dateChantier ? ` du ${dateChantier}` : ""
+        }.
+
+Cordialement.`;
+
+    contexteErreur = {
+      entrepriseId,
+      ficheId,
+      pvId: pv.id,
+      destinataireEmail: emailDestinataire,
+      sujet,
+      message: messageFinal,
+      envoyePar: user.id,
+    };
+
+    const pdfBuffer = await genererPdfPv({
+      supabaseAdmin,
+      entrepriseId,
+      fiche,
+      pv,
+      parametresEntreprise,
+    });
+
+    const messageHtml = texteHtml(messageFinal).replace(/\n/g, "<br />");
 
     const html = `
       <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
@@ -342,6 +418,20 @@ export async function POST(request: Request) {
     if (resultatEmail.error) {
       console.error("Erreur Resend envoi PV :", resultatEmail.error);
 
+      await enregistrerHistoriqueEmail({
+        supabaseAdmin,
+        entrepriseId,
+        ficheId,
+        pvId: pv.id,
+        destinataireEmail: emailDestinataire,
+        sujet,
+        message: messageFinal,
+        statut: "erreur",
+        resendEmailId: null,
+        erreur: resultatEmail.error.message || "Erreur Resend",
+        envoyePar: user.id,
+      });
+
       return reponseErreur(
         resultatEmail.error.message || "Impossible d’envoyer l’email.",
         500
@@ -357,6 +447,20 @@ export async function POST(request: Request) {
       .eq("id", pv.id)
       .eq("entreprise_id", entrepriseId);
 
+    await enregistrerHistoriqueEmail({
+      supabaseAdmin,
+      entrepriseId,
+      ficheId,
+      pvId: pv.id,
+      destinataireEmail: emailDestinataire,
+      sujet,
+      message: messageFinal,
+      statut: "envoye",
+      resendEmailId: resultatEmail.data?.id || null,
+      erreur: null,
+      envoyePar: user.id,
+    });
+
     return Response.json({
       success: true,
       message: "PV envoyé au client.",
@@ -364,6 +468,22 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error("Erreur envoi email PV fin chantier :", error);
+
+    if (supabaseAdmin && contexteErreur) {
+      await enregistrerHistoriqueEmail({
+        supabaseAdmin,
+        entrepriseId: contexteErreur.entrepriseId,
+        ficheId: contexteErreur.ficheId,
+        pvId: contexteErreur.pvId,
+        destinataireEmail: contexteErreur.destinataireEmail,
+        sujet: contexteErreur.sujet,
+        message: contexteErreur.message,
+        statut: "erreur",
+        resendEmailId: null,
+        erreur: error?.message || "Erreur inconnue",
+        envoyePar: contexteErreur.envoyePar,
+      });
+    }
 
     return reponseErreur(
       error?.message || "Impossible d’envoyer le PV par email.",

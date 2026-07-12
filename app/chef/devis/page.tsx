@@ -9,6 +9,7 @@ import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocu
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
+import BoutonCreerFicheInterventionDepuisDevis from "@/components/devis/BoutonCreerFicheInterventionDepuisDevis";
 
 type Client = {
   id: string;
@@ -1064,6 +1065,12 @@ Cordialement.`;
                         documentId={item.id}
                         numero={item.numero}
                       />
+
+                      <BoutonCreerFicheInterventionDepuisDevis
+  devisId={item.id}
+  statut={item.statut}
+  factureLiee={item.facture_liee || null}
+/>
 
                       {item.facture_liee && (
                         <Link

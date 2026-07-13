@@ -683,8 +683,7 @@ ${nomEntreprise}`;
         .update({
           envoye_client_at: dateEnvoi,
           envoye_client_email: destinataireEmail,
-          client_email:
-            pvData.client_email || destinataireEmail,
+          client_email: destinataireEmail,
           updated_at: dateEnvoi,
         })
         .eq("entreprise_id", entrepriseId)

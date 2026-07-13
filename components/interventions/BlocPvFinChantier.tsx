@@ -35,6 +35,7 @@ type Props = {
   clientEmail?: string | null;
   signataireEntrepriseNom?: string | null;
   afficherEnvoiEmail?: boolean;
+  autoriserSuppression?: boolean;
 };
 
 type SignaturePadProps = {
@@ -147,7 +148,7 @@ function SignaturePad({
   }
 
   function terminerDessin() {
-    if (disabled) return;
+    if (disabled || !dessinActifRef.current) return;
 
     const canvas = canvasRef.current;
 
@@ -195,7 +196,7 @@ function SignaturePad({
         onTouchStart={commencerDessin}
         onTouchMove={dessiner}
         onTouchEnd={terminerDessin}
-        className={`h-40 w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 ${
+        className={`h-40 w-full touch-none rounded-2xl border border-dashed border-slate-300 bg-slate-50 ${
           disabled ? "cursor-not-allowed opacity-60" : "cursor-crosshair"
         }`}
       />
@@ -231,6 +232,7 @@ export default function BlocPvFinChantier({
   clientEmail = null,
   signataireEntrepriseNom = null,
   afficherEnvoiEmail = true,
+  autoriserSuppression = afficherEnvoiEmail,
 }: Props) {
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
@@ -258,12 +260,18 @@ export default function BlocPvFinChantier({
   const [messageSucces, setMessageSucces] = useState("");
 
   useEffect(() => {
-    chargerPv();
-    chargerEmailClient();
+    chargerPvEtEmail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entrepriseId, ficheId, clientId]);
+  }, [
+    entrepriseId,
+    ficheId,
+    clientId,
+    clientEmail,
+    clientNom,
+    signataireEntrepriseNom,
+  ]);
 
-  async function chargerPv() {
+  async function chargerPvEtEmail() {
     if (!entrepriseId || !ficheId) {
       setChargement(false);
       return;
@@ -285,6 +293,8 @@ export default function BlocPvFinChantier({
 
       if (error) throw error;
 
+      const emailClientSource = await recupererEmailClient();
+
       if (!data) {
         setPv(null);
         setClientPresent(true);
@@ -296,6 +306,7 @@ export default function BlocPvFinChantier({
         setSignatureEntreprise("");
         setSignataireClientNom(clientNom || "");
         setSignataireEntreprise(signataireEntrepriseNom || "");
+        setClientEmailCharge(emailClientSource);
         return;
       }
 
@@ -314,9 +325,9 @@ export default function BlocPvFinChantier({
         pvCharge.signataire_entreprise_nom || signataireEntrepriseNom || ""
       );
 
-      if (pvCharge.client_email) {
-        setClientEmailCharge(pvCharge.client_email);
-      }
+      setClientEmailCharge(
+        pvCharge.client_email?.trim() || emailClientSource
+      );
     } catch (error: any) {
       console.error("Erreur chargement PV fin chantier :", error);
       setMessageErreur(
@@ -327,23 +338,29 @@ export default function BlocPvFinChantier({
     }
   }
 
-  async function chargerEmailClient() {
-    if (clientEmail) {
-      setClientEmailCharge(clientEmail);
-      return;
-    }
+  async function recupererEmailClient() {
+    const emailFourni = clientEmail?.trim() || "";
 
-    if (!clientId || !entrepriseId) return;
+    if (emailFourni) return emailFourni;
+    if (!clientId || !entrepriseId) return "";
 
-    const { data, error } = await supabase
-      .from("clients")
-      .select("email")
-      .eq("entreprise_id", entrepriseId)
-      .eq("id", clientId)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("email")
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", clientId)
+        .maybeSingle();
 
-    if (!error && data?.email) {
-      setClientEmailCharge(data.email);
+      if (error) {
+        console.error("Erreur chargement email client PV :", error);
+        return "";
+      }
+
+      return data?.email?.trim() || "";
+    } catch (error) {
+      console.error("Erreur chargement email client PV :", error);
+      return "";
     }
   }
 
@@ -352,6 +369,7 @@ export default function BlocPvFinChantier({
       setMessageErreur("Fiche intervention introuvable.");
       return;
     }
+
 
     try {
       setEnregistrement(true);
@@ -363,7 +381,7 @@ export default function BlocPvFinChantier({
         fiche_id: ficheId,
         client_id: clientId || null,
         client_nom: clientNom || null,
-        client_email: clientEmailCharge || null,
+        client_email: clientEmailCharge.trim().toLowerCase() || null,
         client_present: clientPresent,
         chantier_termine: chantierTermine,
         reserves: reserves.trim() || null,
@@ -406,18 +424,21 @@ export default function BlocPvFinChantier({
       }
 
       if (pvEnregistre?.id) {
-        await supabase
+        const { error: erreurMiseAJourFiche } = await supabase
           .from("fiches_intervention")
           .update({
             pv_fin_chantier_id: pvEnregistre.id,
-            etape_fin_statut: "valide",
+            etape_fin_statut: chantierTermine ? "valide" : "probleme",
             updated_at: new Date().toISOString(),
           })
           .eq("entreprise_id", entrepriseId)
           .eq("id", ficheId);
+
+        if (erreurMiseAJourFiche) throw erreurMiseAJourFiche;
       }
 
       setPv(pvEnregistre);
+      setClientEmailCharge(pvEnregistre?.client_email || "");
       setMessageSucces("PV de fin de chantier enregistré.");
     } catch (error: any) {
       console.error("Erreur enregistrement PV fin chantier :", error);
@@ -452,7 +473,7 @@ export default function BlocPvFinChantier({
 
       if (error) throw error;
 
-      await supabase
+      const { error: erreurMiseAJourFiche } = await supabase
         .from("fiches_intervention")
         .update({
           pv_fin_chantier_id: null,
@@ -461,6 +482,8 @@ export default function BlocPvFinChantier({
         })
         .eq("entreprise_id", entrepriseId)
         .eq("id", ficheId);
+
+      if (erreurMiseAJourFiche) throw erreurMiseAJourFiche;
 
       setPv(null);
       setClientPresent(true);
@@ -523,28 +546,30 @@ export default function BlocPvFinChantier({
         </div>
 
         <div className="flex flex-wrap gap-2">
-  {pv?.id && (
-    <BoutonTelechargerPvFinChantierPdf ficheId={ficheId} />
-  )}
+          {pv?.id && (
+            <BoutonTelechargerPvFinChantierPdf ficheId={ficheId} />
+          )}
 
-  {pv?.id && afficherEnvoiEmail && (
-    <BoutonEnvoyerPvFinChantierEmail
-      ficheId={ficheId}
-      clientEmail={clientEmailCharge}
-    />
-  )}
+          {pv?.id && afficherEnvoiEmail && (
+            <BoutonEnvoyerPvFinChantierEmail
+              ficheId={ficheId}
+              pvId={pv.id}
+              emailClient={clientEmailCharge}
+              clientNom={clientNom}
+            />
+          )}
 
-  {pv?.id && (
-    <button
-      type="button"
-      onClick={supprimerPv}
-      disabled={suppression}
-      className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {suppression ? "Suppression..." : "Supprimer PV"}
-    </button>
-  )}
-</div>
+          {pv?.id && autoriserSuppression && (
+            <button
+              type="button"
+              onClick={supprimerPv}
+              disabled={suppression || enregistrement}
+              className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {suppression ? "Suppression..." : "Supprimer le PV"}
+            </button>
+          )}
+        </div>
       </div>
 
       {messageErreur && (
@@ -615,12 +640,26 @@ export default function BlocPvFinChantier({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
             />
 
-            <input
-              value={clientEmailCharge}
-              onChange={(event) => setClientEmailCharge(event.target.value)}
-              placeholder="Email client pour l’envoi du PV"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-            />
+            {afficherEnvoiEmail && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Email client
+                </label>
+
+                <input
+                  type="email"
+                  value={clientEmailCharge}
+                  onChange={(event) => setClientEmailCharge(event.target.value)}
+                  placeholder="client@email.fr"
+                  autoComplete="email"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Adresse reprise automatiquement depuis la fiche client.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -688,8 +727,8 @@ export default function BlocPvFinChantier({
       <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <button
           type="button"
-          onClick={chargerPv}
-          disabled={enregistrement}
+          onClick={chargerPvEtEmail}
+          disabled={enregistrement || suppression}
           className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Annuler les modifications
@@ -698,7 +737,7 @@ export default function BlocPvFinChantier({
         <button
           type="button"
           onClick={enregistrerPv}
-          disabled={enregistrement}
+          disabled={enregistrement || suppression}
           className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {enregistrement ? "Enregistrement..." : "Enregistrer le PV"}

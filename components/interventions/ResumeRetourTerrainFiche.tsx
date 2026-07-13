@@ -9,9 +9,9 @@ type PvFinChantierResume = {
   id: string;
   chantier_termine: boolean | null;
   client_present: boolean | null;
-  signature_client_data_url: string | null;
-  signature_entreprise_data_url: string | null;
-  reserves_client: string | null;
+  signature_client: string | null;
+  signature_entreprise: string | null;
+  reserves: string | null;
   commentaire_client: string | null;
   commentaire_entreprise: string | null;
   envoye_client_at: string | null;
@@ -114,9 +114,9 @@ export default function ResumeRetourTerrainFiche({
             id,
             chantier_termine,
             client_present,
-            signature_client_data_url,
-            signature_entreprise_data_url,
-            reserves_client,
+            signature_client,
+            signature_entreprise,
+            reserves,
             commentaire_client,
             commentaire_entreprise,
             envoye_client_at,
@@ -124,6 +124,8 @@ export default function ResumeRetourTerrainFiche({
           `)
           .eq("entreprise_id", entrepriseId)
           .eq("fiche_id", ficheId)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .maybeSingle(),
 
         supabase
@@ -208,14 +210,14 @@ export default function ResumeRetourTerrainFiche({
 
   const pvId = pv?.id ?? null;
   const pvEnregistre = Boolean(pvId);
-  const clientSigne = Boolean(pv?.signature_client_data_url);
-  const entrepriseSigne = Boolean(pv?.signature_entreprise_data_url);
+  const clientSigne = Boolean(pv?.signature_client);
+  const entrepriseSigne = Boolean(pv?.signature_entreprise);
   const chantierTermine = pv?.chantier_termine === true;
   const pvEnvoye = Boolean(pv?.envoye_client_at);
   const clientPresent = pv?.client_present === true;
 
   const reservesOuProbleme = Boolean(
-    pv?.reserves_client ||
+    pv?.reserves ||
       pv?.commentaire_client ||
       pv?.commentaire_entreprise ||
       problemeSignale
@@ -357,8 +359,8 @@ export default function ResumeRetourTerrainFiche({
               <p className="mt-1 whitespace-pre-line">{descriptionProbleme}</p>
             )}
 
-            {!descriptionProbleme && pv?.reserves_client && (
-              <p className="mt-1 whitespace-pre-line">{pv.reserves_client}</p>
+            {!descriptionProbleme && pv?.reserves && (
+              <p className="mt-1 whitespace-pre-line">{pv.reserves}</p>
             )}
           </div>
         )}

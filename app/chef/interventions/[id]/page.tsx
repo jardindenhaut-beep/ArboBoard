@@ -972,6 +972,8 @@ export default function DetailFicheInterventionPage() {
           ficheId={fiche.id}
           problemeSignale={fiche.probleme_signale}
           descriptionProbleme={fiche.description_probleme}
+          afficherActionsPv={false}
+          autoriserEnvoiClient={true}
         />
       </section>
 

@@ -1680,6 +1680,8 @@ export default function FichesInterventionPage() {
                     ficheId={fiche.id}
                     problemeSignale={fiche.probleme_signale}
                     descriptionProbleme={fiche.description_probleme}
+                    afficherActionsPv={true}
+                    autoriserEnvoiClient={true}
                   />
 
                   <div className="mt-5">

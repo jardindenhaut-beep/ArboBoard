@@ -1129,6 +1129,8 @@ export default function DetailInterventionSalariePage() {
               ficheId={fiche.id}
               problemeSignale={fiche.probleme_signale}
               descriptionProbleme={fiche.description_probleme}
+              afficherActionsPv={false}
+              autoriserEnvoiClient={false}
             />
           </section>
 

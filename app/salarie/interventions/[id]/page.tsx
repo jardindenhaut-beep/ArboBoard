@@ -263,6 +263,7 @@ export default function DetailInterventionSalariePage() {
 
   const [salarie, setSalarie] = useState<Salarie | null>(null);
   const [affectation, setAffectation] = useState<FicheSalarie | null>(null);
+  const [accesRefuse, setAccesRefuse] = useState(false);
 
   const [fiche, setFiche] = useState<FicheIntervention | null>(null);
   const [elements, setElements] = useState<FicheElement[]>([]);
@@ -294,6 +295,7 @@ export default function DetailInterventionSalariePage() {
 
     try {
       setChargement(true);
+      setAccesRefuse(false);
       setMessageErreur("");
       setMessageSucces("");
 
@@ -438,10 +440,22 @@ export default function DetailInterventionSalariePage() {
           } as FicheSalarie)
         : null;
 
+    const affectationFinale = affectationTrouvee || affectationLegacy;
+
+    if (!salarieConnecte || !affectationFinale) {
+      setAccesRefuse(true);
+      setFiche(ficheChargee);
+      setElements([]);
+      setEquipe([]);
+      setAffectation(null);
+      return;
+    }
+
+    setAccesRefuse(false);
     setFiche(ficheChargee);
     setElements((elementsResult.data || []) as FicheElement[]);
     setEquipe(equipeData);
-    setAffectation(affectationTrouvee || affectationLegacy);
+    setAffectation(affectationFinale);
 
     setCommentairePreparation(ficheChargee.commentaire_preparation || "");
     setCommentaireArrivee(ficheChargee.commentaire_arrivee || "");
@@ -486,8 +500,44 @@ export default function DetailInterventionSalariePage() {
   const nomSignataireEntreprise =
     nomSalarie(salarie) || affectation?.salarie_nom || profilEmail || "";
 
+  const ficheEnLectureSeule =
+    fiche?.statut === "terminee" ||
+    fiche?.statut === "annulee" ||
+    fiche?.statut === "archivee";
+
+  const materielValide = fiche?.etape_materiel_statut === "valide";
+  const arriveeValidee = fiche?.etape_arrivee_statut === "valide";
+  const finValidee = fiche?.etape_fin_statut === "valide";
+
+  const peutModifierPreparation =
+    Boolean(affectation) && !ficheEnLectureSeule && !materielValide;
+
+  const peutValiderMateriel =
+    Boolean(affectation) &&
+    !ficheEnLectureSeule &&
+    !materielValide &&
+    toutEstPrepare;
+
+  const peutValiderArrivee =
+    Boolean(affectation) &&
+    !ficheEnLectureSeule &&
+    materielValide &&
+    !arriveeValidee;
+
+  const peutValiderFin =
+    Boolean(affectation) &&
+    !ficheEnLectureSeule &&
+    arriveeValidee &&
+    !finValidee;
+
   async function basculerPreparationElement(element: FicheElement) {
-    if (!entrepriseId || !fiche || enregistrement) return;
+    if (
+      !entrepriseId ||
+      !fiche ||
+      enregistrement ||
+      !peutModifierPreparation
+    )
+      return;
 
     try {
       setMessageErreur("");
@@ -522,7 +572,16 @@ export default function DetailInterventionSalariePage() {
   }
 
   async function validerMateriel() {
-    if (!entrepriseId || !fiche) return;
+    if (!entrepriseId || !fiche || !affectation) return;
+
+    if (!toutEstPrepare) {
+      setMessageErreur(
+        "Cochez tout le matériel et tous les matériaux avant de valider cette étape."
+      );
+      return;
+    }
+
+    if (!peutValiderMateriel) return;
 
     try {
       setEnregistrement(true);
@@ -556,7 +615,16 @@ export default function DetailInterventionSalariePage() {
   }
 
   async function validerArrivee() {
-    if (!entrepriseId || !fiche) return;
+    if (!entrepriseId || !fiche || !affectation) return;
+
+    if (!materielValide) {
+      setMessageErreur(
+        "Validez d’abord la préparation du matériel avant l’arrivée chantier."
+      );
+      return;
+    }
+
+    if (!peutValiderArrivee) return;
 
     try {
       setEnregistrement(true);
@@ -580,14 +648,16 @@ export default function DetailInterventionSalariePage() {
 
       if (error) throw error;
 
-      if (affectation && affectation.id !== "legacy") {
-        await supabase
+      if (affectation.id !== "legacy") {
+        const { error: erreurAffectation } = await supabase
           .from("fiches_intervention_salaries")
           .update({
             heure_arrivee_reelle: affectation.heure_arrivee_reelle || heure,
           })
           .eq("entreprise_id", entrepriseId)
           .eq("id", affectation.id);
+
+        if (erreurAffectation) throw erreurAffectation;
       }
 
       await rafraichir();
@@ -603,7 +673,23 @@ export default function DetailInterventionSalariePage() {
   }
 
   async function validerFinChantier() {
-    if (!entrepriseId || !fiche) return;
+    if (!entrepriseId || !fiche || !affectation) return;
+
+    if (!arriveeValidee) {
+      setMessageErreur(
+        "Validez d’abord votre arrivée sur le chantier avant de terminer l’intervention."
+      );
+      return;
+    }
+
+    if (signalerProbleme && !descriptionProbleme.trim()) {
+      setMessageErreur(
+        "Décrivez le problème rencontré avant d’enregistrer la fin du chantier."
+      );
+      return;
+    }
+
+    if (!peutValiderFin) return;
 
     try {
       setEnregistrement(true);
@@ -633,14 +719,16 @@ export default function DetailInterventionSalariePage() {
 
       if (error) throw error;
 
-      if (affectation && affectation.id !== "legacy") {
-        await supabase
+      if (affectation.id !== "legacy") {
+        const { error: erreurAffectation } = await supabase
           .from("fiches_intervention_salaries")
           .update({
             heure_depart_reelle: affectation.heure_depart_reelle || heure,
           })
           .eq("entreprise_id", entrepriseId)
           .eq("id", affectation.id);
+
+        if (erreurAffectation) throw erreurAffectation;
       }
 
       await rafraichir();
@@ -753,8 +841,8 @@ export default function DetailInterventionSalariePage() {
                     <button
                       type="button"
                       onClick={() => basculerPreparationElement(element)}
-                      disabled={enregistrement}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+                      disabled={enregistrement || !peutModifierPreparation}
+                      className={`min-h-10 rounded-full px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
                         element.coche_prepare
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-white text-slate-600 border border-slate-200"
@@ -813,12 +901,39 @@ export default function DetailInterventionSalariePage() {
     );
   }
 
+  if (accesRefuse) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/salarie/planning"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+        >
+          ← Retour au planning
+        </Link>
+
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm sm:p-8">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+            🔒
+          </div>
+          <p className="mt-4 text-lg font-bold text-amber-950">
+            Intervention non affectée à votre compte
+          </p>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-amber-800">
+            Cette fiche ne fait pas partie de vos interventions. Le chef doit
+            vous ajouter à l’équipe du chantier avant que vous puissiez la
+            consulter et enregistrer des informations terrain.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!fiche) {
     return (
       <div className="space-y-6">
         <Link
           href="/salarie/planning"
-          className="inline-flex rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
         >
           ← Retour au planning
         </Link>
@@ -835,11 +950,12 @@ export default function DetailInterventionSalariePage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <Link
             href="/salarie/planning"
-            className="inline-flex rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
           >
             ← Retour au planning
           </Link>
@@ -868,11 +984,20 @@ export default function DetailInterventionSalariePage() {
             type="button"
             onClick={rafraichir}
             disabled={enregistrement}
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Actualiser
           </button>
         </div>
+        </div>
+
+        {ficheEnLectureSeule && (
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Cette intervention est en lecture seule car elle est {libelleStatut(
+              fiche.statut
+            ).toLowerCase()}.
+          </div>
+        )}
       </section>
 
       {messageErreur && (
@@ -884,14 +1009,6 @@ export default function DetailInterventionSalariePage() {
       {messageSucces && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {messageSucces}
-        </div>
-      )}
-
-      {!affectation && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Cette fiche est visible, mais aucune affectation salarié directe n’a
-          été trouvée pour votre compte. Vérifiez l’affectation côté chef si les
-          boutons ne doivent pas apparaître.
         </div>
       )}
 
@@ -1036,16 +1153,21 @@ export default function DetailInterventionSalariePage() {
               onChange={(event) => setCommentairePreparation(event.target.value)}
               rows={3}
               placeholder="Commentaire préparation matériel..."
-              className="mt-4 w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              disabled={!peutModifierPreparation}
+              className="mt-4 w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             />
 
             <button
               type="button"
               onClick={validerMateriel}
-              disabled={enregistrement}
-              className="mt-4 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={enregistrement || !peutValiderMateriel}
+              className="mt-4 min-h-12 w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {enregistrement ? "Validation..." : "Valider matériel chargé"}
+              {enregistrement
+                ? "Validation..."
+                : materielValide
+                  ? "Matériel déjà validé"
+                  : "Valider le matériel chargé"}
             </button>
           </section>
 
@@ -1059,21 +1181,32 @@ export default function DetailInterventionSalariePage() {
               automatiquement si elle n’existe pas déjà.
             </p>
 
+            {!materielValide && (
+              <p className="mt-3 rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm text-blue-800">
+                La préparation du matériel doit être validée avant cette étape.
+              </p>
+            )}
+
             <textarea
               value={commentaireArrivee}
               onChange={(event) => setCommentaireArrivee(event.target.value)}
               rows={3}
               placeholder="Commentaire arrivée chantier..."
-              className="mt-4 w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              disabled={!peutValiderArrivee}
+              className="mt-4 w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             />
 
             <button
               type="button"
               onClick={validerArrivee}
-              disabled={enregistrement}
-              className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={enregistrement || !peutValiderArrivee}
+              className="mt-4 min-h-12 w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {enregistrement ? "Validation..." : "Valider arrivée chantier"}
+              {enregistrement
+                ? "Validation..."
+                : arriveeValidee
+                  ? "Arrivée déjà validée"
+                  : "Valider l’arrivée chantier"}
             </button>
           </section>
 
@@ -1102,12 +1235,20 @@ export default function DetailInterventionSalariePage() {
               automatiquement si elle n’existe pas déjà.
             </p>
 
+            {!arriveeValidee && (
+              <p className="mt-3 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm text-amber-800">
+                L’arrivée chantier doit être validée avant de clôturer
+                l’intervention.
+              </p>
+            )}
+
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-white p-4">
               <input
                 type="checkbox"
                 checked={signalerProbleme}
                 onChange={(event) => setSignalerProbleme(event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                disabled={!peutValiderFin}
+                className="mt-1 h-5 w-5 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60"
               />
 
               <span>
@@ -1127,7 +1268,8 @@ export default function DetailInterventionSalariePage() {
                 onChange={(event) => setDescriptionProbleme(event.target.value)}
                 rows={4}
                 placeholder="Décrivez le problème rencontré..."
-                className="mt-4 w-full rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                disabled={!peutValiderFin}
+                className="mt-4 w-full rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               />
             )}
 
@@ -1136,27 +1278,32 @@ export default function DetailInterventionSalariePage() {
               onChange={(event) => setCommentaireFin(event.target.value)}
               rows={4}
               placeholder="Commentaire fin de chantier..."
-              className="mt-4 w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+              disabled={!peutValiderFin}
+              className="mt-4 w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             />
 
             <button
               type="button"
               onClick={validerFinChantier}
-              disabled={enregistrement}
-              className="mt-4 rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={enregistrement || !peutValiderFin}
+              className="mt-4 min-h-12 w-full rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {enregistrement ? "Validation..." : "Valider fin de chantier"}
+              {enregistrement
+                ? "Validation..."
+                : finValidee
+                  ? "Fin déjà validée"
+                  : "Valider la fin du chantier"}
             </button>
           </section>
 
-         <BlocPvFinChantier
-  entrepriseId={entrepriseId}
-  ficheId={fiche.id}
-  clientId={fiche.client_id}
-  clientNom={fiche.client_nom}
-  signataireEntrepriseNom={nomSalarie(salarie)}
-  afficherEnvoiEmail={false}
-/>
+          <BlocPvFinChantier
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            clientId={fiche.client_id}
+            clientNom={fiche.client_nom}
+            signataireEntrepriseNom={nomSignataireEntreprise}
+            afficherEnvoiEmail={false}
+          />
         </div>
 
         <aside className="space-y-5">
@@ -1254,13 +1401,6 @@ export default function DetailInterventionSalariePage() {
             </section>
           )}
 
-          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-            <h2 className="font-bold text-emerald-950">Page terrain</h2>
-            <p className="mt-2 text-sm text-emerald-800">
-              Cette page détail va remplacer progressivement la grosse gestion
-              directement dans le planning salarié.
-            </p>
-          </section>
         </aside>
       </section>
     </div>

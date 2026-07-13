@@ -1149,13 +1149,14 @@ export default function DetailInterventionSalariePage() {
             </button>
           </section>
 
-          <BlocPvFinChantier
-            entrepriseId={entrepriseId}
-            ficheId={fiche.id}
-            clientId={fiche.client_id}
-            clientNom={fiche.client_nom}
-            signataireEntrepriseNom={nomSignataireEntreprise}
-          />
+         <BlocPvFinChantier
+  entrepriseId={entrepriseId}
+  ficheId={fiche.id}
+  clientId={fiche.client_id}
+  clientNom={fiche.client_nom}
+  signataireEntrepriseNom={nomSalarie(salarie)}
+  afficherEnvoiEmail={false}
+/>
         </div>
 
         <aside className="space-y-5">

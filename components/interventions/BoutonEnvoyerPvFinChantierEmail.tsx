@@ -16,7 +16,18 @@ type EmailPvHistorique = {
 
 type Props = {
   ficheId: string;
+  pvId?: string | null;
+
+  /**
+   * Nom retenu actuellement dans BlocPvFinChantier.
+   */
+  emailClient?: string | null;
+
+  /**
+   * Ancien nom conservé pour éviter de casser d'autres pages.
+   */
   clientEmail?: string | null;
+
   clientNom?: string | null;
   disabled?: boolean;
 };
@@ -37,14 +48,29 @@ function formatDateHeure(date: string | null | undefined) {
   }
 }
 
+function construireMessageParDefaut(clientNom?: string | null) {
+  return `Bonjour${clientNom ? ` ${clientNom}` : ""},
+
+Veuillez trouver en pièce jointe le procès-verbal de fin de chantier correspondant à votre intervention.
+
+Cordialement.`;
+}
+
 export default function BoutonEnvoyerPvFinChantierEmail({
   ficheId,
-  clientEmail,
-  clientNom,
-  disabled,
+  pvId = null,
+  emailClient = null,
+  clientEmail = null,
+  clientNom = null,
+  disabled = false,
 }: Props) {
-  const [emailDestinataire, setEmailDestinataire] = useState(clientEmail || "");
-  const [message, setMessage] = useState("");
+  const emailInitial = emailClient || clientEmail || "";
+
+  const [emailDestinataire, setEmailDestinataire] = useState(emailInitial);
+  const [message, setMessage] = useState(
+    construireMessageParDefaut(clientNom)
+  );
+
   const [historique, setHistorique] = useState<EmailPvHistorique[]>([]);
 
   const [envoi, setEnvoi] = useState(false);
@@ -55,26 +81,36 @@ export default function BoutonEnvoyerPvFinChantierEmail({
   const [ouvert, setOuvert] = useState(false);
 
   useEffect(() => {
-    setEmailDestinataire(clientEmail || "");
-  }, [clientEmail]);
+    const nouvelEmail = emailClient || clientEmail || "";
+
+    setEmailDestinataire(nouvelEmail);
+  }, [emailClient, clientEmail]);
+
+  useEffect(() => {
+    setMessage(construireMessageParDefaut(clientNom));
+  }, [clientNom]);
 
   useEffect(() => {
     chargerHistorique();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ficheId]);
+  }, [ficheId, pvId]);
 
   const emailValide = useMemo(() => {
     const email = emailDestinataire.trim();
+
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }, [emailDestinataire]);
 
   async function chargerHistorique() {
-    if (!ficheId) return;
+    if (!ficheId) {
+      setHistorique([]);
+      return;
+    }
 
     try {
       setChargementHistorique(true);
 
-      const { data, error } = await supabase
+      let requete = supabase
         .from("pv_fin_chantier_emails")
         .select(`
           id,
@@ -86,7 +122,13 @@ export default function BoutonEnvoyerPvFinChantierEmail({
           erreur,
           created_at
         `)
-        .eq("fiche_id", ficheId)
+        .eq("fiche_id", ficheId);
+
+      if (pvId) {
+        requete = requete.eq("pv_id", pvId);
+      }
+
+      const { data, error } = await requete
         .order("created_at", { ascending: false })
         .limit(10);
 
@@ -107,6 +149,8 @@ export default function BoutonEnvoyerPvFinChantierEmail({
     setErreur("");
     setSucces("");
 
+    const emailNettoye = emailDestinataire.trim().toLowerCase();
+
     if (!emailValide) {
       setErreur("Renseigne une adresse email valide.");
       return;
@@ -119,7 +163,9 @@ export default function BoutonEnvoyerPvFinChantierEmail({
         await supabase.auth.getSession();
 
       if (sessionError || !sessionData.session?.access_token) {
-        throw new Error("Session utilisateur introuvable.");
+        throw new Error(
+          "Session utilisateur introuvable. Veuillez vous reconnecter."
+        );
       }
 
       const response = await fetch(
@@ -132,7 +178,8 @@ export default function BoutonEnvoyerPvFinChantierEmail({
           },
           body: JSON.stringify({
             ficheId,
-            emailDestinataire: emailDestinataire.trim(),
+            pvId: pvId || undefined,
+            destinataireEmail: emailNettoye,
             message: message.trim(),
           }),
         }
@@ -142,18 +189,27 @@ export default function BoutonEnvoyerPvFinChantierEmail({
 
       if (!response.ok) {
         throw new Error(
-          resultat?.error || "Impossible d’envoyer le PV au client."
+          resultat?.erreur ||
+            resultat?.error ||
+            "Impossible d’envoyer le PV au client."
         );
       }
 
-      setSucces("PV envoyé au client.");
+      setSucces(
+        resultat?.message ||
+          `PV envoyé avec succès à ${emailNettoye}.`
+      );
+
       setOuvert(false);
-      setMessage("");
 
       await chargerHistorique();
     } catch (error: any) {
       console.error("Erreur envoi PV email :", error);
-      setErreur(error?.message || "Impossible d’envoyer le PV au client.");
+
+      setErreur(
+        error?.message || "Impossible d’envoyer le PV au client."
+      );
+
       await chargerHistorique();
     } finally {
       setEnvoi(false);
@@ -167,14 +223,31 @@ export default function BoutonEnvoyerPvFinChantierEmail({
           <p className="text-sm font-bold text-slate-950">
             Envoyer le PV au client
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             Le PDF du PV sera envoyé en pièce jointe.
           </p>
+
+          {emailDestinataire && emailValide && !ouvert && (
+            <p className="mt-2 text-xs font-semibold text-emerald-700">
+              Email détecté : {emailDestinataire}
+            </p>
+          )}
+
+          {!emailDestinataire && !ouvert && (
+            <p className="mt-2 text-xs font-semibold text-amber-700">
+              Aucun email client détecté.
+            </p>
+          )}
         </div>
 
         <button
           type="button"
-          onClick={() => setOuvert((ancien) => !ancien)}
+          onClick={() => {
+            setErreur("");
+            setSucces("");
+            setOuvert((ancien) => !ancien);
+          }}
           disabled={disabled || envoi}
           className="rounded-xl border border-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -188,25 +261,37 @@ export default function BoutonEnvoyerPvFinChantierEmail({
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
               Email destinataire
             </label>
+
             <input
+              type="email"
               value={emailDestinataire}
-              onChange={(event) => setEmailDestinataire(event.target.value)}
+              onChange={(event) => {
+                setEmailDestinataire(event.target.value);
+                setErreur("");
+                setSucces("");
+              }}
               placeholder="client@email.fr"
+              autoComplete="email"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             />
+
+            {emailDestinataire && !emailValide && (
+              <p className="mt-1 text-xs font-medium text-red-600">
+                Cette adresse email n’est pas valide.
+              </p>
+            )}
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
               Message email
             </label>
+
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              rows={5}
-              placeholder={`Bonjour${
-                clientNom ? ` ${clientNom}` : ""
-              },\n\nVeuillez trouver ci-joint le PV de fin de chantier.\n\nCordialement.`}
+              rows={6}
+              placeholder={construireMessageParDefaut(clientNom)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             />
           </div>
@@ -244,14 +329,16 @@ export default function BoutonEnvoyerPvFinChantierEmail({
             type="button"
             onClick={chargerHistorique}
             disabled={chargementHistorique}
-            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-60"
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Actualiser
+            {chargementHistorique ? "Chargement..." : "Actualiser"}
           </button>
         </div>
 
         {chargementHistorique ? (
-          <p className="text-xs text-slate-500">Chargement de l’historique...</p>
+          <p className="text-xs text-slate-500">
+            Chargement de l’historique...
+          </p>
         ) : historique.length === 0 ? (
           <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
             Aucun envoi enregistré pour le moment.

@@ -110,6 +110,37 @@ type Salarie = {
   profil_id?: string | null;
 };
 
+
+type ContexteEntrepriseMinimal = {
+  entreprise?: {
+    id?: string | null;
+  } | null;
+  profil?: {
+    id?: string | null;
+    email?: string | null;
+  } | null;
+  utilisateur?: {
+    id?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+type FicheAccesMutation = {
+  id: string;
+  entreprise_id?: string | null;
+  salarie_id: string | null;
+  statut: string | null;
+};
+
+function messageErreurInconnue(
+  error: unknown,
+  messageParDefaut: string
+) {
+  return error instanceof Error && error.message
+    ? error.message
+    : messageParDefaut;
+}
+
 const BLOCS_ELEMENTS = [
   {
     categorie: "travaux",
@@ -258,7 +289,7 @@ export default function DetailInterventionSalariePage() {
   const ficheId = String(params?.id || "");
 
   const [entrepriseId, setEntrepriseId] = useState("");
-  const [profilId, setProfilId] = useState("");
+  const [authUserId, setAuthUserId] = useState("");
   const [profilEmail, setProfilEmail] = useState("");
 
   const [salarie, setSalarie] = useState<Salarie | null>(null);
@@ -300,36 +331,67 @@ export default function DetailInterventionSalariePage() {
       setMessageSucces("");
 
       const resultat = await chargerContexteEntreprise();
+      const contexte =
+        (resultat.contexte || null) as ContexteEntrepriseMinimal | null;
 
-      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
+      if (resultat.erreur || !contexte?.entreprise?.id) {
         setMessageErreur(
           "Impossible de charger votre entreprise. Veuillez vous reconnecter."
         );
-        setChargement(false);
         return;
       }
 
-      const contexte: any = resultat.contexte;
-      const idEntreprise = contexte.entreprise.id;
-      const idProfil = contexte?.profil?.id || "";
+      const {
+        data: { user },
+        error: erreurUtilisateur,
+      } = await supabase.auth.getUser();
+
+      if (erreurUtilisateur || !user) {
+        setMessageErreur(
+          "Votre session a expiré. Veuillez vous reconnecter."
+        );
+        return;
+      }
+
+      const idEntreprise = String(contexte.entreprise.id);
+      const idProfil =
+        contexte.profil?.id ||
+        contexte.utilisateur?.id ||
+        user.id ||
+        "";
       const emailProfil =
-        contexte?.profil?.email || contexte?.utilisateur?.email || "";
+        contexte.profil?.email ||
+        contexte.utilisateur?.email ||
+        user.email ||
+        "";
 
       setEntrepriseId(idEntreprise);
-      setProfilId(idProfil);
+      setAuthUserId(user.id);
       setProfilEmail(emailProfil);
 
       const salarieTrouve = await chargerSalarieConnecte(
         idEntreprise,
         idProfil,
+        user.id,
         emailProfil
       );
 
-      await chargerFicheComplete(idEntreprise, ficheId, salarieTrouve);
-    } catch (error: any) {
-      console.error("Erreur chargement détail intervention salarié :", error);
+      await chargerFicheComplete(
+        idEntreprise,
+        ficheId,
+        salarieTrouve
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Erreur chargement détail intervention salarié :",
+        error
+      );
+
       setMessageErreur(
-        error?.message || "Impossible de charger la fiche d’intervention."
+        messageErreurInconnue(
+          error,
+          "Impossible de charger la fiche d’intervention."
+        )
       );
     } finally {
       setChargement(false);
@@ -339,20 +401,29 @@ export default function DetailInterventionSalariePage() {
   async function chargerSalarieConnecte(
     idEntreprise: string,
     idProfil: string,
+    idUtilisateur: string,
     emailProfil: string
   ) {
     let salarieData: Salarie | null = null;
 
-    if (idProfil) {
+    const identifiants = Array.from(
+      new Set([idProfil, idUtilisateur].filter(Boolean))
+    );
+
+    for (const identifiant of identifiants) {
       const { data, error } = await supabase
         .from("salaries")
         .select("*")
         .eq("entreprise_id", idEntreprise)
-        .or(`user_id.eq.${idProfil},profil_id.eq.${idProfil}`)
+        .or(
+          `user_id.eq.${identifiant},profil_id.eq.${identifiant}`
+        )
+        .limit(1)
         .maybeSingle();
 
       if (!error && data) {
         salarieData = data as Salarie;
+        break;
       }
     }
 
@@ -361,7 +432,8 @@ export default function DetailInterventionSalariePage() {
         .from("salaries")
         .select("*")
         .eq("entreprise_id", idEntreprise)
-        .eq("email", emailProfil)
+        .ilike("email", emailProfil)
+        .limit(1)
         .maybeSingle();
 
       if (!error && data) {
@@ -370,6 +442,7 @@ export default function DetailInterventionSalariePage() {
     }
 
     setSalarie(salarieData);
+
     return salarieData;
   }
 
@@ -378,90 +451,166 @@ export default function DetailInterventionSalariePage() {
     idFiche: string,
     salarieConnecte: Salarie | null
   ) {
-    const { data: ficheData, error: erreurFiche } = await supabase
-      .from("fiches_intervention")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .eq("id", idFiche)
-      .maybeSingle();
+    setAccesRefuse(false);
+    setMessageErreur("");
 
-    if (erreurFiche) throw erreurFiche;
+    const { data: ficheAccesBrute, error: erreurFicheAcces } =
+      await supabase
+        .from("fiches_intervention")
+        .select("id, entreprise_id, salarie_id, statut")
+        .eq("entreprise_id", idEntreprise)
+        .eq("id", idFiche)
+        .maybeSingle();
 
-    if (!ficheData) {
+    if (erreurFicheAcces) throw erreurFicheAcces;
+
+    if (!ficheAccesBrute) {
       setFiche(null);
+      setElements([]);
+      setEquipe([]);
+      setAffectation(null);
       setMessageErreur("Fiche d’intervention introuvable.");
       return;
     }
 
-    const ficheChargee = ficheData as FicheIntervention;
+    const ficheAcces =
+      ficheAccesBrute as FicheAccesMutation;
 
-    const [elementsResult, equipeResult] = await Promise.all([
-      supabase
-        .from("fiches_intervention_elements")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .eq("fiche_id", idFiche)
-        .order("ordre", { ascending: true }),
-
-      supabase
-        .from("fiches_intervention_salaries")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .eq("fiche_id", idFiche)
-        .order("created_at", { ascending: true }),
-    ]);
-
-    if (elementsResult.error) throw elementsResult.error;
-    if (equipeResult.error) throw equipeResult.error;
-
-    const equipeData = (equipeResult.data || []) as FicheSalarie[];
-
-    const affectationTrouvee =
-      equipeData.find((item) => item.salarie_id === salarieConnecte?.id) ||
-      null;
-
-    const affectationLegacy =
-      !affectationTrouvee &&
-      salarieConnecte?.id &&
-      ficheChargee.salarie_id === salarieConnecte.id
-        ? ({
-            id: "legacy",
-            entreprise_id: idEntreprise,
-            fiche_id: idFiche,
-            salarie_id: salarieConnecte.id,
-            salarie_nom: ficheChargee.salarie_nom || nomSalarie(salarieConnecte),
-            role_chantier: "Intervenant",
-            heure_arrivee_prevue:
-              ficheChargee.heure_debut_prevue || ficheChargee.heure_debut,
-            heure_depart_prevue:
-              ficheChargee.heure_fin_prevue || ficheChargee.heure_fin,
-            heure_arrivee_reelle: ficheChargee.heure_debut_reelle,
-            heure_depart_reelle: ficheChargee.heure_fin_reelle,
-          } as FicheSalarie)
-        : null;
-
-    const affectationFinale = affectationTrouvee || affectationLegacy;
-
-    if (!salarieConnecte || !affectationFinale) {
+    if (!salarieConnecte?.id) {
       setAccesRefuse(true);
-      setFiche(ficheChargee);
+      setFiche(null);
       setElements([]);
       setEquipe([]);
       setAffectation(null);
       return;
     }
 
+    const { data: equipeBrute, error: erreurEquipe } =
+      await supabase
+        .from("fiches_intervention_salaries")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .eq("fiche_id", idFiche)
+        .order("created_at", { ascending: true });
+
+    if (erreurEquipe) throw erreurEquipe;
+
+    const equipeData =
+      (equipeBrute || []) as FicheSalarie[];
+
+    const affectationTrouvee =
+      equipeData.find(
+        (item) => item.salarie_id === salarieConnecte.id
+      ) || null;
+
+    const estAffectationLegacy =
+      !affectationTrouvee &&
+      ficheAcces.salarie_id === salarieConnecte.id;
+
+    if (!affectationTrouvee && !estAffectationLegacy) {
+      setAccesRefuse(true);
+      setFiche(null);
+      setElements([]);
+      setEquipe([]);
+      setAffectation(null);
+      return;
+    }
+
+    const [ficheResult, elementsResult] =
+      await Promise.all([
+        supabase
+          .from("fiches_intervention")
+          .select("*")
+          .eq("entreprise_id", idEntreprise)
+          .eq("id", idFiche)
+          .maybeSingle(),
+
+        supabase
+          .from("fiches_intervention_elements")
+          .select("*")
+          .eq("entreprise_id", idEntreprise)
+          .eq("fiche_id", idFiche)
+          .order("ordre", { ascending: true }),
+      ]);
+
+    if (ficheResult.error) throw ficheResult.error;
+    if (elementsResult.error) throw elementsResult.error;
+
+    if (!ficheResult.data) {
+      setFiche(null);
+      setElements([]);
+      setEquipe([]);
+      setAffectation(null);
+      setMessageErreur("Fiche d’intervention introuvable.");
+      return;
+    }
+
+    const ficheChargee =
+      ficheResult.data as FicheIntervention;
+
+    const affectationLegacy = estAffectationLegacy
+      ? ({
+          id: "legacy",
+          entreprise_id: idEntreprise,
+          fiche_id: idFiche,
+          salarie_id: salarieConnecte.id,
+          salarie_nom:
+            ficheChargee.salarie_nom ||
+            nomSalarie(salarieConnecte),
+          role_chantier: "Intervenant",
+          heure_arrivee_prevue:
+            ficheChargee.heure_debut_prevue ||
+            ficheChargee.heure_debut,
+          heure_depart_prevue:
+            ficheChargee.heure_fin_prevue ||
+            ficheChargee.heure_fin,
+          heure_arrivee_reelle:
+            ficheChargee.heure_debut_reelle,
+          heure_depart_reelle:
+            ficheChargee.heure_fin_reelle,
+        } as FicheSalarie)
+      : null;
+
+    const affectationFinale =
+      affectationTrouvee || affectationLegacy;
+
+    if (!affectationFinale) {
+      setAccesRefuse(true);
+      setFiche(null);
+      setElements([]);
+      setEquipe([]);
+      setAffectation(null);
+      return;
+    }
+
+    const equipeFinale =
+      equipeData.length > 0
+        ? equipeData
+        : [affectationFinale];
+
     setAccesRefuse(false);
     setFiche(ficheChargee);
-    setElements((elementsResult.data || []) as FicheElement[]);
-    setEquipe(equipeData);
+    setElements(
+      (elementsResult.data || []) as FicheElement[]
+    );
+    setEquipe(equipeFinale);
     setAffectation(affectationFinale);
 
-    setCommentairePreparation(ficheChargee.commentaire_preparation || "");
-    setCommentaireArrivee(ficheChargee.commentaire_arrivee || "");
-    setCommentaireFin(ficheChargee.commentaire_fin || "");
-    setDescriptionProbleme(ficheChargee.description_probleme || "");
-    setSignalerProbleme(ficheChargee.probleme_signale === true);
+    setCommentairePreparation(
+      ficheChargee.commentaire_preparation || ""
+    );
+    setCommentaireArrivee(
+      ficheChargee.commentaire_arrivee || ""
+    );
+    setCommentaireFin(
+      ficheChargee.commentaire_fin || ""
+    );
+    setDescriptionProbleme(
+      ficheChargee.description_probleme || ""
+    );
+    setSignalerProbleme(
+      ficheChargee.probleme_signale === true
+    );
   }
 
   async function rafraichir() {
@@ -530,25 +679,116 @@ export default function DetailInterventionSalariePage() {
     arriveeValidee &&
     !finValidee;
 
-  async function basculerPreparationElement(element: FicheElement) {
+  async function verifierAccesAvantMutation() {
+    if (!entrepriseId || !ficheId || !salarie?.id) {
+      setAccesRefuse(true);
+      setMessageErreur(
+        "Votre compte salarié n’est plus autorisé à modifier cette intervention."
+      );
+      return false;
+    }
+
+    const { data: ficheAccesBrute, error: erreurFicheAcces } =
+      await supabase
+        .from("fiches_intervention")
+        .select("id, entreprise_id, salarie_id, statut")
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", ficheId)
+        .maybeSingle();
+
+    if (erreurFicheAcces || !ficheAccesBrute) {
+      setAccesRefuse(true);
+      setMessageErreur(
+        "Cette intervention n’est plus accessible."
+      );
+      return false;
+    }
+
+    const ficheAcces =
+      ficheAccesBrute as FicheAccesMutation;
+
+    if (
+      ficheAcces.statut === "terminee" ||
+      ficheAcces.statut === "annulee" ||
+      ficheAcces.statut === "archivee"
+    ) {
+      setMessageErreur(
+        "Cette intervention est maintenant en lecture seule."
+      );
+
+      await chargerFicheComplete(
+        entrepriseId,
+        ficheId,
+        salarie
+      );
+
+      return false;
+    }
+
+    if (ficheAcces.salarie_id === salarie.id) {
+      return true;
+    }
+
+    const {
+      data: affectationActiveBrute,
+      error: erreurAffectation,
+    } = await supabase
+      .from("fiches_intervention_salaries")
+      .select("id")
+      .eq("entreprise_id", entrepriseId)
+      .eq("fiche_id", ficheId)
+      .eq("salarie_id", salarie.id)
+      .limit(1)
+      .maybeSingle();
+
+    const affectationActive =
+      (affectationActiveBrute || null) as {
+        id: string;
+      } | null;
+
+    if (erreurAffectation || !affectationActive?.id) {
+      setAccesRefuse(true);
+      setMessageErreur(
+        "Vous n’êtes plus affecté à cette intervention."
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  async function basculerPreparationElement(
+    element: FicheElement
+  ) {
     if (
       !entrepriseId ||
       !fiche ||
       enregistrement ||
       !peutModifierPreparation
-    )
+    ) {
       return;
+    }
 
     try {
+      setEnregistrement(true);
       setMessageErreur("");
       setMessageSucces("");
+
+      const accesAutorise =
+        await verifierAccesAvantMutation();
+
+      if (!accesAutorise) return;
+
+      const nouvelleValeur =
+        !element.coche_prepare;
 
       const { error } = await supabase
         .from("fiches_intervention_elements")
         .update({
-          coche_prepare: !element.coche_prepare,
+          coche_prepare: nouvelleValeur,
         })
         .eq("entreprise_id", entrepriseId)
+        .eq("fiche_id", fiche.id)
         .eq("id", element.id);
 
       if (error) throw error;
@@ -558,21 +798,37 @@ export default function DetailInterventionSalariePage() {
           item.id === element.id
             ? {
                 ...item,
-                coche_prepare: !element.coche_prepare,
+                coche_prepare: nouvelleValeur,
               }
             : item
         )
       );
-    } catch (error: any) {
-      console.error("Erreur préparation élément :", error);
-      setMessageErreur(
-        error?.message || "Impossible de modifier la préparation de l’élément."
+    } catch (error: unknown) {
+      console.error(
+        "Erreur préparation élément :",
+        error
       );
+
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          "Impossible de modifier la préparation de l’élément."
+        )
+      );
+    } finally {
+      setEnregistrement(false);
     }
   }
 
   async function validerMateriel() {
-    if (!entrepriseId || !fiche || !affectation) return;
+    if (
+      !entrepriseId ||
+      !fiche ||
+      !affectation ||
+      enregistrement
+    ) {
+      return;
+    }
 
     if (!toutEstPrepare) {
       setMessageErreur(
@@ -588,6 +844,11 @@ export default function DetailInterventionSalariePage() {
       setMessageErreur("");
       setMessageSucces("");
 
+      const accesAutorise =
+        await verifierAccesAvantMutation();
+
+      if (!accesAutorise) return;
+
       const maintenant = new Date().toISOString();
 
       const { error } = await supabase
@@ -595,7 +856,8 @@ export default function DetailInterventionSalariePage() {
         .update({
           etape_materiel_statut: "valide",
           materiel_valide_at: maintenant,
-          commentaire_preparation: nettoyerTexte(commentairePreparation),
+          commentaire_preparation:
+            nettoyerTexte(commentairePreparation),
         })
         .eq("entreprise_id", entrepriseId)
         .eq("id", fiche.id);
@@ -604,10 +866,17 @@ export default function DetailInterventionSalariePage() {
 
       await rafraichir();
       setMessageSucces("Matériel validé.");
-    } catch (error: any) {
-      console.error("Erreur validation matériel :", error);
+    } catch (error: unknown) {
+      console.error(
+        "Erreur validation matériel :",
+        error
+      );
+
       setMessageErreur(
-        error?.message || "Impossible de valider le matériel."
+        messageErreurInconnue(
+          error,
+          "Impossible de valider le matériel."
+        )
       );
     } finally {
       setEnregistrement(false);
@@ -615,7 +884,14 @@ export default function DetailInterventionSalariePage() {
   }
 
   async function validerArrivee() {
-    if (!entrepriseId || !fiche || !affectation) return;
+    if (
+      !entrepriseId ||
+      !fiche ||
+      !affectation ||
+      enregistrement
+    ) {
+      return;
+    }
 
     if (!materielValide) {
       setMessageErreur(
@@ -631,6 +907,11 @@ export default function DetailInterventionSalariePage() {
       setMessageErreur("");
       setMessageSucces("");
 
+      const accesAutorise =
+        await verifierAccesAvantMutation();
+
+      if (!accesAutorise) return;
+
       const maintenant = new Date().toISOString();
       const heure = heureMaintenant();
 
@@ -640,8 +921,10 @@ export default function DetailInterventionSalariePage() {
           statut: "en_cours",
           etape_arrivee_statut: "valide",
           arrivee_validee_at: maintenant,
-          heure_debut_reelle: fiche.heure_debut_reelle || heure,
-          commentaire_arrivee: nettoyerTexte(commentaireArrivee),
+          heure_debut_reelle:
+            fiche.heure_debut_reelle || heure,
+          commentaire_arrivee:
+            nettoyerTexte(commentaireArrivee),
         })
         .eq("entreprise_id", entrepriseId)
         .eq("id", fiche.id);
@@ -649,23 +932,39 @@ export default function DetailInterventionSalariePage() {
       if (error) throw error;
 
       if (affectation.id !== "legacy") {
-        const { error: erreurAffectation } = await supabase
-          .from("fiches_intervention_salaries")
-          .update({
-            heure_arrivee_reelle: affectation.heure_arrivee_reelle || heure,
-          })
-          .eq("entreprise_id", entrepriseId)
-          .eq("id", affectation.id);
+        const { error: erreurAffectation } =
+          await supabase
+            .from("fiches_intervention_salaries")
+            .update({
+              heure_arrivee_reelle:
+                affectation.heure_arrivee_reelle ||
+                heure,
+            })
+            .eq("entreprise_id", entrepriseId)
+            .eq("fiche_id", fiche.id)
+            .eq("salarie_id", salarie?.id || "")
+            .eq("id", affectation.id);
 
-        if (erreurAffectation) throw erreurAffectation;
+        if (erreurAffectation) {
+          throw erreurAffectation;
+        }
       }
 
       await rafraichir();
-      setMessageSucces("Arrivée chantier validée.");
-    } catch (error: any) {
-      console.error("Erreur validation arrivée :", error);
+      setMessageSucces(
+        "Arrivée chantier validée."
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Erreur validation arrivée :",
+        error
+      );
+
       setMessageErreur(
-        error?.message || "Impossible de valider l’arrivée chantier."
+        messageErreurInconnue(
+          error,
+          "Impossible de valider l’arrivée chantier."
+        )
       );
     } finally {
       setEnregistrement(false);
@@ -673,7 +972,14 @@ export default function DetailInterventionSalariePage() {
   }
 
   async function validerFinChantier() {
-    if (!entrepriseId || !fiche || !affectation) return;
+    if (
+      !entrepriseId ||
+      !fiche ||
+      !affectation ||
+      enregistrement
+    ) {
+      return;
+    }
 
     if (!arriveeValidee) {
       setMessageErreur(
@@ -682,7 +988,10 @@ export default function DetailInterventionSalariePage() {
       return;
     }
 
-    if (signalerProbleme && !descriptionProbleme.trim()) {
+    if (
+      signalerProbleme &&
+      !descriptionProbleme.trim()
+    ) {
       setMessageErreur(
         "Décrivez le problème rencontré avant d’enregistrer la fin du chantier."
       );
@@ -696,19 +1005,30 @@ export default function DetailInterventionSalariePage() {
       setMessageErreur("");
       setMessageSucces("");
 
+      const accesAutorise =
+        await verifierAccesAvantMutation();
+
+      if (!accesAutorise) return;
+
       const maintenant = new Date().toISOString();
       const heure = heureMaintenant();
 
-      const statutFin = signalerProbleme ? "probleme" : "valide";
+      const statutFin = signalerProbleme
+        ? "probleme"
+        : "valide";
 
       const { error } = await supabase
         .from("fiches_intervention")
         .update({
-          statut: signalerProbleme ? "en_cours" : "terminee",
+          statut: signalerProbleme
+            ? "en_cours"
+            : "terminee",
           etape_fin_statut: statutFin,
           fin_validee_at: maintenant,
-          heure_fin_reelle: fiche.heure_fin_reelle || heure,
-          commentaire_fin: nettoyerTexte(commentaireFin),
+          heure_fin_reelle:
+            fiche.heure_fin_reelle || heure,
+          commentaire_fin:
+            nettoyerTexte(commentaireFin),
           probleme_signale: signalerProbleme,
           description_probleme: signalerProbleme
             ? nettoyerTexte(descriptionProbleme)
@@ -720,15 +1040,22 @@ export default function DetailInterventionSalariePage() {
       if (error) throw error;
 
       if (affectation.id !== "legacy") {
-        const { error: erreurAffectation } = await supabase
-          .from("fiches_intervention_salaries")
-          .update({
-            heure_depart_reelle: affectation.heure_depart_reelle || heure,
-          })
-          .eq("entreprise_id", entrepriseId)
-          .eq("id", affectation.id);
+        const { error: erreurAffectation } =
+          await supabase
+            .from("fiches_intervention_salaries")
+            .update({
+              heure_depart_reelle:
+                affectation.heure_depart_reelle ||
+                heure,
+            })
+            .eq("entreprise_id", entrepriseId)
+            .eq("fiche_id", fiche.id)
+            .eq("salarie_id", salarie?.id || "")
+            .eq("id", affectation.id);
 
-        if (erreurAffectation) throw erreurAffectation;
+        if (erreurAffectation) {
+          throw erreurAffectation;
+        }
       }
 
       await rafraichir();
@@ -738,10 +1065,17 @@ export default function DetailInterventionSalariePage() {
           ? "Fin de chantier enregistrée avec problème signalé."
           : "Fin de chantier validée."
       );
-    } catch (error: any) {
-      console.error("Erreur validation fin chantier :", error);
+    } catch (error: unknown) {
+      console.error(
+        "Erreur validation fin chantier :",
+        error
+      );
+
       setMessageErreur(
-        error?.message || "Impossible de valider la fin de chantier."
+        messageErreurInconnue(
+          error,
+          "Impossible de valider la fin de chantier."
+        )
       );
     } finally {
       setEnregistrement(false);
@@ -1224,7 +1558,7 @@ export default function DetailInterventionSalariePage() {
           <BlocPhotosChantier
             entrepriseId={entrepriseId}
             ficheId={fiche.id}
-            userId={profilId || null}
+            userId={authUserId || null}
           />
 
           <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">

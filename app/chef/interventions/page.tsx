@@ -655,12 +655,25 @@ export default function FichesInterventionPage() {
   }, [articles, formulaire.type_intervention_id]);
 
   const statistiques = useMemo(() => {
+    const fichesNonArchivees = fiches.filter(
+      (fiche) => fiche.statut !== "archivee"
+    );
+
     return {
-      total: fiches.length,
-      brouillons: fiches.filter((fiche) => fiche.statut === "brouillon").length,
-      planifiees: fiches.filter((fiche) => fiche.statut === "planifiee").length,
-      enCours: fiches.filter((fiche) => fiche.statut === "en_cours").length,
-      terminees: fiches.filter((fiche) => fiche.statut === "terminee").length,
+      total: fichesNonArchivees.length,
+      brouillons: fichesNonArchivees.filter(
+        (fiche) => (fiche.statut || "brouillon") === "brouillon"
+      ).length,
+      planifiees: fichesNonArchivees.filter(
+        (fiche) => fiche.statut === "planifiee"
+      ).length,
+      enCours: fichesNonArchivees.filter(
+        (fiche) => fiche.statut === "en_cours"
+      ).length,
+      terminees: fichesNonArchivees.filter(
+        (fiche) => fiche.statut === "terminee"
+      ).length,
+      archivees: fiches.filter((fiche) => fiche.statut === "archivee").length,
     };
   }, [fiches]);
 
@@ -671,7 +684,9 @@ export default function FichesInterventionPage() {
       const statutFiche = fiche.statut || "brouillon";
 
       const correspondStatut =
-        filtreStatut === "tous" || statutFiche === filtreStatut;
+        filtreStatut === "tous"
+          ? statutFiche !== "archivee"
+          : statutFiche === filtreStatut;
 
       const elements = elementsFiches
         .filter((element) => element.fiche_id === fiche.id)
@@ -850,6 +865,58 @@ export default function FichesInterventionPage() {
 
       return [...anciens, articleId];
     });
+  }
+
+  function idsArticlesCategorie(categorie: CategorieArticle) {
+    return (articlesParCategorie[categorie] || []).map((article) => article.id);
+  }
+
+  function nombreSelectionneCategorie(categorie: CategorieArticle) {
+    const idsCategorie = idsArticlesCategorie(categorie);
+
+    return idsCategorie.filter((id) => elementsSelectionnes.includes(id)).length;
+  }
+
+  function selectionnerTousCategorie(categorie: CategorieArticle) {
+    const idsCategorie = idsArticlesCategorie(categorie);
+
+    setElementsSelectionnes((anciens) =>
+      Array.from(new Set([...anciens, ...idsCategorie]))
+    );
+  }
+
+  function deselectionnerCategorie(categorie: CategorieArticle) {
+    const idsCategorie = new Set(idsArticlesCategorie(categorie));
+
+    setElementsSelectionnes((anciens) =>
+      anciens.filter((id) => !idsCategorie.has(id))
+    );
+  }
+
+  function idsVirtuelsLignesDevis() {
+    return lignesDevis.map((ligne) => `ligne-devis-${ligne.id}`);
+  }
+
+  function nombreLignesDevisSelectionnees() {
+    const ids = idsVirtuelsLignesDevis();
+
+    return ids.filter((id) => elementsSelectionnes.includes(id)).length;
+  }
+
+  function selectionnerToutesLignesDevis() {
+    const ids = idsVirtuelsLignesDevis();
+
+    setElementsSelectionnes((anciens) =>
+      Array.from(new Set([...anciens, ...ids]))
+    );
+  }
+
+  function deselectionnerToutesLignesDevis() {
+    const ids = new Set(idsVirtuelsLignesDevis());
+
+    setElementsSelectionnes((anciens) =>
+      anciens.filter((id) => !ids.has(id))
+    );
   }
 
   function basculerSalarie(salarieId: string) {
@@ -1339,51 +1406,108 @@ export default function FichesInterventionPage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <button
+          type="button"
+          onClick={() => setFiltreStatut("tous")}
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            filtreStatut === "tous"
+              ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
+              : "border-slate-200 bg-white"
+          }`}
+        >
           <p className="text-xs uppercase tracking-wide text-slate-400">
             Total
           </p>
           <p className="mt-2 text-3xl font-bold text-slate-950">
             {statistiques.total}
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFiltreStatut("brouillon")}
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            filtreStatut === "brouillon"
+              ? "border-slate-500 bg-slate-100 ring-4 ring-slate-100"
+              : "border-slate-200 bg-white"
+          }`}
+        >
           <p className="text-xs uppercase tracking-wide text-slate-400">
             Brouillons
           </p>
           <p className="mt-2 text-3xl font-bold text-slate-950">
             {statistiques.brouillons}
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFiltreStatut("planifiee")}
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            filtreStatut === "planifiee"
+              ? "border-blue-500 bg-blue-100 ring-4 ring-blue-100"
+              : "border-blue-100 bg-blue-50"
+          }`}
+        >
           <p className="text-xs uppercase tracking-wide text-blue-500">
             Planifiées
           </p>
           <p className="mt-2 text-3xl font-bold text-blue-900">
             {statistiques.planifiees}
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFiltreStatut("en_cours")}
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            filtreStatut === "en_cours"
+              ? "border-amber-500 bg-amber-100 ring-4 ring-amber-100"
+              : "border-amber-100 bg-amber-50"
+          }`}
+        >
           <p className="text-xs uppercase tracking-wide text-amber-500">
             En cours
           </p>
           <p className="mt-2 text-3xl font-bold text-amber-900">
             {statistiques.enCours}
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setFiltreStatut("terminee")}
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            filtreStatut === "terminee"
+              ? "border-emerald-500 bg-emerald-100 ring-4 ring-emerald-100"
+              : "border-emerald-100 bg-emerald-50"
+          }`}
+        >
           <p className="text-xs uppercase tracking-wide text-emerald-500">
             Terminées
           </p>
           <p className="mt-2 text-3xl font-bold text-emerald-900">
             {statistiques.terminees}
           </p>
-        </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFiltreStatut("archivee")}
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            filtreStatut === "archivee"
+              ? "border-slate-500 bg-slate-200 ring-4 ring-slate-100"
+              : "border-slate-200 bg-slate-100"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            Archivées
+          </p>
+          <p className="mt-2 text-3xl font-bold text-slate-800">
+            {statistiques.archivees}
+          </p>
+        </button>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -1567,42 +1691,56 @@ export default function FichesInterventionPage() {
                   </div>
 
                   <div className="mt-5 flex flex-wrap justify-end gap-2">
-                    {devisLie && (
-                      <Link
-                        href="/chef/devis"
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        Voir devis
-                      </Link>
-                    )}
-
                     <Link
                       href={`/chef/interventions/${fiche.id}`}
-                      className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                      className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
                     >
                       Ouvrir fiche
                     </Link>
 
-                    <button
-                      onClick={() => changerStatutFiche(fiche, "en_cours")}
-                      className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
-                    >
-                      En cours
-                    </button>
+                    {fiche.statut !== "terminee" &&
+                      fiche.statut !== "archivee" && (
+                        <>
+                          {devisLie && (
+                            <Link
+                              href="/chef/devis"
+                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              Voir devis
+                            </Link>
+                          )}
 
-                    <button
-                      onClick={() => changerStatutFiche(fiche, "terminee")}
-                      className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                    >
-                      Terminer
-                    </button>
+                          {fiche.statut !== "en_cours" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                changerStatutFiche(fiche, "en_cours")
+                              }
+                              className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                            >
+                              En cours
+                            </button>
+                          )}
 
-                    <button
-                      onClick={() => archiverFiche(fiche)}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      Archiver
-                    </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              changerStatutFiche(fiche, "terminee")
+                            }
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Terminer
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => archiverFiche(fiche)}
+                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          >
+                            Archiver
+                          </button>
+                        </>
+                      )}
                   </div>
                 </article>
               );
@@ -2041,14 +2179,41 @@ export default function FichesInterventionPage() {
 
                 {lignesDevis.length > 0 && (
                   <section className="rounded-3xl border border-blue-200 bg-blue-50 p-5">
-                    <p className="font-bold text-blue-950">
-                      Lignes du devis à reprendre
-                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-blue-950">
+                            Lignes du devis à reprendre
+                          </p>
 
-                    <p className="mt-1 text-sm text-blue-700">
-                      Tu peux sélectionner directement les lignes du devis comme
-                      travaux prévus.
-                    </p>
+                          <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700">
+                            {nombreLignesDevisSelectionnees()} / {lignesDevis.length} sélectionnée(s)
+                          </span>
+                        </div>
+
+                        <p className="mt-1 text-sm text-blue-700">
+                          Plusieurs lignes peuvent être cochées en même temps pour créer les tâches de la fiche.
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={selectionnerToutesLignesDevis}
+                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        >
+                          Tout sélectionner
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={deselectionnerToutesLignesDevis}
+                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-blue-100"
+                        >
+                          Tout retirer
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="mt-4 space-y-2">
                       {lignesDevis.map((ligne) => {
@@ -2059,22 +2224,41 @@ export default function FichesInterventionPage() {
                           <button
                             key={ligne.id}
                             type="button"
+                            aria-pressed={actif}
                             onClick={() =>
                               selectionnerLigneDevisCommeTravail(ligne)
                             }
-                            className={`w-full rounded-2xl border p-3 text-left text-sm transition ${
+                            className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left text-sm transition ${
                               actif
                                 ? "border-blue-500 bg-white ring-4 ring-blue-100"
-                                : "border-blue-100 bg-white/70 hover:bg-white"
+                                : "border-blue-100 bg-white/70 hover:border-blue-300 hover:bg-white"
                             }`}
                           >
-                            <p className="font-semibold text-slate-950">
-                              📄 {ligne.designation || "Ligne du devis"}
-                            </p>
+                            <span
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${
+                                actif
+                                  ? "border-blue-600 bg-blue-600 text-white"
+                                  : "border-slate-300 bg-white text-transparent"
+                              }`}
+                            >
+                              ✓
+                            </span>
 
-                            <p className="mt-1 text-xs text-slate-500">
-                              {Number(ligne.quantite || 1)} {ligne.unite || "u"}
-                            </p>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-semibold text-slate-950">
+                                📄 {ligne.designation || "Ligne du devis"}
+                              </span>
+
+                              <span className="mt-1 block text-xs text-slate-500">
+                                {Number(ligne.quantite || 1)} {ligne.unite || "u"}
+                              </span>
+
+                              {ligne.description && (
+                                <span className="mt-1 block text-xs text-slate-500">
+                                  {ligne.description}
+                                </span>
+                              )}
+                            </span>
                           </button>
                         );
                       })}
@@ -2084,74 +2268,130 @@ export default function FichesInterventionPage() {
 
                 {renduCreationRapide()}
 
-                {CATEGORIES_ELEMENTS.map((bloc) => (
-                  <section
-                    key={bloc.categorie}
-                    className="rounded-3xl border border-slate-200 bg-white p-5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-slate-950">
-                          {bloc.icone} {bloc.titre}
-                        </p>
+                {CATEGORIES_ELEMENTS.map((bloc) => {
+                  const articlesCategorie =
+                    articlesParCategorie[bloc.categorie] || [];
+                  const nombreSelectionne = nombreSelectionneCategorie(
+                    bloc.categorie
+                  );
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          {bloc.description}
-                        </p>
+                  return (
+                    <section
+                      key={bloc.categorie}
+                      className="rounded-3xl border border-slate-200 bg-white p-5"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold text-slate-950">
+                              {bloc.icone} {bloc.titre}
+                            </p>
+
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600">
+                              {nombreSelectionne} / {articlesCategorie.length} sélectionné(s)
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {bloc.description} Tu peux en sélectionner plusieurs.
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          {articlesCategorie.length > 0 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  selectionnerTousCategorie(bloc.categorie)
+                                }
+                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                              >
+                                Tout sélectionner
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deselectionnerCategorie(bloc.categorie)
+                                }
+                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                              >
+                                Tout retirer
+                              </button>
+                            </>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreationRapideCategorie(bloc.categorie);
+                              setCreationRapideNom("");
+                              setCreationRapideIcone(bloc.icone);
+                            }}
+                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                          >
+                            + Créer
+                          </button>
+                        </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCreationRapideCategorie(bloc.categorie);
-                          setCreationRapideNom("");
-                          setCreationRapideIcone(bloc.icone);
-                        }}
-                        className="shrink-0 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-                      >
-                        + Créer
-                      </button>
-                    </div>
+                      {articlesCategorie.length === 0 ? (
+                        <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                          Aucun élément enregistré dans cette catégorie.
+                        </p>
+                      ) : (
+                        <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+                          {articlesCategorie.map((article) => {
+                            const actif = elementsSelectionnes.includes(
+                              article.id
+                            );
 
-                    <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-                      {(articlesParCategorie[bloc.categorie] || []).map(
-                        (article) => {
-                          const actif =
-                            elementsSelectionnes.includes(article.id);
-
-                          return (
-                            <button
-                              key={article.id}
-                              type="button"
-                              onClick={() => basculerElement(article.id)}
-                              className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition ${
-                                actif
-                                  ? "border-emerald-500 bg-emerald-50"
-                                  : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
-                              }`}
-                            >
-                              <span className="text-xl">
-                                {article.icone || "•"}
-                              </span>
-
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-semibold text-slate-900">
-                                  {article.nom}
+                            return (
+                              <button
+                                key={article.id}
+                                type="button"
+                                aria-pressed={actif}
+                                onClick={() => basculerElement(article.id)}
+                                className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+                                  actif
+                                    ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
+                                    : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
+                                }`}
+                              >
+                                <span
+                                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${
+                                    actif
+                                      ? "border-emerald-600 bg-emerald-600 text-white"
+                                      : "border-slate-300 bg-white text-transparent"
+                                  }`}
+                                >
+                                  ✓
                                 </span>
 
-                                {article.description && (
-                                  <span className="block truncate text-xs text-slate-500">
-                                    {article.description}
+                                <span className="text-xl">
+                                  {article.icone || "•"}
+                                </span>
+
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-sm font-semibold text-slate-900">
+                                    {article.nom}
                                   </span>
-                                )}
-                              </span>
-                            </button>
-                          );
-                        }
+
+                                  {article.description && (
+                                    <span className="mt-1 block text-xs text-slate-500">
+                                      {article.description}
+                                    </span>
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                    </div>
-                  </section>
-                ))}
+                    </section>
+                  );
+                })}
               </aside>
             </div>
 

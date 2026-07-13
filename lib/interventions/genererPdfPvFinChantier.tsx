@@ -47,6 +47,7 @@ export type FichePvPdf = {
 };
 
 export type PvFinChantierPdf = {
+  client_email: string;
   id: string;
   client_present: boolean | null;
   chantier_termine: boolean | null;

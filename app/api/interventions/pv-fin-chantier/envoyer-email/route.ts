@@ -1,36 +1,100 @@
-import { NextRequest, NextResponse } from "next/server";
 import React from "react";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
+import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import { PvFinChantierDocument } from "../../../../../lib/interventions/genererPdfPvFinChantier";
-import { chargerParametresEntrepriseDocument } from "../../../../../lib/documents/chargerParametresEntreprise";
+import { chargerParametresEntrepriseDocument } from "@/lib/documents/chargerParametresEntreprise";
+import {
+  PvFinChantierDocument,
+  type ElementFichePv,
+  type FichePvPdf,
+  type ParametresEntreprisePv,
+  type PhotoPv,
+  type PvFinChantierPdf,
+  type SalariePv,
+} from "../../../../../lib/interventions/genererPdfPvFinChantier";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type SupabaseAdminClient = any;
 
 type ProfilUtilisateur = {
   id: string;
-  entreprise_id: string;
+  entreprise_id: string | null;
   role: string | null;
-  email: string | null;
-  nom: string | null;
-  prenom: string | null;
+  email?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
 };
+
+type PhotoBase = PhotoPv & {
+  url?: string | null;
+  storage_path?: string | null;
+};
+
+type HistoriqueEmailParams = {
+  supabaseAdmin: SupabaseAdminClient;
+  entrepriseId: string;
+  ficheId: string;
+  pvId: string | null;
+  destinataireEmail: string;
+  sujet: string;
+  message: string;
+  statut: "envoye" | "erreur";
+  resendEmailId?: string | null;
+  erreur?: string | null;
+  envoyePar?: string | null;
+};
+
+function reponseJson(
+  contenu: Record<string, unknown>,
+  statut = 200
+) {
+  return NextResponse.json(contenu, {
+    status: statut,
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function reponseErreur(message: string, statut = 400) {
+  return reponseJson(
+    {
+      error: message,
+      erreur: message,
+    },
+    statut
+  );
+}
 
 function nettoyerEmail(email: unknown) {
   if (typeof email !== "string") return "";
   return email.trim().toLowerCase();
 }
 
-function roleAutorise(role: string | null | undefined) {
-  const valeur = (role || "").trim().toLowerCase();
+function emailValide(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
-  return (
-    valeur === "chef" ||
-    valeur === "admin" ||
-    valeur === "gerant" ||
-    valeur === "gérant"
-  );
+function normaliserRole(role: string | null | undefined) {
+  return String(role || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function roleAutorise(role: string | null | undefined) {
+  return [
+    "chef",
+    "admin",
+    "administrateur",
+    "gerant",
+    "dirigeant",
+    "patron",
+  ].includes(normaliserRole(role));
 }
 
 function echapperHtml(texte: string) {
@@ -46,107 +110,238 @@ function texteVersHtml(texte: string) {
   return echapperHtml(texte).replaceAll("\n", "<br />");
 }
 
-function nomProfil(profil: ProfilUtilisateur | null) {
-  if (!profil) return "Arboboard";
+function nomProfil(
+  profil: ProfilUtilisateur | null,
+  emailUtilisateur?: string | null
+) {
+  if (!profil) return emailUtilisateur || "Arboboard";
 
   const complet = `${profil.prenom || ""} ${profil.nom || ""}`.trim();
-  return complet || profil.email || "Arboboard";
+
+  return (
+    complet ||
+    profil.email ||
+    emailUtilisateur ||
+    "Arboboard"
+  );
 }
 
-function nomFichierPdf(numero: string | null | undefined) {
-  const base =
-    numero && numero.trim().length > 0 ? numero.trim() : "PV-fin-chantier";
+function nettoyerNomFichier(valeur: string) {
+  const nom = valeur
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
 
-  return `${base
-    .replaceAll("/", "-")
-    .replaceAll("\\", "-")
-    .replaceAll(" ", "-")}.pdf`;
+  return nom || "pv-fin-chantier";
 }
 
-async function enregistrerHistoriqueEmail(params: {
-  supabaseAdmin: any;
-  entrepriseId: string;
-  ficheId: string;
-  pvId: string | null;
-  destinataireEmail: string;
-  sujet: string;
-  message: string;
-  statut: "envoye" | "erreur";
-  resendEmailId?: string | null;
-  erreur?: string | null;
-  envoyePar?: string | null;
-}) {
-  const { error } = await params.supabaseAdmin
+function estUrlExterne(valeur: string | null | undefined) {
+  return /^(https?:\/\/|data:)/i.test(String(valeur || ""));
+}
+
+function nettoyerCheminStorage(valeur: string | null | undefined) {
+  return String(valeur || "")
+    .trim()
+    .replace(/^\/+/, "");
+}
+
+async function lireCorpsJson(request: NextRequest) {
+  try {
+    return (await request.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function enregistrerHistoriqueEmail({
+  supabaseAdmin,
+  entrepriseId,
+  ficheId,
+  pvId,
+  destinataireEmail,
+  sujet,
+  message,
+  statut,
+  resendEmailId = null,
+  erreur = null,
+  envoyePar = null,
+}: HistoriqueEmailParams) {
+  const { error } = await supabaseAdmin
     .from("pv_fin_chantier_emails")
     .insert({
-      entreprise_id: params.entrepriseId,
-      fiche_id: params.ficheId,
-      pv_id: params.pvId,
-      destinataire_email: params.destinataireEmail,
-      sujet: params.sujet,
-      message: params.message,
-      statut: params.statut,
-      resend_email_id: params.resendEmailId || null,
-      erreur: params.erreur || null,
-      envoye_par: params.envoyePar || null,
+      entreprise_id: entrepriseId,
+      fiche_id: ficheId,
+      pv_id: pvId,
+      destinataire_email: destinataireEmail,
+      sujet,
+      message,
+      statut,
+      resend_email_id: resendEmailId,
+      erreur,
+      envoye_par: envoyePar,
     });
 
   if (error) {
-    console.error("Erreur insertion historique email PV :", error);
+    console.error(
+      "Erreur insertion historique email PV :",
+      error
+    );
   }
+}
+
+async function rendreLogoAccessible({
+  supabaseAdmin,
+  entreprise,
+}: {
+  supabaseAdmin: SupabaseAdminClient;
+  entreprise: ParametresEntreprisePv | null;
+}) {
+  if (!entreprise?.logo_url || estUrlExterne(entreprise.logo_url)) {
+    return entreprise;
+  }
+
+  const chemin = nettoyerCheminStorage(entreprise.logo_url);
+
+  if (!chemin) {
+    return entreprise;
+  }
+
+  const { data, error } = await supabaseAdmin.storage
+    .from("logos-entreprises")
+    .createSignedUrl(chemin, 60 * 30);
+
+  if (error || !data?.signedUrl) {
+    console.error("Erreur URL signée logo email PV :", error);
+    return entreprise;
+  }
+
+  return {
+    ...entreprise,
+    logo_url: data.signedUrl,
+  };
+}
+
+async function ajouterUrlSigneePhoto({
+  supabaseAdmin,
+  photo,
+}: {
+  supabaseAdmin: SupabaseAdminClient;
+  photo: PhotoBase;
+}) {
+  const valeurUrl = photo.url || null;
+
+  if (!photo.storage_path && estUrlExterne(valeurUrl)) {
+    return {
+      ...photo,
+      signed_url: valeurUrl,
+    };
+  }
+
+  const chemin = nettoyerCheminStorage(
+    photo.storage_path || valeurUrl
+  );
+
+  if (!chemin) {
+    return {
+      ...photo,
+      signed_url: null,
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.storage
+    .from("interventions-photos")
+    .createSignedUrl(chemin, 60 * 30);
+
+  if (error || !data?.signedUrl) {
+    console.error("Erreur URL signée photo email PV :", {
+      photoId: photo.id,
+      chemin,
+      erreur: error,
+    });
+
+    return {
+      ...photo,
+      signed_url: null,
+    };
+  }
+
+  return {
+    ...photo,
+    signed_url: data.signedUrl,
+  };
 }
 
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseServiceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
   const resendFromEmail =
-    process.env.RESEND_FROM_EMAIL || "Arboboard <contact@arboboard.fr>";
+    process.env.RESEND_FROM_EMAIL ||
+    "Arboboard <contact@arboboard.fr>";
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return NextResponse.json(
-      {
-        erreur:
-          "Configuration Supabase serveur manquante. Vérifiez les variables d’environnement.",
-      },
-      { status: 500 }
+  if (
+    !supabaseUrl ||
+    !supabaseAnonKey ||
+    !supabaseServiceRoleKey
+  ) {
+    return reponseErreur(
+      "Configuration Supabase serveur manquante.",
+      500
     );
   }
 
   if (!resendApiKey) {
-    return NextResponse.json(
-      {
-        erreur:
-          "Configuration Resend manquante. Ajoutez RESEND_API_KEY dans les variables d’environnement.",
-      },
-      { status: 500 }
+    return reponseErreur(
+      "Configuration Resend manquante. Ajoutez RESEND_API_KEY dans les variables d’environnement.",
+      500
     );
   }
 
-  const authorization = request.headers.get("authorization") || "";
-  const token = authorization.replace("Bearer ", "").trim();
+  const authorization =
+    request.headers.get("authorization") || "";
+
+  const token = authorization
+    .toLowerCase()
+    .startsWith("bearer ")
+    ? authorization.slice(7).trim()
+    : "";
 
   if (!token) {
-    return NextResponse.json(
-      { erreur: "Session absente. Veuillez vous reconnecter." },
-      { status: 401 }
+    return reponseErreur(
+      "Session absente. Veuillez vous reconnecter.",
+      401
     );
   }
 
-  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }) as any;
+  const supabaseAuth = createClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
 
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }) as any;
+  const supabaseAdmin: SupabaseAdminClient = createClient(
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
 
   const {
     data: { user },
@@ -154,110 +349,121 @@ export async function POST(request: NextRequest) {
   } = await supabaseAuth.auth.getUser(token);
 
   if (erreurUtilisateur || !user) {
-    return NextResponse.json(
-      { erreur: "Session invalide. Veuillez vous reconnecter." },
-      { status: 401 }
+    return reponseErreur(
+      "Session invalide. Veuillez vous reconnecter.",
+      401
     );
   }
 
-  const { data: profilData, error: erreurProfil } = await supabaseAdmin
-    .from("profils_utilisateurs")
-    .select("id, entreprise_id, role, email, nom, prenom")
-    .eq("id", user.id)
-    .maybeSingle();
+  /*
+   * select("*") évite de provoquer une erreur d’exécution si certaines
+   * anciennes bases ne possèdent pas encore les colonnes nom, prénom ou email.
+   */
+  const { data: profilDataBrute, error: erreurProfil } =
+    await supabaseAdmin
+      .from("profils_utilisateurs")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
 
-  if (erreurProfil || !profilData?.entreprise_id) {
-    return NextResponse.json(
-      {
-        erreur:
-          "Profil utilisateur introuvable. Impossible de vérifier les droits.",
-      },
-      { status: 403 }
+  const profil =
+    (profilDataBrute || null) as ProfilUtilisateur | null;
+
+  if (erreurProfil || !profil?.entreprise_id) {
+    return reponseErreur(
+      "Profil utilisateur introuvable. Impossible de vérifier les droits.",
+      403
     );
   }
-
-  const entrepriseId = String(profilData.entreprise_id);
-
-  const profil: ProfilUtilisateur = {
-    id: String(profilData.id),
-    entreprise_id: entrepriseId,
-    role: profilData.role || null,
-    email: profilData.email || null,
-    nom: profilData.nom || null,
-    prenom: profilData.prenom || null,
-  };
 
   if (!roleAutorise(profil.role)) {
-    return NextResponse.json(
-      {
-        erreur:
-          "Action refusée. Seul un chef, administrateur ou gérant peut envoyer le PV au client.",
-      },
-      { status: 403 }
+    return reponseErreur(
+      "Action refusée. Seul un chef, administrateur ou gérant peut envoyer le PV au client.",
+      403
     );
   }
 
-  let body: any = {};
+  const entrepriseId = String(profil.entreprise_id);
+  const corps = await lireCorpsJson(request);
 
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { erreur: "Requête invalide." },
-      { status: 400 }
-    );
+  if (!corps) {
+    return reponseErreur("Requête invalide.", 400);
   }
 
   const ficheId =
-    typeof body.ficheId === "string"
-      ? body.ficheId
-      : typeof body.fiche_id === "string"
-      ? body.fiche_id
-      : "";
+    typeof corps.ficheId === "string"
+      ? corps.ficheId.trim()
+      : typeof corps.fiche_id === "string"
+        ? corps.fiche_id.trim()
+        : "";
 
   const pvId =
-    typeof body.pvId === "string"
-      ? body.pvId
-      : typeof body.pv_id === "string"
-      ? body.pv_id
-      : "";
+    typeof corps.pvId === "string"
+      ? corps.pvId.trim()
+      : typeof corps.pv_id === "string"
+        ? corps.pv_id.trim()
+        : "";
 
   const destinataireEmail =
-    nettoyerEmail(body.destinataireEmail) ||
-    nettoyerEmail(body.email) ||
-    nettoyerEmail(body.destinataire_email);
+    nettoyerEmail(corps.destinataireEmail) ||
+    nettoyerEmail(corps.emailDestinataire) ||
+    nettoyerEmail(corps.clientEmail) ||
+    nettoyerEmail(corps.email) ||
+    nettoyerEmail(corps.destinataire_email);
 
   const messagePersonnalise =
-    typeof body.message === "string" ? body.message.trim() : "";
+    typeof corps.message === "string"
+      ? corps.message.trim()
+      : "";
 
-  if (!ficheId) {
-    return NextResponse.json(
-      { erreur: "Fiche intervention manquante." },
-      { status: 400 }
+  if (!ficheId || ficheId.length > 200) {
+    return reponseErreur(
+      "Fiche intervention manquante ou invalide.",
+      400
     );
   }
 
   if (!destinataireEmail) {
-    return NextResponse.json(
-      { erreur: "Email destinataire manquant." },
-      { status: 400 }
+    return reponseErreur(
+      "Email destinataire manquant.",
+      400
     );
   }
 
-  const { data: ficheData, error: erreurFiche } = await supabaseAdmin
-    .from("fiches_intervention")
-    .select("*")
-    .eq("entreprise_id", entrepriseId)
-    .eq("id", ficheId)
-    .maybeSingle();
+  if (!emailValide(destinataireEmail)) {
+    return reponseErreur(
+      "L’adresse email du destinataire n’est pas valide.",
+      400
+    );
+  }
 
-  if (erreurFiche || !ficheData) {
-    return NextResponse.json(
-      {
-        erreur:
-          "Fiche intervention introuvable ou non rattachée à votre entreprise.",
-      },
-      { status: 404 }
+  const { data: ficheDataBrute, error: erreurFiche } =
+    await supabaseAdmin
+      .from("fiches_intervention")
+      .select("*")
+      .eq("entreprise_id", entrepriseId)
+      .eq("id", ficheId)
+      .maybeSingle();
+
+  const ficheData =
+    (ficheDataBrute || null) as FichePvPdf | null;
+
+  if (erreurFiche) {
+    console.error(
+      "Erreur chargement fiche pour email PV :",
+      erreurFiche
+    );
+
+    return reponseErreur(
+      "Impossible de vérifier la fiche intervention.",
+      500
+    );
+  }
+
+  if (!ficheData) {
+    return reponseErreur(
+      "Fiche intervention introuvable ou non rattachée à votre entreprise.",
+      404
     );
   }
 
@@ -271,51 +477,154 @@ export async function POST(request: NextRequest) {
     requetePv = requetePv.eq("id", pvId);
   }
 
-  const { data: pvData, error: erreurPv } = await requetePv
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: pvDataBrute, error: erreurPv } =
+    await requetePv
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (erreurPv || !pvData) {
-    return NextResponse.json(
-      {
-        erreur:
-          "PV de fin de chantier introuvable. Enregistrez le PV avant de l’envoyer.",
-      },
-      { status: 404 }
+  const pvData =
+    (pvDataBrute || null) as PvFinChantierPdf | null;
+
+  if (erreurPv) {
+    console.error(
+      "Erreur chargement PV pour email :",
+      erreurPv
+    );
+
+    return reponseErreur(
+      "Impossible de charger le PV de fin de chantier.",
+      500
     );
   }
 
-  const parametresEntreprise = await chargerParametresEntrepriseDocument(
-    entrepriseId
+  if (!pvData) {
+    return reponseErreur(
+      "PV de fin de chantier introuvable. Enregistrez le PV avant de l’envoyer.",
+      404
+    );
+  }
+
+  const [
+    parametresEntrepriseBruts,
+    elementsResult,
+    photosResult,
+    equipeResult,
+  ] = await Promise.all([
+    chargerParametresEntrepriseDocument(entrepriseId),
+
+    supabaseAdmin
+      .from("fiches_intervention_elements")
+      .select("*")
+      .eq("entreprise_id", entrepriseId)
+      .eq("fiche_id", ficheId)
+      .order("ordre", { ascending: true }),
+
+    supabaseAdmin
+      .from("fiches_intervention_photos")
+      .select("*")
+      .eq("entreprise_id", entrepriseId)
+      .eq("fiche_id", ficheId)
+      .order("created_at", { ascending: true }),
+
+    supabaseAdmin
+      .from("fiches_intervention_salaries")
+      .select("*")
+      .eq("entreprise_id", entrepriseId)
+      .eq("fiche_id", ficheId)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (elementsResult.error) {
+    return reponseErreur(
+      elementsResult.error.message ||
+        "Impossible de charger les éléments de la fiche.",
+      500
+    );
+  }
+
+  if (photosResult.error) {
+    return reponseErreur(
+      photosResult.error.message ||
+        "Impossible de charger les photos du chantier.",
+      500
+    );
+  }
+
+  if (equipeResult.error) {
+    return reponseErreur(
+      equipeResult.error.message ||
+        "Impossible de charger l’équipe du chantier.",
+      500
+    );
+  }
+
+  const entreprise = await rendreLogoAccessible({
+    supabaseAdmin,
+    entreprise:
+      (parametresEntrepriseBruts as ParametresEntreprisePv | null) ||
+      null,
+  });
+
+  const photosAvecUrls = await Promise.all(
+    ((photosResult.data || []) as PhotoBase[]).map((photo) =>
+      ajouterUrlSigneePhoto({
+        supabaseAdmin,
+        photo,
+      })
+    )
   );
 
-  const sujet = `PV de fin de chantier ${
-    ficheData.numero ? `- ${ficheData.numero}` : ""
-  }`.trim();
+  const nomEntreprise =
+    entreprise?.nom_entreprise || "Arboboard";
+
+  const sujet = `PV de fin de chantier${
+    ficheData.numero ? ` - ${ficheData.numero}` : ""
+  }`;
 
   const message =
     messagePersonnalise ||
     `Bonjour,
 
-Veuillez trouver en pièce jointe le PV de fin de chantier concernant l’intervention ${
-      ficheData.titre || ficheData.type_intervention || ""
+Veuillez trouver en pièce jointe le procès-verbal de fin de chantier concernant l’intervention ${
+      ficheData.titre ||
+      ficheData.type_intervention ||
+      ""
     }.
 
 Cordialement,
-${nomProfil(profil)}`;
+${nomEntreprise}`;
 
   try {
-    const DocumentPdf = PvFinChantierDocument as any;
+    const documentPdf = React.createElement(
+      PvFinChantierDocument as React.ComponentType<any>,
+      {
+        entreprise,
+        fiche: ficheData,
+        pv: pvData,
+        elements:
+          (elementsResult.data || []) as ElementFichePv[],
+        photos: photosAvecUrls as PhotoPv[],
+        equipe:
+          (equipeResult.data || []) as SalariePv[],
+      }
+    );
 
-    const documentPdf = React.createElement(DocumentPdf, {
-      fiche: ficheData,
-      pv: pvData,
-      parametresEntreprise,
-      photos: [],
-    });
+    const pdfBuffer = await renderToBuffer(
+      documentPdf as any
+    );
 
-    const pdfBuffer = await renderToBuffer(documentPdf as any);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      throw new Error(
+        "Le fichier PDF généré est vide."
+      );
+    }
+
+    const nomBase = nettoyerNomFichier(
+      `pv-fin-chantier-${
+        ficheData.numero || ficheData.id
+      }`
+    );
 
     const resend = new Resend(resendApiKey);
 
@@ -324,20 +633,22 @@ ${nomProfil(profil)}`;
       to: [destinataireEmail],
       subject: sujet,
       html: `
-        <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
+        <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.6;">
           <p>${texteVersHtml(message)}</p>
+
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+
           <p style="font-size: 12px; color: #64748b;">
-            Email envoyé depuis Arboboard.
+            Ce message et sa pièce jointe ont été envoyés depuis Arboboard.
           </p>
         </div>
       `,
       attachments: [
         {
-          filename: nomFichierPdf(ficheData.numero || pvData.numero),
-          content: pdfBuffer.toString("base64"),
+          filename: `${nomBase}.pdf`,
+          content: Buffer.from(pdfBuffer).toString("base64"),
         },
-      ] as any,
+      ],
     });
 
     if (resultatEmail.error) {
@@ -351,28 +662,41 @@ ${nomProfil(profil)}`;
         message,
         statut: "erreur",
         resendEmailId: null,
-        erreur: resultatEmail.error.message,
+        erreur:
+          resultatEmail.error.message ||
+          "Resend a refusé l’envoi.",
         envoyePar: profil.id,
       });
 
-      return NextResponse.json(
-        {
-          erreur:
-            resultatEmail.error.message ||
-            "Resend a refusé l’envoi de l’email.",
-        },
-        { status: 500 }
+      return reponseErreur(
+        resultatEmail.error.message ||
+          "Resend a refusé l’envoi de l’email.",
+        500
       );
     }
 
-    await supabaseAdmin
-      .from("pv_fin_chantier")
-      .update({
-        envoye_client_at: new Date().toISOString(),
-        envoye_client_email: destinataireEmail,
-      })
-      .eq("entreprise_id", entrepriseId)
-      .eq("id", pvData.id);
+    const dateEnvoi = new Date().toISOString();
+
+    const { error: erreurMiseAJourPv } =
+      await supabaseAdmin
+        .from("pv_fin_chantier")
+        .update({
+          envoye_client_at: dateEnvoi,
+          envoye_client_email: destinataireEmail,
+          client_email:
+            pvData.client_email || destinataireEmail,
+          updated_at: dateEnvoi,
+        })
+        .eq("entreprise_id", entrepriseId)
+        .eq("fiche_id", ficheId)
+        .eq("id", pvData.id);
+
+    if (erreurMiseAJourPv) {
+      console.error(
+        "Email envoyé, mais mise à jour du PV impossible :",
+        erreurMiseAJourPv
+      );
+    }
 
     await enregistrerHistoriqueEmail({
       supabaseAdmin,
@@ -383,19 +707,29 @@ ${nomProfil(profil)}`;
       sujet,
       message,
       statut: "envoye",
-      resendEmailId: resultatEmail.data?.id || null,
+      resendEmailId:
+        resultatEmail.data?.id || null,
       erreur: null,
       envoyePar: profil.id,
     });
 
-    return NextResponse.json({
+    return reponseJson({
       succes: true,
-      message: "PV envoyé au client.",
+      message: `PV envoyé avec succès à ${destinataireEmail}.`,
       emailId: resultatEmail.data?.id || null,
       destinataireEmail,
+      envoyePar: nomProfil(profil, user.email),
     });
-  } catch (error: any) {
-    console.error("Erreur envoi email PV fin chantier :", error);
+  } catch (error: unknown) {
+    console.error(
+      "Erreur envoi email PV fin chantier :",
+      error
+    );
+
+    const messageErreur =
+      error instanceof Error
+        ? error.message
+        : "Erreur inconnue pendant l’envoi.";
 
     await enregistrerHistoriqueEmail({
       supabaseAdmin,
@@ -407,17 +741,14 @@ ${nomProfil(profil)}`;
       message,
       statut: "erreur",
       resendEmailId: null,
-      erreur: error?.message || "Erreur inconnue pendant l’envoi.",
+      erreur: messageErreur,
       envoyePar: profil.id,
     });
 
-    return NextResponse.json(
-      {
-        erreur:
-          error?.message ||
-          "Impossible de générer ou d’envoyer le PV de fin de chantier.",
-      },
-      { status: 500 }
+    return reponseErreur(
+      messageErreur ||
+        "Impossible de générer ou d’envoyer le PV de fin de chantier.",
+      500
     );
   }
 }

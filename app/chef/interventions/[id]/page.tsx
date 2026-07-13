@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import BlocPhotosChantier from "@/components/interventions/BlocPhotosChantier";
@@ -288,8 +288,6 @@ function nomClient(client: Client | null, fallback?: string | null) {
 
 export default function DetailFicheInterventionPage() {
   const params = useParams();
-  const router = useRouter();
-
   const ficheId = String(params?.id || "");
 
   const [entrepriseId, setEntrepriseId] = useState("");
@@ -488,129 +486,298 @@ export default function DetailFicheInterventionPage() {
       .join("\n\n");
   }, [fiche]);
 
-  function renduEtapes() {
-    if (!fiche) return null;
+  const nombreEtapesValidees = useMemo(() => {
+    if (!fiche) return 0;
 
+    return [
+      fiche.etape_materiel_statut,
+      fiche.etape_arrivee_statut,
+      fiche.etape_fin_statut,
+    ].filter((statut) => statut === "valide").length;
+  }, [fiche]);
+
+  const nombreElementsPrepares = useMemo(() => {
+    return elements.filter((element) => element.coche_prepare).length;
+  }, [elements]);
+
+  function renduEtape({
+    numero,
+    titre,
+    description,
+    statut,
+    dateValidation,
+    commentaire,
+    icone,
+  }: {
+    numero: number;
+    titre: string;
+    description: string;
+    statut: string | null | undefined;
+    dateValidation: string | null | undefined;
+    commentaire: string | null | undefined;
+    icone: string;
+  }) {
     return (
-      <div className="grid gap-3 md:grid-cols-3">
-        <div
-          className={`rounded-2xl border p-4 ${classeEtape(
-            fiche.etape_materiel_statut
-          )}`}
-        >
-          <p className="text-sm font-bold">1. Matériel chargé</p>
-          <p className="mt-1 text-sm">{libelleEtape(fiche.etape_materiel_statut)}</p>
-          <p className="mt-2 text-xs opacity-80">
-            Validation : {formatDateHeure(fiche.materiel_valide_at)}
-          </p>
+      <div className={`relative overflow-hidden rounded-3xl border p-4 ${classeEtape(statut)}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-xl shadow-sm">
+              {icone}
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide opacity-70">
+                Étape {numero}
+              </p>
+              <p className="mt-1 font-bold">{titre}</p>
+              <p className="mt-1 text-xs opacity-80">{description}</p>
+            </div>
+          </div>
+
+          <span className="shrink-0 rounded-full border border-current/15 bg-white/70 px-3 py-1 text-xs font-bold">
+            {libelleEtape(statut)}
+          </span>
         </div>
 
-        <div
-          className={`rounded-2xl border p-4 ${classeEtape(
-            fiche.etape_arrivee_statut
-          )}`}
-        >
-          <p className="text-sm font-bold">2. Arrivée chantier</p>
-          <p className="mt-1 text-sm">{libelleEtape(fiche.etape_arrivee_statut)}</p>
-          <p className="mt-2 text-xs opacity-80">
-            Validation : {formatDateHeure(fiche.arrivee_validee_at)}
+        <div className="mt-4 border-t border-current/10 pt-3 text-xs">
+          <p className="font-medium opacity-80">
+            Validation : {formatDateHeure(dateValidation)}
           </p>
-        </div>
 
-        <div
-          className={`rounded-2xl border p-4 ${classeEtape(
-            fiche.etape_fin_statut
-          )}`}
-        >
-          <p className="text-sm font-bold">3. Fin / PV</p>
-          <p className="mt-1 text-sm">{libelleEtape(fiche.etape_fin_statut)}</p>
-          <p className="mt-2 text-xs opacity-80">
-            Validation : {formatDateHeure(fiche.fin_validee_at)}
-          </p>
+          {commentaire && (
+            <p className="mt-2 whitespace-pre-line rounded-2xl bg-white/70 px-3 py-2 leading-5">
+              {commentaire}
+            </p>
+          )}
         </div>
       </div>
     );
   }
 
-  function renduBlocElements(categorie: string, titre: string, icone: string, description: string) {
-    const liste = elementsParCategorie[categorie] || [];
+  function renduEtapes() {
+    if (!fiche) return null;
 
     return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-            {icone}
-          </div>
+      <div className="space-y-4">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-950">
+                Progression terrain
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {nombreEtapesValidees} étape(s) validée(s) sur 3
+              </p>
+            </div>
 
-          <div>
-            <h2 className="font-bold text-slate-950">{titre}</h2>
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-36 overflow-hidden rounded-full bg-slate-200 sm:w-48">
+                <div
+                  className="h-full rounded-full bg-emerald-600 transition-all"
+                  style={{ width: `${(nombreEtapesValidees / 3) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-700">
+                {Math.round((nombreEtapesValidees / 3) * 100)} %
+              </span>
+            </div>
           </div>
         </div>
 
-        {liste.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-            Aucun élément renseigné.
-          </p>
-        ) : (
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {liste.map((element) => (
-              <div
-                key={element.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-semibold text-slate-950">
-                    {element.icone || "•"} {element.nom}
-                  </p>
+        <div className="grid gap-3 xl:grid-cols-3">
+          {renduEtape({
+            numero: 1,
+            titre: "Préparation matériel",
+            description: "Matériel, fournitures et EPI préparés.",
+            statut: fiche.etape_materiel_statut,
+            dateValidation: fiche.materiel_valide_at,
+            commentaire: fiche.commentaire_preparation,
+            icone: "🧰",
+          })}
 
-                  {element.coche_prepare && (
-                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      Préparé
-                    </span>
-                  )}
+          {renduEtape({
+            numero: 2,
+            titre: "Arrivée chantier",
+            description: "Présence de l’équipe et démarrage confirmé.",
+            statut: fiche.etape_arrivee_statut,
+            dateValidation: fiche.arrivee_validee_at,
+            commentaire: fiche.commentaire_arrivee,
+            icone: "📍",
+          })}
+
+          {renduEtape({
+            numero: 3,
+            titre: "Fin de chantier",
+            description: "Travaux, photos et PV de fin validés.",
+            statut: fiche.etape_fin_statut,
+            dateValidation: fiche.fin_validee_at,
+            commentaire: fiche.commentaire_fin,
+            icone: "✅",
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function renduBlocElements(
+    categorie: string,
+    titre: string,
+    icone: string,
+    description: string
+  ) {
+    const liste = elementsParCategorie[categorie] || [];
+
+    if (liste.length === 0) return null;
+
+    const prepares = liste.filter((element) => element.coche_prepare).length;
+
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+              {icone}
+            </div>
+
+            <div>
+              <h2 className="font-bold text-slate-950">{titre}</h2>
+              <p className="mt-1 text-sm text-slate-500">{description}</p>
+            </div>
+          </div>
+
+          <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+            {prepares}/{liste.length} préparé(s)
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {liste.map((element) => (
+            <div
+              key={element.id}
+              className={`rounded-2xl border p-4 transition ${
+                element.coche_prepare
+                  ? "border-emerald-200 bg-emerald-50/70"
+                  : "border-slate-200 bg-slate-50"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-lg shadow-sm">
+                    {element.icone || "•"}
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-950">
+                      {element.nom}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Prévu : {Number(element.quantite_prevue || 1)}{" "}
+                      {element.unite || "u"}
+                      {element.quantite_reelle !== null &&
+                      element.quantite_reelle !== undefined
+                        ? ` · Réel : ${Number(element.quantite_reelle)} ${
+                            element.unite || "u"
+                          }`
+                        : ""}
+                    </p>
+                  </div>
                 </div>
 
-                <p className="mt-2 text-xs text-slate-500">
-                  Prévu : {Number(element.quantite_prevue || 1)}{" "}
-                  {element.unite || "u"}
-                  {element.quantite_reelle !== null &&
-                  element.quantite_reelle !== undefined
-                    ? ` · Réel : ${Number(element.quantite_reelle)} ${
-                        element.unite || "u"
-                      }`
-                    : ""}
-                </p>
-
-                {element.commentaire_chef && (
-                  <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-600">
-                    Chef : {element.commentaire_chef}
-                  </p>
-                )}
-
-                {element.commentaire_salarie && (
-                  <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                    Salarié : {element.commentaire_salarie}
-                  </p>
-                )}
+                <span
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
+                    element.coche_prepare
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-white text-slate-500"
+                  }`}
+                >
+                  {element.coche_prepare ? "Préparé" : "À préparer"}
+                </span>
               </div>
-            ))}
-          </div>
-        )}
+
+              {element.commentaire_chef && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+                  <span className="font-bold text-slate-700">Chef :</span>{" "}
+                  {element.commentaire_chef}
+                </div>
+              )}
+
+              {element.commentaire_salarie && (
+                <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700">
+                  <span className="font-bold">Retour salarié :</span>{" "}
+                  {element.commentaire_salarie}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
+    );
+  }
+
+  function renduActionsStatut() {
+    if (!fiche) return null;
+
+    const statut = fiche.statut || "brouillon";
+
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <button
+          type="button"
+          onClick={rafraichir}
+          disabled={enregistrement}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {enregistrement ? "Mise à jour..." : "Actualiser"}
+        </button>
+
+        {(statut === "brouillon" || statut === "planifiee") && (
+          <button
+            type="button"
+            onClick={() => changerStatut("en_cours")}
+            disabled={enregistrement}
+            className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Passer en cours
+          </button>
+        )}
+
+        {statut === "en_cours" && (
+          <button
+            type="button"
+            onClick={() => changerStatut("terminee")}
+            disabled={enregistrement}
+            className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Marquer terminée
+          </button>
+        )}
+
+        {statut === "terminee" && (
+          <button
+            type="button"
+            onClick={() => changerStatut("archivee")}
+            disabled={enregistrement}
+            className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Archiver la fiche
+          </button>
+        )}
+      </div>
     );
   }
 
   if (chargement) {
     return (
       <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
             📋
           </div>
-          <p className="font-semibold text-slate-950">Chargement de la fiche...</p>
+          <p className="font-semibold text-slate-950">
+            Chargement de la fiche...
+          </p>
           <p className="mt-1 text-sm text-slate-500">
-            Récupération des données chantier.
+            Récupération des données du chantier.
           </p>
         </div>
       </div>
@@ -637,163 +804,231 @@ export default function DetailFicheInterventionPage() {
     );
   }
 
+  const statutActuel = fiche.statut || "brouillon";
+  const ficheArchivee = statutActuel === "archivee";
+  const ficheTerminee = statutActuel === "terminee";
+  const clientAffiche = nomClient(client, fiche.client_nom);
+
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <Link
-            href="/chef/interventions"
-            className="inline-flex rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            ← Retour aux fiches
-          </Link>
+    <div className="space-y-6 pb-10">
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <Link
+                href="/chef/interventions"
+                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                ← Retour aux fiches
+              </Link>
 
-          <p className="mt-5 text-sm font-medium text-emerald-700">
-            Fiche d’intervention
-          </p>
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${badgeStatut(
+                    fiche.statut
+                  )}`}
+                >
+                  {libelleStatut(fiche.statut)}
+                </span>
 
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            {titreFiche(fiche)}
-          </h1>
+                {fiche.numero && (
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                    {fiche.numero}
+                  </span>
+                )}
 
-          <p className="mt-2 max-w-4xl text-sm text-slate-600">
-            {fiche.client_nom || nomClient(client)} · {adresseFiche(fiche)}
-          </p>
+                {fiche.type_intervention && (
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                    {fiche.type_intervention}
+                  </span>
+                )}
+              </div>
 
-          {fiche.numero && (
-            <p className="mt-1 text-xs font-semibold text-slate-400">
-              Numéro fiche : {fiche.numero}
-            </p>
-          )}
+              <h1 className="mt-3 break-words text-2xl font-bold text-slate-950 sm:text-3xl">
+                {titreFiche(fiche)}
+              </h1>
+
+              <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
+                <p className="flex items-start gap-2">
+                  <span>👤</span>
+                  <span className="font-semibold text-slate-800">
+                    {clientAffiche}
+                  </span>
+                </p>
+                <p className="flex items-start gap-2 sm:col-span-2 xl:col-span-2">
+                  <span>📍</span>
+                  <span>{adresseFiche(fiche)}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="xl:max-w-md">{renduActionsStatut()}</div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={rafraichir}
-            disabled={enregistrement}
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Actualiser
-          </button>
+        <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="bg-white p-4 sm:p-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Date prévue
+            </p>
+            <p className="mt-2 text-base font-bold text-slate-950">
+              {formatDate(fiche.date_prevue || fiche.date_intervention)}
+            </p>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => changerStatut("en_cours")}
-            disabled={enregistrement}
-            className="rounded-2xl border border-amber-200 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Passer en cours
-          </button>
+          <div className="bg-white p-4 sm:p-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Horaires prévus
+            </p>
+            <p className="mt-2 text-base font-bold text-slate-950">
+              {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)} →{" "}
+              {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
+            </p>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => changerStatut("terminee")}
-            disabled={enregistrement}
-            className="rounded-2xl border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Marquer terminée
-          </button>
+          <div className="bg-white p-4 sm:p-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Horaires réels
+            </p>
+            <p className="mt-2 text-base font-bold text-slate-950">
+              {formatHeure(fiche.heure_debut_reelle)} →{" "}
+              {formatHeure(fiche.heure_fin_reelle)}
+            </p>
+          </div>
+
+          <div className="bg-white p-4 sm:p-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Préparation
+            </p>
+            <p className="mt-2 text-base font-bold text-slate-950">
+              {nombreElementsPrepares}/{elements.length} élément(s)
+            </p>
+          </div>
         </div>
       </section>
 
       {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {messageErreur}
         </div>
       )}
 
       {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           {messageSucces}
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Statut
-          </p>
-          <span
-            className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-              fiche.statut
-            )}`}
-          >
-            {libelleStatut(fiche.statut)}
-          </span>
+      {ficheArchivee && (
+        <div className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          <span className="font-bold">Fiche archivée.</span> Elle reste
+          consultable, mais aucune action de changement de statut n’est affichée.
+        </div>
+      )}
+
+      {ficheTerminee && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <span className="font-bold">Intervention terminée.</span> Vérifiez les
+          photos et le PV avant d’archiver définitivement la fiche.
+        </div>
+      )}
+
+      {fiche.probleme_signale && (
+        <section className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
+              ⚠️
+            </div>
+            <div>
+              <h2 className="font-bold text-red-800">Problème signalé</h2>
+              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-red-700">
+                {fiche.description_probleme ||
+                  "Un problème a été signalé sur cette intervention."}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
+            🧭
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-950">
+              Suivi terrain en 3 étapes
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Préparation, arrivée sur place et validation de fin de chantier.
+            </p>
+          </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Date prévue
-          </p>
-          <p className="mt-3 text-lg font-bold text-slate-950">
-            {formatDate(fiche.date_prevue || fiche.date_intervention)}
-          </p>
-        </div>
+        <div className="mt-5">{renduEtapes()}</div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Horaires prévus
-          </p>
-          <p className="mt-3 text-lg font-bold text-slate-950">
-            {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)} →{" "}
-            {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
-          </p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Horaires réels
-          </p>
-          <p className="mt-3 text-lg font-bold text-slate-950">
-            {formatHeure(fiche.heure_debut_reelle)} →{" "}
-            {formatHeure(fiche.heure_fin_reelle)}
-          </p>
-        </div>
+        <ResumeRetourTerrainFiche
+          entrepriseId={entrepriseId}
+          ficheId={fiche.id}
+          problemeSignale={fiche.probleme_signale}
+          descriptionProbleme={fiche.description_probleme}
+        />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_420px]">
-        <div className="space-y-5">
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-5">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                 📍
               </div>
-
               <div>
-                <h2 className="font-bold text-slate-950">Informations chantier</h2>
+                <h2 className="font-bold text-slate-950">
+                  Informations chantier
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Adresse, notes et informations principales de la fiche.
+                  Client, adresse, accès et informations internes.
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                   Client
                 </p>
                 <p className="mt-2 font-bold text-slate-950">
-                  {nomClient(client, fiche.client_nom)}
+                  {clientAffiche}
                 </p>
 
-                {client?.email && (
-                  <p className="mt-1 text-sm text-slate-500">{client.email}</p>
-                )}
+                <div className="mt-3 space-y-1 text-sm text-slate-600">
+                  {client?.email ? (
+                    <a
+                      href={`mailto:${client.email}`}
+                      className="block break-all font-medium text-emerald-700 hover:underline"
+                    >
+                      {client.email}
+                    </a>
+                  ) : (
+                    <p className="text-amber-700">Aucun email enregistré</p>
+                  )}
 
-                {client?.telephone && (
-                  <p className="mt-1 text-sm text-slate-500">
-                    {client.telephone}
-                  </p>
-                )}
+                  {client?.telephone && (
+                    <a
+                      href={`tel:${client.telephone}`}
+                      className="block font-medium text-slate-700 hover:underline"
+                    >
+                      {client.telephone}
+                    </a>
+                  )}
+                </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                   Adresse chantier
                 </p>
-                <p className="mt-2 font-bold text-slate-950">
+                <p className="mt-2 whitespace-pre-line font-bold leading-6 text-slate-950">
                   {adresseFiche(fiche)}
                 </p>
               </div>
@@ -804,7 +1039,7 @@ export default function DetailFicheInterventionPage() {
                 <p className="text-sm font-bold text-amber-950">
                   Notes chantier / accès
                 </p>
-                <p className="mt-2 whitespace-pre-line text-sm text-amber-800">
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-amber-800">
                   {fiche.notes_chantier}
                 </p>
               </div>
@@ -815,37 +1050,11 @@ export default function DetailFicheInterventionPage() {
                 <p className="text-sm font-bold text-slate-950">
                   Notes internes chef
                 </p>
-                <p className="mt-2 whitespace-pre-line text-sm text-slate-600">
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
                   {fiche.notes_internes}
                 </p>
               </div>
             )}
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-                🧭
-              </div>
-
-              <div>
-                <h2 className="font-bold text-slate-950">
-                  Suivi terrain en 3 étapes
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Préparation matériel, arrivée chantier et validation de fin.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5">{renduEtapes()}</div>
-
-            <ResumeRetourTerrainFiche
-              entrepriseId={entrepriseId}
-              ficheId={fiche.id}
-              problemeSignale={fiche.probleme_signale}
-              descriptionProbleme={fiche.description_probleme}
-            />
           </section>
 
           {BLOCS_ELEMENTS.map((bloc) =>
@@ -858,34 +1067,72 @@ export default function DetailFicheInterventionPage() {
           )}
 
           {travauxSimples && elements.length === 0 && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="font-bold text-slate-950">
-                Informations préparées
-              </h2>
-              <p className="mt-3 whitespace-pre-line text-sm text-slate-600">
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+                  📝
+                </div>
+                <div>
+                  <h2 className="font-bold text-slate-950">
+                    Informations préparées
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Contenu historique de la fiche, sans éléments détaillés.
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 whitespace-pre-line rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                 {travauxSimples}
               </p>
             </section>
           )}
 
-          <BlocPhotosChantier
-            entrepriseId={entrepriseId}
-            ficheId={fiche.id}
-            userId={null}
-          />
+          <section className="space-y-5">
+            <div>
+              <p className="text-sm font-bold text-slate-950">
+                1. Photos du chantier
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Photos avant, pendant et après l’intervention.
+              </p>
+            </div>
 
-          <BlocPvFinChantier
-            entrepriseId={entrepriseId}
-            ficheId={fiche.id}
-            clientId={fiche.client_id}
-            clientNom={fiche.client_nom || nomClient(client)}
-            signataireEntrepriseNom={signataireEntrepriseNom}
-          />
+            <BlocPhotosChantier
+              entrepriseId={entrepriseId}
+              ficheId={fiche.id}
+              userId={null}
+            />
+          </section>
+
+          <section className="space-y-5">
+            <div>
+              <p className="text-sm font-bold text-slate-950">
+                2. Procès-verbal de fin de chantier
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Signature, téléchargement et envoi au client par le chef.
+              </p>
+            </div>
+
+            <BlocPvFinChantier
+              entrepriseId={entrepriseId}
+              ficheId={fiche.id}
+              clientId={fiche.client_id}
+              clientNom={clientAffiche}
+              signataireEntrepriseNom={signataireEntrepriseNom}
+              afficherEnvoiEmail={true}
+            />
+          </section>
         </div>
 
-        <aside className="space-y-5">
+        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Équipe affectée</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-bold text-slate-950">Équipe affectée</h2>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                {equipe.length}
+              </span>
+            </div>
 
             {equipe.length === 0 ? (
               <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -898,26 +1145,36 @@ export default function DetailFicheInterventionPage() {
                     key={item.id}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <p className="font-bold text-slate-950">
-                      {item.salarie_nom || "Salarié"}
-                    </p>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-lg shadow-sm">
+                        👤
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-950">
+                          {item.salarie_nom || "Salarié"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {item.role_chantier || "Intervenant"}
+                        </p>
+                      </div>
+                    </div>
 
-                    <p className="mt-1 text-xs text-slate-500">
-                      Rôle : {item.role_chantier || "Intervenant"}
-                    </p>
-
-                    <p className="mt-2 text-xs text-slate-500">
-                      Prévu : {formatHeure(item.heure_arrivee_prevue)} →{" "}
-                      {formatHeure(item.heure_depart_prevue)}
-                    </p>
-
-                    {(item.heure_arrivee_reelle ||
-                      item.heure_depart_reelle) && (
-                      <p className="mt-1 text-xs font-semibold text-emerald-700">
-                        Réel : {formatHeure(item.heure_arrivee_reelle)} →{" "}
-                        {formatHeure(item.heure_depart_reelle)}
-                      </p>
-                    )}
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-xl bg-white px-3 py-2 text-slate-600">
+                        <p className="font-bold text-slate-400">Prévu</p>
+                        <p className="mt-1 font-semibold text-slate-700">
+                          {formatHeure(item.heure_arrivee_prevue)} →{" "}
+                          {formatHeure(item.heure_depart_prevue)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white px-3 py-2 text-slate-600">
+                        <p className="font-bold text-slate-400">Réel</p>
+                        <p className="mt-1 font-semibold text-emerald-700">
+                          {formatHeure(item.heure_arrivee_reelle)} →{" "}
+                          {formatHeure(item.heure_depart_reelle)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -930,21 +1187,28 @@ export default function DetailFicheInterventionPage() {
             <div className="mt-4 space-y-3">
               {devis ? (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-                    Devis
-                  </p>
-                  <p className="mt-2 font-bold text-emerald-950">
-                    {devis.numero || "Devis sans numéro"}
-                  </p>
-                  <p className="mt-1 text-sm text-emerald-700">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
+                        Devis
+                      </p>
+                      <p className="mt-2 font-bold text-emerald-950">
+                        {devis.numero || "Devis sans numéro"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-emerald-700">
+                      {devis.statut || "—"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-emerald-700">
                     {devis.objet || "Sans objet"}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-emerald-800">
+                  <p className="mt-2 text-sm font-bold text-emerald-900">
                     {formatMontant(devis.total_ttc)}
                   </p>
                   <Link
                     href="/chef/devis"
-                    className="mt-3 inline-flex rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                    className="mt-3 inline-flex rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                   >
                     Voir les devis
                   </Link>
@@ -957,21 +1221,28 @@ export default function DetailFicheInterventionPage() {
 
               {facture ? (
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-                    Facture
-                  </p>
-                  <p className="mt-2 font-bold text-blue-950">
-                    {facture.numero || "Facture sans numéro"}
-                  </p>
-                  <p className="mt-1 text-sm text-blue-700">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
+                        Facture
+                      </p>
+                      <p className="mt-2 font-bold text-blue-950">
+                        {facture.numero || "Facture sans numéro"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-blue-700">
+                      {facture.statut || "—"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-blue-700">
                     {facture.objet || "Sans objet"}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-blue-800">
+                  <p className="mt-2 text-sm font-bold text-blue-900">
                     {formatMontant(facture.total_ttc)}
                   </p>
                   <Link
                     href="/chef/factures"
-                    className="mt-3 inline-flex rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                    className="mt-3 inline-flex rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                   >
                     Voir les factures
                   </Link>
@@ -984,23 +1255,32 @@ export default function DetailFicheInterventionPage() {
             </div>
           </section>
 
-          {fiche.probleme_signale && (
-            <section className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
-              <h2 className="font-bold text-red-700">Problème signalé</h2>
-              <p className="mt-2 whitespace-pre-line text-sm text-red-700">
-                {fiche.description_probleme ||
-                  "Un problème a été signalé sur cette intervention."}
-              </p>
-            </section>
-          )}
-
-          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-            <h2 className="font-bold text-emerald-950">Page détail</h2>
-            <p className="mt-2 text-sm text-emerald-800">
-              Cette page remplace progressivement la grosse modale. Elle sera
-              ensuite reliée directement depuis les cartes fiches et depuis les
-              plannings.
-            </p>
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="font-bold text-slate-950">Résumé fiche</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <dt className="text-slate-500">Éléments</dt>
+                <dd className="font-bold text-slate-950">{elements.length}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <dt className="text-slate-500">Préparés</dt>
+                <dd className="font-bold text-emerald-700">
+                  {nombreElementsPrepares}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <dt className="text-slate-500">Étapes validées</dt>
+                <dd className="font-bold text-slate-950">
+                  {nombreEtapesValidees}/3
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-slate-500">Dernière mise à jour</dt>
+                <dd className="text-right text-xs font-semibold text-slate-700">
+                  {formatDateHeure(fiche.updated_at)}
+                </dd>
+              </div>
+            </dl>
           </section>
         </aside>
       </section>

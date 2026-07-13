@@ -245,8 +245,9 @@ export default function BlocPvFinChantier({
   const [clientPresent, setClientPresent] = useState(true);
   const [chantierTermine, setChantierTermine] = useState(true);
   const [reserves, setReserves] = useState("");
-  const [commentaireClient, setCommentaireClient] = useState("");
-  const [commentaireEntreprise, setCommentaireEntreprise] = useState("");
+  const [avecReserves, setAvecReserves] = useState(false);
+  const [reconnaissanceTravaux, setReconnaissanceTravaux] = useState(false);
+  const [reconnaissanceEvacuation, setReconnaissanceEvacuation] = useState(false);
   const [signatureClient, setSignatureClient] = useState("");
   const [signatureEntreprise, setSignatureEntreprise] = useState("");
   const [signataireClientNom, setSignataireClientNom] = useState(
@@ -300,8 +301,9 @@ export default function BlocPvFinChantier({
         setClientPresent(true);
         setChantierTermine(true);
         setReserves("");
-        setCommentaireClient("");
-        setCommentaireEntreprise("");
+        setAvecReserves(false);
+        setReconnaissanceTravaux(false);
+        setReconnaissanceEvacuation(false);
         setSignatureClient("");
         setSignatureEntreprise("");
         setSignataireClientNom(clientNom || "");
@@ -315,9 +317,12 @@ export default function BlocPvFinChantier({
       setPv(pvCharge);
       setClientPresent(pvCharge.client_present !== false);
       setChantierTermine(pvCharge.chantier_termine !== false);
-      setReserves(pvCharge.reserves || "");
-      setCommentaireClient(pvCharge.commentaire_client || "");
-      setCommentaireEntreprise(pvCharge.commentaire_entreprise || "");
+      const reservesChargees = pvCharge.reserves || "";
+      setReserves(reservesChargees);
+      setAvecReserves(Boolean(reservesChargees.trim()));
+      const clientADejaSigne = Boolean(pvCharge.signature_client);
+      setReconnaissanceTravaux(clientADejaSigne);
+      setReconnaissanceEvacuation(clientADejaSigne);
       setSignatureClient(pvCharge.signature_client || "");
       setSignatureEntreprise(pvCharge.signature_entreprise || "");
       setSignataireClientNom(pvCharge.signataire_client_nom || clientNom || "");
@@ -371,6 +376,48 @@ export default function BlocPvFinChantier({
     }
 
 
+    if (!chantierTermine && !avecReserves) {
+      setMessageErreur(
+        "Un chantier non terminé doit être réceptionné avec réserves."
+      );
+      return;
+    }
+
+    if (avecReserves && !reserves.trim()) {
+      setMessageErreur(
+        "Décrivez les réserves avant d’enregistrer le PV."
+      );
+      return;
+    }
+
+    if (!signataireEntreprise.trim() || !signatureEntreprise) {
+      setMessageErreur(
+        "Le nom et la signature de l’entreprise sont obligatoires."
+      );
+      return;
+    }
+
+    if (clientPresent) {
+      if (!signataireClientNom.trim()) {
+        setMessageErreur("Renseignez le nom du signataire client.");
+        return;
+      }
+
+      if (!reconnaissanceTravaux || !reconnaissanceEvacuation) {
+        setMessageErreur(
+          "Le client doit confirmer les deux déclarations avant de signer."
+        );
+        return;
+      }
+
+      if (!signatureClient) {
+        setMessageErreur(
+          "La signature du client est obligatoire lorsqu’il est présent."
+        );
+        return;
+      }
+    }
+
     try {
       setEnregistrement(true);
       setMessageErreur("");
@@ -384,9 +431,7 @@ export default function BlocPvFinChantier({
         client_email: clientEmailCharge.trim().toLowerCase() || null,
         client_present: clientPresent,
         chantier_termine: chantierTermine,
-        reserves: reserves.trim() || null,
-        commentaire_client: commentaireClient.trim() || null,
-        commentaire_entreprise: commentaireEntreprise.trim() || null,
+        reserves: avecReserves ? reserves.trim() || null : null,
         signature_client: clientPresent ? signatureClient || null : null,
         signature_entreprise: signatureEntreprise || null,
         signataire_client_nom:
@@ -489,8 +534,9 @@ export default function BlocPvFinChantier({
       setClientPresent(true);
       setChantierTermine(true);
       setReserves("");
-      setCommentaireClient("");
-      setCommentaireEntreprise("");
+      setAvecReserves(false);
+      setReconnaissanceTravaux(false);
+      setReconnaissanceEvacuation(false);
       setSignatureClient("");
       setSignatureEntreprise("");
       setSignataireClientNom(clientNom || "");
@@ -531,8 +577,7 @@ export default function BlocPvFinChantier({
               </h2>
 
               <p className="text-sm text-slate-500">
-                Validation de fin d’intervention, réserves, commentaires et
-                signatures.
+                Réception des travaux, réserves et signatures.
               </p>
             </div>
           </div>
@@ -609,7 +654,6 @@ export default function BlocPvFinChantier({
                   if (!event.target.checked) {
                     setSignatureClient("");
                     setSignataireClientNom("");
-                    setCommentaireClient("");
                   }
                 }}
                 className="h-4 w-4"
@@ -664,63 +708,108 @@ export default function BlocPvFinChantier({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-slate-700">
-            Réserves éventuelles
-          </label>
+      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm font-bold text-slate-950">
+          Réception du chantier
+        </p>
 
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              setAvecReserves(false);
+              setReserves("");
+            }}
+            disabled={!chantierTermine}
+            className={`min-h-14 rounded-2xl border px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              !avecReserves
+                ? "border-emerald-500 bg-emerald-600 text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            Sans réserve
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAvecReserves(true)}
+            className={`min-h-14 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+              avecReserves
+                ? "border-amber-500 bg-amber-500 text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            Avec réserves
+          </button>
+        </div>
+      </div>
+
+      {avecReserves && (
+        <div className="mt-5">
+          <label className="mb-2 block text-sm font-bold text-slate-800">
+            Réserves
+          </label>
           <textarea
             value={reserves}
             onChange={(event) => setReserves(event.target.value)}
             rows={5}
-            placeholder="Ex : souche à reprendre, branche non accessible, attente validation client..."
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            placeholder="Décrivez précisément les réserves formulées par le client."
+            className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
           />
         </div>
+      )}
 
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-slate-700">
-            Commentaire client
-          </label>
+      {clientPresent && (
+        <div className="mt-5 rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-bold text-emerald-950">
+            Bon pour réception des travaux
+          </p>
 
-          <textarea
-            value={commentaireClient}
-            onChange={(event) => setCommentaireClient(event.target.value)}
-            rows={5}
-            disabled={!clientPresent}
-            placeholder="Commentaire ou observation du client"
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-          />
+          <div className="mt-4 space-y-3">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
+              <input
+                type="checkbox"
+                checked={reconnaissanceTravaux}
+                onChange={(event) =>
+                  setReconnaissanceTravaux(event.target.checked)
+                }
+                className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-sm text-slate-700">
+                Je reconnais que les travaux ont été réalisés conformément au devis accepté.
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
+              <input
+                type="checkbox"
+                checked={reconnaissanceEvacuation}
+                onChange={(event) =>
+                  setReconnaissanceEvacuation(event.target.checked)
+                }
+                className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-sm text-slate-700">
+                Je reconnais que les déchets ont été évacués ou laissés sur place conformément aux conditions prévues.
+              </span>
+            </label>
+          </div>
         </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-semibold text-slate-700">
-            Commentaire entreprise
-          </label>
-
-          <textarea
-            value={commentaireEntreprise}
-            onChange={(event) => setCommentaireEntreprise(event.target.value)}
-            rows={5}
-            placeholder="Commentaire interne ou précision de fin de chantier"
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          />
-        </div>
-      </div>
+      )}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        {clientPresent && (
+          <SignaturePad
+            label="Signature client"
+            valeur={signatureClient}
+            onChange={setSignatureClient}
+          />
+        )}
+
         <SignaturePad
           label="Signature entreprise"
           valeur={signatureEntreprise}
           onChange={setSignatureEntreprise}
-        />
-
-        <SignaturePad
-          label="Signature client"
-          valeur={signatureClient}
-          onChange={setSignatureClient}
-          disabled={!clientPresent}
         />
       </div>
 

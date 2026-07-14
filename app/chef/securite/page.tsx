@@ -602,12 +602,21 @@ export default function SecuriteChefPage() {
               </p>
             </div>
 
-            <Link
-              href="/chef/securite/documents-juridiques"
-              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"
-            >
-              Administrer les documents Arboboard
-            </Link>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <Link
+                href="/chef/securite/documents-juridiques"
+                className="inline-flex items-center justify-center rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"
+              >
+                Administrer les documents
+              </Link>
+
+              <Link
+                href="/chef/securite/demandes-rgpd-admin"
+                className="inline-flex items-center justify-center rounded-xl border border-violet-300 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800 transition hover:bg-violet-100"
+              >
+                Traiter les demandes RGPD
+              </Link>
+            </div>
           </div>
         </section>
       ) : null}

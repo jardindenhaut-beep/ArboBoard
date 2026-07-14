@@ -2,16 +2,30 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   abonnementEstBloque,
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
 
+type ResultatContexteEntreprise = Awaited<
+  ReturnType<typeof chargerContexteEntreprise>
+>;
+
+type ContexteEntrepriseBrut = NonNullable<
+  ResultatContexteEntreprise["contexte"]
+>;
+
 type ContexteEntreprise = {
-  profil: any;
-  entreprise: any;
+  profil: NonNullable<ContexteEntrepriseBrut["profil"]>;
+  entreprise: NonNullable<ContexteEntrepriseBrut["entreprise"]>;
 };
 
 type MenuItem = {
@@ -21,7 +35,15 @@ type MenuItem = {
   plans: string[];
 };
 
+type LienCompte = {
+  label: string;
+  description: string;
+  href: string;
+  emoji: string;
+};
+
 const TOUS_LES_PLANS = ["essai", "essentiel", "pro", "expert", "dev"];
+const PLANS_EQUIPE = ["essai", "pro", "expert", "dev"];
 
 const MENUS: MenuItem[] = [
   {
@@ -40,32 +62,32 @@ const MENUS: MenuItem[] = [
     label: "Salariés",
     href: "/chef/salaries",
     emoji: "👷",
-    plans: ["essai", "pro", "expert", "dev"],
+    plans: PLANS_EQUIPE,
   },
   {
     label: "Accès salariés",
     href: "/chef/salaries/acces",
     emoji: "🔐",
-    plans: ["essai", "pro", "expert", "dev"],
+    plans: PLANS_EQUIPE,
   },
   {
     label: "Planning",
     href: "/chef/planning",
     emoji: "📅",
-    plans: ["essai", "pro", "expert", "dev"],
+    plans: PLANS_EQUIPE,
   },
   {
     label: "Demandes",
     href: "/chef/demandes",
     emoji: "📩",
-    plans: ["essai", "pro", "expert", "dev"],
+    plans: PLANS_EQUIPE,
   },
   {
-  label: "Fiches intervention",
-  href: "/chef/interventions",
-  emoji: "📋",
-  plans: ["essai", "pro", "expert", "dev"],
-},
+    label: "Fiches d’intervention",
+    href: "/chef/interventions",
+    emoji: "🌳",
+    plans: PLANS_EQUIPE,
+  },
   {
     label: "Devis",
     href: "/chef/devis",
@@ -78,28 +100,68 @@ const MENUS: MenuItem[] = [
     emoji: "🧾",
     plans: TOUS_LES_PLANS,
   },
+];
+
+const LIENS_COMPTE: LienCompte[] = [
   {
-    label: "Abonnement",
-    href: "/chef/abonnement",
-    emoji: "💳",
-    plans: TOUS_LES_PLANS,
+    label: "Mon compte",
+    description: "Vue d’ensemble de votre compte",
+    href: "/chef/compte",
+    emoji: "👤",
   },
   {
     label: "Profil",
+    description: "Informations personnelles",
     href: "/chef/profil",
     emoji: "🙋",
-    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Abonnement",
+    description: "Offre, facturation et portail Stripe",
+    href: "/chef/abonnement",
+    emoji: "💳",
   },
   {
     label: "Paramètres",
+    description: "Entreprise et documents",
     href: "/chef/parametres",
     emoji: "⚙️",
-    plans: TOUS_LES_PLANS,
+  },
+  {
+    label: "Sécurité & conformité",
+    description: "RGPD, sauvegardes et documents légaux",
+    href: "/chef/securite",
+    emoji: "🛡️",
+  },
+  {
+    label: "À propos",
+    description: "Version et informations Arboboard",
+    href: "/chef/compte#a-propos",
+    emoji: "ℹ️",
   },
 ];
 
 function normaliserPlan(plan: string | null | undefined) {
   return String(plan || "essai").toLowerCase().trim();
+}
+
+function normaliserRole(role: string | null | undefined) {
+  return String(role || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function roleChefAutorise(role: string | null | undefined) {
+  return [
+    "chef",
+    "admin",
+    "administrateur",
+    "gerant",
+    "dirigeant",
+    "patron",
+  ].includes(normaliserRole(role));
 }
 
 function routeAutoriseePourPlan(pathname: string, plan: string) {
@@ -114,7 +176,9 @@ function routeAutoriseePourPlan(pathname: string, plan: string) {
     pathname.startsWith("/chef/dashboard") ||
     pathname.startsWith("/chef/abonnement") ||
     pathname.startsWith("/chef/profil") ||
-    pathname.startsWith("/chef/parametres")
+    pathname.startsWith("/chef/parametres") ||
+    pathname.startsWith("/chef/compte") ||
+    pathname.startsWith("/chef/securite")
   ) {
     return true;
   }
@@ -128,30 +192,206 @@ function routeAutoriseePourPlan(pathname: string, plan: string) {
   }
 
   if (
-    planNormalise === "essai" ||
-    planNormalise === "pro" ||
-    planNormalise === "expert"
-  ) {
-    if (
+    ["essai", "pro", "expert"].includes(planNormalise) &&
+    (
       pathname.startsWith("/chef/salaries") ||
       pathname.startsWith("/chef/planning") ||
       pathname.startsWith("/chef/demandes") ||
-     pathname.startsWith("/chef/interventions")
-    ) {
-      return true;
-    }
+      pathname.startsWith("/chef/interventions")
+    )
+  ) {
+    return true;
   }
 
   return false;
 }
 
+function nomComplet(profil: ContexteEntreprise["profil"]) {
+  const nom = `${profil.prenom || ""} ${profil.nom || ""}`.trim();
+  return nom || profil.email || "Utilisateur Arboboard";
+}
+
+function initiales(profil: ContexteEntreprise["profil"]) {
+  const valeurs = [profil.prenom, profil.nom]
+    .filter(Boolean)
+    .map((valeur) => String(valeur).trim().charAt(0).toUpperCase())
+    .join("");
+
+  if (valeurs) return valeurs.slice(0, 2);
+
+  return String(profil.email || "A").charAt(0).toUpperCase();
+}
+
+function MenuUtilisateur({
+  profil,
+  entreprise,
+  ouvert,
+  onBasculer,
+  onFermer,
+  onDeconnexion,
+  mobile = false,
+}: {
+  profil: ContexteEntreprise["profil"];
+  entreprise: ContexteEntreprise["entreprise"];
+  ouvert: boolean;
+  onBasculer: () => void;
+  onFermer: () => void;
+  onDeconnexion: () => Promise<void>;
+  mobile?: boolean;
+}) {
+  if (mobile) {
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={onBasculer}
+          aria-expanded={ouvert}
+          aria-label="Ouvrir le menu utilisateur"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800 transition hover:bg-emerald-200"
+        >
+          {initiales(profil)}
+        </button>
+
+        {ouvert ? (
+          <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="border-b border-slate-200 p-4">
+              <p className="truncate text-sm font-semibold text-slate-950">
+                {nomComplet(profil)}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">
+                {profil.email || "Adresse email non renseignée"}
+              </p>
+              <p className="mt-2 truncate text-xs font-medium text-emerald-700">
+                {entreprise.nom_entreprise || "Entreprise"}
+              </p>
+            </div>
+
+            <div className="max-h-[65vh] overflow-y-auto p-2">
+              {LIENS_COMPTE.map((lien) => (
+                <Link
+                  key={lien.href}
+                  href={lien.href}
+                  onClick={onFermer}
+                  className="flex items-start gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                >
+                  <span className="mt-0.5 text-base">{lien.emoji}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-slate-900">
+                      {lien.label}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {lien.description}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-200 p-2">
+              <button
+                type="button"
+                onClick={onDeconnexion}
+                className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition hover:bg-red-50"
+              >
+                Se déconnecter
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      {ouvert ? (
+        <div className="absolute bottom-[calc(100%+0.75rem)] left-0 z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-200 p-4">
+            <p className="truncate text-sm font-semibold text-slate-950">
+              {nomComplet(profil)}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">
+              {profil.email || "Adresse email non renseignée"}
+            </p>
+            <p className="mt-2 truncate text-xs font-medium text-emerald-700">
+              {entreprise.nom_entreprise || "Entreprise"}
+            </p>
+          </div>
+
+          <div className="max-h-[55vh] overflow-y-auto p-2">
+            {LIENS_COMPTE.map((lien) => (
+              <Link
+                key={lien.href}
+                href={lien.href}
+                onClick={onFermer}
+                className="flex items-start gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+              >
+                <span className="mt-0.5 text-base">{lien.emoji}</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-900">
+                    {lien.label}
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    {lien.description}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          <div className="border-t border-slate-200 p-2">
+            <button
+              type="button"
+              onClick={onDeconnexion}
+              className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition hover:bg-red-50"
+            >
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onBasculer}
+        aria-expanded={ouvert}
+        className="flex w-full items-center gap-3 rounded-2xl border border-transparent p-2 text-left transition hover:border-slate-200 hover:bg-slate-50"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800">
+          {initiales(profil)}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-950">
+            {nomComplet(profil)}
+          </p>
+          <p className="truncate text-xs text-slate-500">
+            {profil.email || "Mon compte"}
+          </p>
+        </div>
+
+        <span
+          className={`text-xs text-slate-400 transition ${
+            ouvert ? "rotate-180" : ""
+          }`}
+        >
+          ▲
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export default function ChefLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const menuUtilisateurDesktopRef = useRef<HTMLDivElement | null>(null);
+  const menuUtilisateurMobileRef = useRef<HTMLDivElement | null>(null);
 
   const [chargement, setChargement] = useState(true);
   const [contexte, setContexte] = useState<ContexteEntreprise | null>(null);
   const [messageErreur, setMessageErreur] = useState("");
+  const [menuUtilisateurOuvert, setMenuUtilisateurOuvert] = useState(false);
 
   useEffect(() => {
     let actif = true;
@@ -170,7 +410,8 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           return;
         }
 
-        const contexteEntreprise = resultat.contexte;
+        const contexteEntreprise =
+          resultat.contexte as ContexteEntreprise;
 
         if (!contexteEntreprise.profil || !contexteEntreprise.entreprise) {
           router.replace("/connexion");
@@ -180,13 +421,16 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
         const profil = contexteEntreprise.profil;
         const entreprise = contexteEntreprise.entreprise;
 
-        if (profil.role !== "chef") {
+        if (!roleChefAutorise(profil.role)) {
           await supabase.auth.signOut();
           router.replace("/connexion");
           return;
         }
 
-        if (profil.statut && profil.statut !== "actif") {
+        if (
+          profil.statut &&
+          normaliserRole(profil.statut) !== "actif"
+        ) {
           await supabase.auth.signOut();
           router.replace("/connexion");
           return;
@@ -194,12 +438,17 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
 
         const abonnementBloque = abonnementEstBloque(entreprise);
 
-        if (abonnementBloque && !pathname.startsWith("/chef/abonnement")) {
+        if (
+          abonnementBloque &&
+          !pathname.startsWith("/chef/abonnement")
+        ) {
           router.replace("/chef/abonnement?acces=bloque");
           return;
         }
 
-        const planActuel = normaliserPlan(entreprise.plan_abonnement);
+        const planActuel = normaliserPlan(
+          entreprise.plan_abonnement
+        );
 
         if (!routeAutoriseePourPlan(pathname, planActuel)) {
           router.replace("/chef/abonnement?acces=plan");
@@ -227,6 +476,43 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
+  useEffect(() => {
+    setMenuUtilisateurOuvert(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    function fermerAuClicExterieur(event: MouseEvent) {
+      const cible = event.target as Node;
+
+      const clicDansMenuDesktop =
+        menuUtilisateurDesktopRef.current?.contains(cible) ?? false;
+      const clicDansMenuMobile =
+        menuUtilisateurMobileRef.current?.contains(cible) ?? false;
+
+      if (
+        menuUtilisateurOuvert &&
+        !clicDansMenuDesktop &&
+        !clicDansMenuMobile
+      ) {
+        setMenuUtilisateurOuvert(false);
+      }
+    }
+
+    function fermerAvecEchap(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuUtilisateurOuvert(false);
+      }
+    }
+
+    document.addEventListener("mousedown", fermerAuClicExterieur);
+    document.addEventListener("keydown", fermerAvecEchap);
+
+    return () => {
+      document.removeEventListener("mousedown", fermerAuClicExterieur);
+      document.removeEventListener("keydown", fermerAvecEchap);
+    };
+  }, [menuUtilisateurOuvert]);
+
   const planActuel = useMemo(() => {
     return normaliserPlan(contexte?.entreprise?.plan_abonnement);
   }, [contexte]);
@@ -236,19 +522,20 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
   }, [planActuel]);
 
   async function deconnexion() {
+    setMenuUtilisateurOuvert(false);
     await supabase.auth.signOut();
     router.replace("/connexion");
   }
 
   if (chargement) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
-          <div className="text-3xl mb-3">🌳</div>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mb-3 text-3xl">🌳</div>
           <h1 className="text-xl font-semibold text-slate-900">
             Chargement de votre espace
           </h1>
-          <p className="text-sm text-slate-500 mt-2">
+          <p className="mt-2 text-sm text-slate-500">
             Vérification de votre compte, de votre entreprise et de votre
             abonnement.
           </p>
@@ -259,16 +546,19 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
 
   if (messageErreur) {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-8 max-w-md w-full text-center">
-          <div className="text-3xl mb-3">⚠️</div>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
+          <div className="mb-3 text-3xl">⚠️</div>
           <h1 className="text-xl font-semibold text-red-700">
             Accès impossible
           </h1>
-          <p className="text-sm text-slate-600 mt-2">{messageErreur}</p>
+          <p className="mt-2 text-sm text-slate-600">
+            {messageErreur}
+          </p>
           <button
+            type="button"
             onClick={() => router.replace("/connexion")}
-            className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-5 py-2.5 text-sm font-medium hover:bg-slate-700"
+            className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700"
           >
             Retour connexion
           </button>
@@ -287,14 +577,19 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+      <aside className="fixed left-0 top-0 hidden h-screen w-72 flex-col border-r border-slate-200 bg-white lg:flex">
         <div className="border-b border-slate-200 p-5">
-          <Link href="/chef/dashboard" className="flex items-center gap-3">
+          <Link
+            href="/chef/dashboard"
+            className="flex items-center gap-3"
+          >
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
               🌳
             </div>
             <div>
-              <p className="text-lg font-bold leading-tight">Arboboard</p>
+              <p className="text-lg font-bold leading-tight">
+                Arboboard
+              </p>
               <p className="text-xs text-slate-500">
                 Espace chef d’entreprise
               </p>
@@ -310,7 +605,7 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
             {entreprise.nom_entreprise || "Entreprise"}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium capitalize text-slate-700">
               Plan {planActuel}
             </span>
             <span
@@ -350,42 +645,54 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           </div>
         </nav>
 
-        <div className="border-t border-slate-200 p-4">
-          <div className="mb-3">
-            <p className="truncate text-sm font-semibold">
-              {profil.prenom || ""} {profil.nom || ""}
-            </p>
-            <p className="truncate text-xs text-slate-500">{profil.email}</p>
-          </div>
-
-          <button
-            onClick={deconnexion}
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-          >
-            Se déconnecter
-          </button>
+        <div
+          ref={menuUtilisateurDesktopRef}
+          className="border-t border-slate-200 p-3"
+        >
+          <MenuUtilisateur
+            profil={profil}
+            entreprise={entreprise}
+            ouvert={menuUtilisateurOuvert}
+            onBasculer={() =>
+              setMenuUtilisateurOuvert((valeur) => !valeur)
+            }
+            onFermer={() => setMenuUtilisateurOuvert(false)}
+            onDeconnexion={deconnexion}
+          />
         </div>
       </aside>
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
-            <Link href="/chef/dashboard" className="flex items-center gap-2">
+            <Link
+              href="/chef/dashboard"
+              className="flex items-center gap-2"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-xl">
                 🌳
               </div>
               <div>
                 <p className="font-bold leading-tight">Arboboard</p>
-                <p className="text-xs text-slate-500">Espace chef</p>
+                <p className="text-xs text-slate-500">
+                  Espace chef
+                </p>
               </div>
             </Link>
 
-            <button
-              onClick={deconnexion}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium"
-            >
-              Déconnexion
-            </button>
+            <div ref={menuUtilisateurMobileRef}>
+              <MenuUtilisateur
+                profil={profil}
+              entreprise={entreprise}
+              ouvert={menuUtilisateurOuvert}
+              onBasculer={() =>
+                setMenuUtilisateurOuvert((valeur) => !valeur)
+              }
+              onFermer={() => setMenuUtilisateurOuvert(false)}
+              onDeconnexion={deconnexion}
+                mobile
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 overflow-x-auto px-4 pb-3">
@@ -411,13 +718,13 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {abonnementBloque && (
+        {abonnementBloque ? (
           <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 lg:px-8">
-            Votre abonnement est bloqué, suspendu, annulé ou expiré. Vous pouvez
-            accéder uniquement à la page abonnement pour régulariser la
-            situation.
+            Votre abonnement est bloqué, suspendu, annulé ou expiré.
+            Vous pouvez accéder uniquement à la page abonnement pour
+            régulariser la situation.
           </div>
-        )}
+        ) : null}
 
         <main className="p-4 lg:p-8">{children}</main>
       </div>

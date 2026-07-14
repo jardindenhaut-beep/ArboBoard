@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 import type { DocumentJuridiquePublie } from "@/lib/documentsJuridiques";
 
 function formaterDate(date: string) {
@@ -84,6 +85,7 @@ function rendreContenu(contenu: string): ReactNode[] {
   });
 
   viderPuces();
+
   return elements;
 }
 
@@ -96,67 +98,64 @@ export default function DocumentJuridiquePublic({
 }) {
   if (!document) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-16">
-        <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="text-4xl">📄</div>
-          <h1 className="mt-4 text-2xl font-bold text-slate-950">
-            {titreIndisponible}
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Ce document n’a pas encore été publié. Il devra être
-            disponible avant l’ouverture commerciale d’Arboboard.
-          </p>
-          <Link
-            href="/"
-            className="mt-6 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-          >
-            Retour à l’accueil
-          </Link>
-        </section>
-      </main>
+      <div className="flex min-h-screen flex-col bg-slate-50">
+        <main className="flex flex-1 items-center px-4 py-16">
+          <section className="mx-auto w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="text-4xl">📄</div>
+            <h1 className="mt-4 text-2xl font-bold text-slate-950">
+              {titreIndisponible}
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Ce document n’a pas encore été publié. Il devra être
+              disponible avant l’ouverture commerciale d’Arboboard.
+            </p>
+            <Link
+              href="/"
+              className="mt-6 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              Retour à l’accueil
+            </Link>
+          </section>
+        </main>
+
+        <PiedDePagePublic compact />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 sm:py-16">
-      <article className="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <header className="border-b border-slate-200 p-6 sm:p-10">
-          <Link
-            href="/"
-            className="text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-          >
-            ← Arboboard
-          </Link>
-          <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            {document.titre}
-          </h1>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-            <span className="rounded-full bg-slate-100 px-3 py-1.5">
-              Version {document.version}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1.5">
-              Publié le {formaterDate(document.publie_at)}
-            </span>
-          </div>
-        </header>
-
-        <div className="p-6 sm:p-10">
-          {rendreContenu(document.contenu)}
-        </div>
-
-        <footer className="border-t border-slate-200 bg-slate-50 p-6 sm:px-10">
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600">
-            <Link href="/mentions-legales">
-              Mentions légales
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <main className="flex-1 px-4 py-10 sm:py-16">
+        <article className="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <header className="border-b border-slate-200 p-6 sm:p-10">
+            <Link
+              href="/"
+              className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-800"
+            >
+              ← Arboboard
             </Link>
-            <Link href="/politique-confidentialite">
-              Confidentialité
-            </Link>
-            <Link href="/cgu">CGU</Link>
-            <Link href="/cgv">CGV</Link>
+
+            <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              {document.titre}
+            </h1>
+
+            <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                Version {document.version}
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                Publié le {formaterDate(document.publie_at)}
+              </span>
+            </div>
+          </header>
+
+          <div className="p-6 sm:p-10">
+            {rendreContenu(document.contenu)}
           </div>
-        </footer>
-      </article>
-    </main>
+        </article>
+      </main>
+
+      <PiedDePagePublic />
+    </div>
   );
 }

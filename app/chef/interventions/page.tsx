@@ -1410,6 +1410,7 @@ export default function FichesInterventionPage() {
         <button
           type="button"
           onClick={() => setFiltreStatut("tous")}
+          aria-pressed={filtreStatut === "tous"}
           className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreStatut === "tous"
               ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
@@ -1427,6 +1428,7 @@ export default function FichesInterventionPage() {
         <button
           type="button"
           onClick={() => setFiltreStatut("brouillon")}
+          aria-pressed={filtreStatut === "brouillon"}
           className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreStatut === "brouillon"
               ? "border-slate-500 bg-slate-100 ring-4 ring-slate-100"
@@ -1444,6 +1446,7 @@ export default function FichesInterventionPage() {
         <button
           type="button"
           onClick={() => setFiltreStatut("planifiee")}
+          aria-pressed={filtreStatut === "planifiee"}
           className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreStatut === "planifiee"
               ? "border-blue-500 bg-blue-100 ring-4 ring-blue-100"
@@ -1461,6 +1464,7 @@ export default function FichesInterventionPage() {
         <button
           type="button"
           onClick={() => setFiltreStatut("en_cours")}
+          aria-pressed={filtreStatut === "en_cours"}
           className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreStatut === "en_cours"
               ? "border-amber-500 bg-amber-100 ring-4 ring-amber-100"
@@ -1478,6 +1482,7 @@ export default function FichesInterventionPage() {
         <button
           type="button"
           onClick={() => setFiltreStatut("terminee")}
+          aria-pressed={filtreStatut === "terminee"}
           className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreStatut === "terminee"
               ? "border-emerald-500 bg-emerald-100 ring-4 ring-emerald-100"
@@ -1495,6 +1500,7 @@ export default function FichesInterventionPage() {
         <button
           type="button"
           onClick={() => setFiltreStatut("archivee")}
+          aria-pressed={filtreStatut === "archivee"}
           className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreStatut === "archivee"
               ? "border-slate-500 bg-slate-200 ring-4 ring-slate-100"
@@ -1693,6 +1699,15 @@ export default function FichesInterventionPage() {
                   </div>
 
                   <div className="mt-5 flex flex-wrap justify-end gap-2">
+                    {devisLie && (
+                      <Link
+                        href={`/chef/devis?devisId=${devisLie.id}`}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        Voir devis
+                      </Link>
+                    )}
+
                     <Link
                       href={`/chef/interventions/${fiche.id}`}
                       className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
@@ -1700,49 +1715,39 @@ export default function FichesInterventionPage() {
                       Ouvrir fiche
                     </Link>
 
-                    {fiche.statut !== "terminee" &&
-                      fiche.statut !== "archivee" && (
-                        <>
-                          {devisLie && (
-                            <Link
-                              href="/chef/devis"
-                              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                            >
-                              Voir devis
-                            </Link>
-                          )}
+                    {fiche.statut === "planifiee" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changerStatutFiche(fiche, "en_cours")
+                        }
+                        className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                      >
+                        En cours
+                      </button>
+                    )}
 
-                          {fiche.statut !== "en_cours" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                changerStatutFiche(fiche, "en_cours")
-                              }
-                              className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
-                            >
-                              En cours
-                            </button>
-                          )}
+                    {fiche.statut === "en_cours" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changerStatutFiche(fiche, "terminee")
+                        }
+                        className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                      >
+                        Terminer
+                      </button>
+                    )}
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              changerStatutFiche(fiche, "terminee")
-                            }
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          >
-                            Terminer
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => archiverFiche(fiche)}
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                          >
-                            Archiver
-                          </button>
-                        </>
-                      )}
+                    {fiche.statut === "terminee" && (
+                      <button
+                        type="button"
+                        onClick={() => archiverFiche(fiche)}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      >
+                        Archiver
+                      </button>
+                    )}
                   </div>
                 </article>
               );

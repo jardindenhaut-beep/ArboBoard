@@ -1,12 +1,49 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { journaliserActivite } from "@/lib/journalActivite";
+import { supabase } from "@/lib/supabaseClient";
+
+type StatutConformite =
+  | "À configurer"
+  | "À rédiger"
+  | "À contrôler"
+  | "Actif";
 
 type BlocConformite = {
   id: string;
   titre: string;
   description: string;
   emoji: string;
-  statut: "À configurer" | "À rédiger" | "À contrôler" | "Actif";
+  statut: StatutConformite;
   details: string[];
+};
+
+type ResultatJournal =
+  | "succes"
+  | "echec"
+  | "information";
+
+type EvenementJournal = {
+  id: string;
+  utilisateur_id?: string | null;
+  utilisateur_email?: string | null;
+  utilisateur_nom?: string | null;
+  action: string;
+  categorie: string;
+  ressource_type?: string | null;
+  ressource_id?: string | null;
+  resultat: ResultatJournal;
+  description?: string | null;
+  details?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type ReponseJournal = {
+  evenements?: EvenementJournal[];
+  retention_jours?: number;
+  erreur?: string;
 };
 
 const BLOCS: BlocConformite[] = [
@@ -105,18 +142,31 @@ const BLOCS: BlocConformite[] = [
     id: "journal",
     titre: "Journal d’activité",
     description:
-      "Traçabilité des actions sensibles réalisées dans l’application.",
+      "Traçabilité sécurisée des actions sensibles réalisées dans l’application.",
     emoji: "📋",
-    statut: "À configurer",
+    statut: "Actif",
     details: [
-      "Tracer les connexions et changements de sécurité.",
-      "Tracer les suppressions et modifications sensibles.",
-      "Limiter l’accès au journal aux personnes autorisées.",
+      "Écritures réalisées uniquement par une route serveur sécurisée.",
+      "Lecture limitée aux chefs de la même entreprise.",
+      "Conservation technique prévue sur 365 jours.",
     ],
   },
 ];
 
-function classesStatut(statut: BlocConformite["statut"]) {
+const CATEGORIES = [
+  { valeur: "toutes", label: "Toutes les catégories" },
+  { valeur: "authentification", label: "Authentification" },
+  { valeur: "clients", label: "Clients" },
+  { valeur: "devis", label: "Devis" },
+  { valeur: "factures", label: "Factures" },
+  { valeur: "interventions", label: "Interventions" },
+  { valeur: "planning", label: "Planning" },
+  { valeur: "parametres", label: "Paramètres" },
+  { valeur: "securite", label: "Sécurité" },
+  { valeur: "systeme", label: "Système" },
+];
+
+function classesStatut(statut: StatutConformite) {
   if (statut === "Actif") {
     return "bg-emerald-50 text-emerald-700";
   }
@@ -132,11 +182,209 @@ function classesStatut(statut: BlocConformite["statut"]) {
   return "bg-slate-100 text-slate-700";
 }
 
-export default function SecuriteChefPage() {
+function classesResultat(resultat: ResultatJournal) {
+  if (resultat === "echec") {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (resultat === "information") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  return "bg-emerald-50 text-emerald-700";
+}
+
+function libelleResultat(resultat: ResultatJournal) {
+  if (resultat === "echec") return "Échec";
+  if (resultat === "information") return "Information";
+  return "Succès";
+}
+
+function libelleCategorie(categorie: string) {
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    CATEGORIES.find((item) => item.valeur === categorie)
+      ?.label || categorie
+  );
+}
+
+function formatDate(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date(date));
+}
+
+function echapperCsv(valeur: unknown) {
+  const texte =
+    valeur === null || valeur === undefined
+      ? ""
+      : String(valeur);
+
+  return `"${texte.replace(/"/g, '""')}"`;
+}
+
+export default function SecuriteChefPage() {
+  const [evenements, setEvenements] =
+    useState<EvenementJournal[]>([]);
+  const [chargementJournal, setChargementJournal] =
+    useState(true);
+  const [erreurJournal, setErreurJournal] = useState("");
+  const [categorie, setCategorie] = useState("toutes");
+  const [resultat, setResultat] = useState("tous");
+  const [retentionJours, setRetentionJours] = useState(365);
+
+  const statistiques = useMemo(() => {
+    return {
+      total: evenements.length,
+      succes: evenements.filter(
+        (evenement) => evenement.resultat === "succes"
+      ).length,
+      echecs: evenements.filter(
+        (evenement) => evenement.resultat === "echec"
+      ).length,
+      informations: evenements.filter(
+        (evenement) =>
+          evenement.resultat === "information"
+      ).length,
+    };
+  }, [evenements]);
+
+  useEffect(() => {
+    void chargerJournal();
+  }, [categorie, resultat]);
+
+  async function chargerJournal() {
+    try {
+      setChargementJournal(true);
+      setErreurJournal("");
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        throw new Error(
+          "Votre session a expiré. Veuillez vous reconnecter."
+        );
+      }
+
+      const parametres = new URLSearchParams({
+        limite: "50",
+        categorie,
+        resultat,
+      });
+
+      const reponse = await fetch(
+        `/api/securite/journal-activite?${parametres.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const donnees =
+        (await reponse.json()) as ReponseJournal;
+
+      if (!reponse.ok) {
+        throw new Error(
+          donnees.erreur ||
+            "Impossible de charger le journal d’activité."
+        );
+      }
+
+      setEvenements(donnees.evenements || []);
+      setRetentionJours(donnees.retention_jours || 365);
+    } catch (error) {
+      console.error("Erreur chargement journal :", error);
+      setEvenements([]);
+      setErreurJournal(
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger le journal d’activité."
+      );
+    } finally {
+      setChargementJournal(false);
+    }
+  }
+
+  async function exporterJournalCsv() {
+    if (evenements.length === 0) return;
+
+    const entetes = [
+      "Date",
+      "Utilisateur",
+      "Email",
+      "Catégorie",
+      "Action",
+      "Résultat",
+      "Ressource",
+      "Identifiant ressource",
+      "Description",
+    ];
+
+    const lignes = evenements.map((evenement) => [
+      formatDate(evenement.created_at),
+      evenement.utilisateur_nom || "",
+      evenement.utilisateur_email || "",
+      libelleCategorie(evenement.categorie),
+      evenement.action,
+      libelleResultat(evenement.resultat),
+      evenement.ressource_type || "",
+      evenement.ressource_id || "",
+      evenement.description || "",
+    ]);
+
+    const contenu = [
+      entetes.map(echapperCsv).join(";"),
+      ...lignes.map((ligne) =>
+        ligne.map(echapperCsv).join(";")
+      ),
+    ].join("\n");
+
+    const blob = new Blob(
+      [`\uFEFF${contenu}`],
+      {
+        type: "text/csv;charset=utf-8",
+      }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const lien = document.createElement("a");
+
+    lien.href = url;
+    lien.download = `journal-activite-arboboard-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    URL.revokeObjectURL(url);
+
+    await journaliserActivite({
+      action: "journal_activite_exporte",
+      categorie: "securite",
+      resultat: "succes",
+      ressource_type: "journal_activite",
+      description:
+        "Export CSV du journal d’activité depuis l’espace Sécurité.",
+      details: {
+        nombre_evenements: evenements.length,
+        filtre_categorie: categorie,
+        filtre_resultat: resultat,
+      },
+    });
+
+    await chargerJournal();
+  }
+
+  return (
+    <section className="mx-auto max-w-7xl space-y-6">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div>
             <p className="text-sm font-semibold text-emerald-700">
               Compte entreprise
@@ -145,9 +393,9 @@ export default function SecuriteChefPage() {
               Sécurité & conformité
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Cet espace centralise les éléments à finaliser avant la
-              commercialisation d’Arboboard. Les documents juridiques
-              définitifs devront être validés avant publication.
+              Centralisez les contrôles techniques, les documents
+              juridiques, les consentements et la traçabilité des
+              opérations sensibles d’Arboboard.
             </p>
           </div>
 
@@ -220,16 +468,235 @@ export default function SecuriteChefPage() {
         ))}
       </div>
 
+      <section className="scroll-mt-24 space-y-4" id="journal-detail">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+            <div>
+              <p className="text-sm font-semibold text-emerald-700">
+                Traçabilité
+              </p>
+              <h2 className="mt-1 text-2xl font-bold text-slate-950">
+                Journal d’activité
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                Les événements sont isolés par entreprise. Le navigateur
+                peut les consulter, mais il ne peut ni les modifier ni les
+                supprimer.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void chargerJournal()}
+                disabled={chargementJournal}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Actualiser
+              </button>
+              <button
+                type="button"
+                onClick={() => void exporterJournalCsv()}
+                disabled={
+                  chargementJournal || evenements.length === 0
+                }
+                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+              >
+                Exporter en CSV
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <CarteStatistique
+              label="Événements chargés"
+              valeur={statistiques.total}
+            />
+            <CarteStatistique
+              label="Succès"
+              valeur={statistiques.succes}
+            />
+            <CarteStatistique
+              label="Échecs"
+              valeur={statistiques.echecs}
+            />
+            <CarteStatistique
+              label="Informations"
+              valeur={statistiques.informations}
+            />
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <label>
+              <span className="text-sm font-medium text-slate-700">
+                Catégorie
+              </span>
+              <select
+                value={categorie}
+                onChange={(event) =>
+                  setCategorie(event.target.value)
+                }
+                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              >
+                {CATEGORIES.map((item) => (
+                  <option
+                    key={item.valeur}
+                    value={item.valeur}
+                  >
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span className="text-sm font-medium text-slate-700">
+                Résultat
+              </span>
+              <select
+                value={resultat}
+                onChange={(event) =>
+                  setResultat(event.target.value)
+                }
+                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              >
+                <option value="tous">Tous les résultats</option>
+                <option value="succes">Succès</option>
+                <option value="echec">Échecs</option>
+                <option value="information">Informations</option>
+              </select>
+            </label>
+          </div>
+
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            Durée technique configurée : {retentionJours} jours.
+            Le journal ne doit pas contenir de mot de passe, de jeton
+            d’accès ni de document client complet.
+          </p>
+        </div>
+
+        {erreurJournal ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {erreurJournal}
+          </div>
+        ) : null}
+
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          {chargementJournal ? (
+            <div className="p-8 text-center text-sm text-slate-500">
+              Chargement du journal d’activité…
+            </div>
+          ) : evenements.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="text-3xl">📋</div>
+              <p className="mt-3 font-semibold text-slate-900">
+                Aucun événement pour ces filtres
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Les prochaines actions sensibles raccordées au journal
+                apparaîtront ici.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200">
+              {evenements.map((evenement) => (
+                <article
+                  key={evenement.id}
+                  className="p-5 sm:p-6"
+                >
+                  <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="break-words font-bold text-slate-950">
+                          {evenement.action}
+                        </h3>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${classesResultat(
+                            evenement.resultat
+                          )}`}
+                        >
+                          {libelleResultat(evenement.resultat)}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                          {libelleCategorie(
+                            evenement.categorie
+                          )}
+                        </span>
+                      </div>
+
+                      {evenement.description ? (
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          {evenement.description}
+                        </p>
+                      ) : null}
+
+                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                        <span>
+                          Utilisateur :{" "}
+                          <strong className="font-semibold text-slate-700">
+                            {evenement.utilisateur_nom ||
+                              evenement.utilisateur_email ||
+                              "Utilisateur supprimé"}
+                          </strong>
+                        </span>
+
+                        {evenement.ressource_type ? (
+                          <span>
+                            Ressource :{" "}
+                            <strong className="font-semibold text-slate-700">
+                              {evenement.ressource_type}
+                              {evenement.ressource_id
+                                ? ` · ${evenement.ressource_id}`
+                                : ""}
+                            </strong>
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <time
+                      dateTime={evenement.created_at}
+                      className="shrink-0 text-xs font-medium text-slate-500"
+                    >
+                      {formatDate(evenement.created_at)}
+                    </time>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
         <h2 className="font-bold text-amber-900">
           Validation juridique nécessaire
         </h2>
         <p className="mt-2 text-sm leading-6 text-amber-800">
-          Cette page organise le travail technique et documentaire. Elle ne
-          remplace pas la validation des textes définitifs par un
-          professionnel compétent avant la mise en production commerciale.
+          La structure technique ne remplace pas la validation des
+          durées, des documents et des procédures définitives par un
+          professionnel compétent avant la commercialisation.
         </p>
       </div>
     </section>
+  );
+}
+
+function CarteStatistique({
+  label,
+  valeur,
+}: {
+  label: string;
+  valeur: number;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold text-slate-950">
+        {valeur}
+      </p>
+    </div>
   );
 }

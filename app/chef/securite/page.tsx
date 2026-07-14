@@ -473,6 +473,20 @@ export default function SecuriteChefPage() {
                 Gérer mes consentements
               </Link>
             ) : null}
+
+            {[
+              "mentions-legales",
+              "confidentialite",
+              "cgu",
+              "cgv",
+            ].includes(bloc.id) ? (
+              <Link
+                href="/chef/securite/documents-juridiques"
+                className="mt-5 inline-flex rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Préparer les documents
+              </Link>
+            ) : null}
           </article>
         ))}
       </div>

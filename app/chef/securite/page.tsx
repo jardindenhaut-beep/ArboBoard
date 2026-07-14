@@ -129,13 +129,13 @@ const BLOCS: BlocConformite[] = [
     id: "consentements",
     titre: "Gestion des consentements",
     description:
-      "Historique des choix liés aux communications et aux traceurs.",
+      "Choix facultatifs, preuve horodatée et retrait depuis le compte.",
     emoji: "✅",
-    statut: "À configurer",
+    statut: "Actif",
     details: [
-      "Séparer les consentements nécessaires et facultatifs.",
-      "Enregistrer la date et la version du consentement.",
-      "Permettre le retrait aussi facilement que l’acceptation.",
+      "Séparation claire des traitements nécessaires et facultatifs.",
+      "Historique de chaque accord, refus et retrait.",
+      "Version du texte et signaux techniques minimisés enregistrés.",
     ],
   },
   {
@@ -464,6 +464,15 @@ export default function SecuriteChefPage() {
                 </li>
               ))}
             </ul>
+
+            {bloc.id === "consentements" ? (
+              <Link
+                href="/chef/securite/consentements"
+                className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Gérer mes consentements
+              </Link>
+            ) : null}
           </article>
         ))}
       </div>

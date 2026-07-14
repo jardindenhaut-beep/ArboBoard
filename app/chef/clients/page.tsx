@@ -725,10 +725,11 @@ export default function ClientsPage() {
           );
         }
 
-        throw new Error(
+        setErreurUrssaf(
           donnees.erreur ||
             "Impossible de traiter le dossier Avance immédiate."
         );
+        return;
       }
 
       if (donnees.dossier) {
@@ -742,11 +743,6 @@ export default function ClientsPage() {
           "Le dossier a été mis à jour."
       );
     } catch (error) {
-      console.error(
-        "Erreur traitement dossier Urssaf :",
-        error
-      );
-
       setErreurUrssaf(
         error instanceof Error
           ? error.message
@@ -2384,9 +2380,13 @@ export default function ClientsPage() {
                                   .slice(0, 4)
                               )
                             }
-                            placeholder="R"
+                            placeholder="Ex : R, AV, CHE, IMP"
                             className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                           />
+                          <span className="mt-1 block text-xs leading-5 text-slate-500">
+                            Obligatoire si le libellé de voie est renseigné :
+                            R = rue, AV = avenue, CHE = chemin, IMP = impasse.
+                          </span>
                         </label>
 
                         <label>

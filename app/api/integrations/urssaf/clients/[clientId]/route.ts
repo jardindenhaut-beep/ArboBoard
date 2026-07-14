@@ -1261,42 +1261,54 @@ export async function POST(
           .consentement_transmission,
     };
 
-    const erreurs = validerFormulaire(
-      formulaire,
-      {
-        ibanDejaEnregistre:
-          Boolean(dossier?.iban_suffixe),
-        bicDejaEnregistre:
-          Boolean(dossier?.bic_suffixe),
+    if (action === "inscrire") {
+      const erreurs = validerFormulaire(
+        formulaire,
+        {
+          ibanDejaEnregistre:
+            Boolean(dossier?.iban_suffixe),
+          bicDejaEnregistre:
+            Boolean(dossier?.bic_suffixe),
+        }
+      );
+
+      if (erreurs.length > 0) {
+        return NextResponse.json(
+          {
+            erreur: erreurs[0],
+            erreurs,
+          },
+          { status: 400 }
+        );
       }
+
+      if (
+        !formulaire.consentement_transmission
+      ) {
+        return NextResponse.json(
+          {
+            erreur:
+              "Confirmez que le particulier a été informé et autorise la transmission de ses données à l’Urssaf.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const donneesDossier = {
+      ...formulaire,
+      consentement_transmission: false,
+    };
+
+    const payload =
+      action === "inscrire"
+        ? creerPayload(formulaire)
+        : null;
+
+    const payloadJson = JSON.stringify(
+      payload || donneesDossier
     );
 
-    if (erreurs.length > 0) {
-      return NextResponse.json(
-        {
-          erreur: erreurs[0],
-          erreurs,
-        },
-        { status: 400 }
-      );
-    }
-
-    if (
-      action === "inscrire" &&
-      !formulaire.consentement_transmission
-    ) {
-      return NextResponse.json(
-        {
-          erreur:
-            "Confirmez que le particulier a été informé et autorise la transmission de ses données à l’Urssaf.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const payload = creerPayload(formulaire);
-    const payloadJson =
-      JSON.stringify(payload);
     const payloadHash = createHash("sha256")
       .update(payloadJson, "utf8")
       .digest("hex");
@@ -1309,11 +1321,7 @@ export async function POST(
       client_id: clientId,
       donnees_chiffrees:
         chiffrerIdentifiant(
-          JSON.stringify({
-            ...formulaire,
-            consentement_transmission:
-              false,
-          })
+          JSON.stringify(donneesDossier)
         ),
       iban_suffixe:
         formulaire.iban.slice(-6) || null,
@@ -1327,7 +1335,7 @@ export async function POST(
               dossier?.statut_inscription ===
                 "appareillage_en_cours"
             ? dossier.statut_inscription
-            : "pret",
+            : "brouillon",
       dernier_payload_sha256:
         payloadHash,
       updated_by: profil.id,
@@ -1373,7 +1381,7 @@ export async function POST(
       return NextResponse.json({
         succes: true,
         message:
-          "Le dossier Avance immédiate a été enregistré.",
+          "Le brouillon du dossier Avance immédiate a été enregistré.",
         dossier: masquerDossier({
           dossier:
             dossierEnregistre as DossierStocke,
@@ -1407,6 +1415,16 @@ export async function POST(
         integration.client_secret_chiffre
       ),
     });
+
+    if (!payload) {
+      return NextResponse.json(
+        {
+          erreur:
+            "Le dossier complet n’a pas pu être préparé pour la transmission.",
+        },
+        { status: 400 }
+      );
+    }
 
     const resultatInscription =
       await inscrireParticulierUrssaf({

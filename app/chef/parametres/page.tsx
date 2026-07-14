@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
+import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
 type ResultatContexteEntreprise = Awaited<
@@ -302,11 +303,11 @@ export default function PageParametresChef() {
   }
 
   async function uploaderLogo(event: ChangeEvent<HTMLInputElement>) {
+    const fichier = event.target.files?.[0];
+
     try {
       setErreur(null);
       setMessage(null);
-
-      const fichier = event.target.files?.[0];
 
       if (!fichier) return;
 
@@ -369,14 +370,47 @@ export default function PageParametresChef() {
       setMessage(
         "Le logo a été envoyé. Enregistrez les paramètres pour le conserver."
       );
+
+      await journaliserActivite({
+        action: "logo_entreprise_importe",
+        categorie: "parametres",
+        ressource_type: "entreprise",
+        ressource_id: entrepriseId,
+        resultat: "succes",
+        description:
+          "Import d’un nouveau logo dans l’espace de stockage de l’entreprise.",
+        details: {
+          type_fichier: fichier.type,
+          taille_octets: fichier.size,
+          chemin_stockage: cheminLogo,
+        },
+      });
     } catch (error) {
       console.error("Erreur envoi logo :", error);
-      setErreur(
-        obtenirMessageErreur(
-          error,
-          "Erreur lors de l’envoi du logo."
-        )
+
+      const message = obtenirMessageErreur(
+        error,
+        "Erreur lors de l’envoi du logo."
       );
+
+      setErreur(message);
+
+      if (entrepriseId && fichier) {
+        await journaliserActivite({
+          action: "logo_entreprise_import_echec",
+          categorie: "parametres",
+          ressource_type: "entreprise",
+          ressource_id: entrepriseId,
+          resultat: "echec",
+          description:
+            "Échec de l’import d’un logo d’entreprise.",
+          details: {
+            type_fichier: fichier.type,
+            taille_octets: fichier.size,
+            erreur: message,
+          },
+        });
+      }
     } finally {
       setUploadLogoEnCours(false);
       event.target.value = "";
@@ -424,6 +458,8 @@ export default function PageParametresChef() {
       return;
     }
 
+    let champsModifies: string[] = [];
+
     try {
       setEnregistrement(true);
       setErreur(null);
@@ -467,6 +503,15 @@ export default function PageParametresChef() {
         ),
       };
 
+      champsModifies = (
+        Object.keys(formulaireNormalise) as Array<
+          keyof EntrepriseParametres
+        >
+      ).filter(
+        (champ) =>
+          formulaireNormalise[champ] !== formEnregistre[champ]
+      );
+
       const payloadParametres = {
         entreprise_id: entrepriseId,
         ...formulaireNormalise,
@@ -502,14 +547,42 @@ export default function PageParametresChef() {
       setForm(formulaireNormalise);
       setFormEnregistre(formulaireNormalise);
       setMessage("Les paramètres ont été enregistrés avec succès.");
+
+      await journaliserActivite({
+        action: "parametres_entreprise_modifies",
+        categorie: "parametres",
+        ressource_type: "entreprise_parametres",
+        ressource_id: entrepriseId,
+        resultat: "succes",
+        description:
+          "Enregistrement des paramètres de l’entreprise et des documents.",
+        details: {
+          champs_modifies: champsModifies,
+        },
+      });
     } catch (error) {
       console.error("Erreur enregistrement paramètres :", error);
-      setErreur(
-        obtenirMessageErreur(
-          error,
-          "Erreur lors de l’enregistrement des paramètres."
-        )
+
+      const message = obtenirMessageErreur(
+        error,
+        "Erreur lors de l’enregistrement des paramètres."
       );
+
+      setErreur(message);
+
+      await journaliserActivite({
+        action: "parametres_entreprise_modification_echec",
+        categorie: "parametres",
+        ressource_type: "entreprise_parametres",
+        ressource_id: entrepriseId,
+        resultat: "echec",
+        description:
+          "Échec de l’enregistrement des paramètres de l’entreprise.",
+        details: {
+          champs_modifies: champsModifies,
+          erreur: message,
+        },
+      });
     } finally {
       setEnregistrement(false);
     }

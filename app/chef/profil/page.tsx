@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
+import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
 type ResultatContexteEntreprise = Awaited<
@@ -360,6 +361,13 @@ export default function ProfilChefPage() {
       return;
     }
 
+    const champsModifies = (
+      Object.keys(formulaireProfil) as Array<keyof FormulaireProfil>
+    ).filter(
+      (champ) =>
+        formulaireProfil[champ] !== profilEnregistre[champ]
+    );
+
     try {
       setEnregistrementProfil(true);
       setMessageErreur("");
@@ -391,14 +399,42 @@ export default function ProfilChefPage() {
       setFormulaireProfil(formulaireSauvegarde);
       setProfilEnregistre(formulaireSauvegarde);
       setMessageSucces("Vos informations personnelles ont été enregistrées.");
+
+      await journaliserActivite({
+        action: "profil_personnel_modifie",
+        categorie: "parametres",
+        ressource_type: "profil_utilisateur",
+        ressource_id: profil.id,
+        resultat: "succes",
+        description:
+          "Modification des informations personnelles du compte chef.",
+        details: {
+          champs_modifies: champsModifies,
+        },
+      });
     } catch (error) {
       console.error("Erreur mise à jour profil chef :", error);
-      setMessageErreur(
-        obtenirMessageErreur(
-          error,
-          "Impossible de mettre à jour votre profil."
-        )
+
+      const message = obtenirMessageErreur(
+        error,
+        "Impossible de mettre à jour votre profil."
       );
+
+      setMessageErreur(message);
+
+      await journaliserActivite({
+        action: "profil_personnel_modification_echec",
+        categorie: "parametres",
+        ressource_type: "profil_utilisateur",
+        ressource_id: profil.id,
+        resultat: "echec",
+        description:
+          "Échec de la modification des informations personnelles.",
+        details: {
+          champs_modifies: champsModifies,
+          erreur: message,
+        },
+      });
     } finally {
       setEnregistrementProfil(false);
     }
@@ -424,6 +460,15 @@ export default function ProfilChefPage() {
       setMessageErreur("Le numéro SIRET doit contenir 14 chiffres.");
       return;
     }
+
+    const champsModifies = (
+      Object.keys(formulaireEntreprise) as Array<
+        keyof FormulaireEntreprise
+      >
+    ).filter(
+      (champ) =>
+        formulaireEntreprise[champ] !== entrepriseEnregistree[champ]
+    );
 
     try {
       setEnregistrementEntreprise(true);
@@ -516,14 +561,44 @@ export default function ProfilChefPage() {
       setMessageSucces(
         "Les informations de l’entreprise ont été enregistrées."
       );
+
+      await journaliserActivite({
+        action: "entreprise_modifiee",
+        categorie: "parametres",
+        ressource_type: "entreprise",
+        ressource_id: entreprise.id,
+        resultat: "succes",
+        description:
+          "Modification des coordonnées ou informations légales de l’entreprise.",
+        details: {
+          champs_modifies: champsModifies,
+          synchronisation_parametres:
+            synchronisationError === null,
+        },
+      });
     } catch (error) {
       console.error("Erreur mise à jour entreprise :", error);
-      setMessageErreur(
-        obtenirMessageErreur(
-          error,
-          "Impossible de mettre à jour l’entreprise."
-        )
+
+      const message = obtenirMessageErreur(
+        error,
+        "Impossible de mettre à jour l’entreprise."
       );
+
+      setMessageErreur(message);
+
+      await journaliserActivite({
+        action: "entreprise_modification_echec",
+        categorie: "parametres",
+        ressource_type: "entreprise",
+        ressource_id: entreprise.id,
+        resultat: "echec",
+        description:
+          "Échec de la modification des informations de l’entreprise.",
+        details: {
+          champs_modifies: champsModifies,
+          erreur: message,
+        },
+      });
     } finally {
       setEnregistrementEntreprise(false);
     }

@@ -2,14 +2,22 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
 type StatutConformite =
   | "À configurer"
-  | "À rédiger"
   | "À contrôler"
-  | "Actif";
+  | "Actif"
+  | "Publié"
+  | "En préparation";
+
+type TypeDocumentJuridique =
+  | "mentions_legales"
+  | "politique_confidentialite"
+  | "cgu"
+  | "cgv";
 
 type BlocConformite = {
   id: string;
@@ -18,6 +26,8 @@ type BlocConformite = {
   emoji: string;
   statut: StatutConformite;
   details: string[];
+  typeDocument?: TypeDocumentJuridique;
+  cheminPublic?: string;
 };
 
 type ResultatJournal =
@@ -46,6 +56,33 @@ type ReponseJournal = {
   erreur?: string;
 };
 
+type StatutDocumentJuridique = {
+  type_document: TypeDocumentJuridique;
+  titre?: string | null;
+  version?: string | null;
+  publie_at?: string | null;
+  publie: boolean;
+};
+
+type ReponseStatutsDocuments = {
+  documents?: StatutDocumentJuridique[];
+  erreur?: string;
+};
+
+type ResultatContexteEntreprise = Awaited<
+  ReturnType<typeof chargerContexteEntreprise>
+>;
+
+type ContexteEntrepriseBrut = NonNullable<
+  ResultatContexteEntreprise["contexte"]
+>;
+
+type EntrepriseContexte = NonNullable<
+  ContexteEntrepriseBrut["entreprise"]
+> & {
+  plan_abonnement?: string | null;
+};
+
 const BLOCS: BlocConformite[] = [
   {
     id: "sauvegardes",
@@ -55,9 +92,9 @@ const BLOCS: BlocConformite[] = [
     emoji: "💾",
     statut: "À configurer",
     details: [
-      "Définir la fréquence des sauvegardes de la base Supabase.",
-      "Documenter la restauration et les responsabilités.",
-      "Prévoir un test de restauration régulier.",
+      "Sauvegardes techniques de la plateforme gérées par Arboboard.",
+      "Procédure de restauration et de continuité à documenter.",
+      "Contrôles réguliers à intégrer au suivi technique.",
     ],
   },
   {
@@ -68,35 +105,39 @@ const BLOCS: BlocConformite[] = [
     emoji: "🇪🇺",
     statut: "À contrôler",
     details: [
-      "Cartographier les données personnelles traitées.",
-      "Définir les durées de conservation.",
-      "Préparer l’accès, l’export et la suppression des données.",
+      "Les choix facultatifs sont gérés depuis le compte utilisateur.",
+      "Les demandes d’accès, d’export et de suppression seront centralisées ici.",
+      "Les durées de conservation sont définies par Arboboard.",
     ],
   },
   {
     id: "mentions-legales",
     titre: "Mentions légales",
     description:
-      "Informations obligatoires sur l’éditeur, l’hébergeur et l’entreprise.",
+      "Informations officielles concernant l’éditeur et l’hébergement d’Arboboard.",
     emoji: "🏢",
-    statut: "À rédiger",
+    statut: "En préparation",
+    typeDocument: "mentions_legales",
+    cheminPublic: "/mentions-legales",
     details: [
-      "Identifier précisément l’éditeur du service.",
-      "Renseigner l’hébergeur et les coordonnées de contact.",
-      "Publier une version accessible sans connexion.",
+      "Document rédigé et publié par l’éditeur Arboboard.",
+      "Accessible sans connexion depuis le site public.",
+      "Aucune modification n’est demandée aux entreprises clientes.",
     ],
   },
   {
     id: "confidentialite",
     titre: "Politique de confidentialité",
     description:
-      "Présentation claire des données collectées et de leur utilisation.",
+      "Informations relatives aux données traitées par la plateforme Arboboard.",
     emoji: "🔏",
-    statut: "À rédiger",
+    statut: "En préparation",
+    typeDocument: "politique_confidentialite",
+    cheminPublic: "/politique-confidentialite",
     details: [
-      "Expliquer les finalités et bases légales.",
-      "Lister les sous-traitants techniques.",
-      "Présenter les droits et les modalités de contact.",
+      "Document commun à tous les utilisateurs d’Arboboard.",
+      "Présente les traitements, les prestataires et les droits.",
+      "Publié et maintenu uniquement par l’éditeur.",
     ],
   },
   {
@@ -105,24 +146,28 @@ const BLOCS: BlocConformite[] = [
     description:
       "Règles d’accès et d’utilisation du logiciel Arboboard.",
     emoji: "📘",
-    statut: "À rédiger",
+    statut: "En préparation",
+    typeDocument: "cgu",
+    cheminPublic: "/cgu",
     details: [
-      "Définir les comptes, rôles et responsabilités.",
-      "Encadrer les usages interdits et la disponibilité.",
-      "Prévoir les règles de suspension et résiliation.",
+      "Conditions communes à l’utilisation de la plateforme.",
+      "Consultables par tous les utilisateurs autorisés.",
+      "La publication est administrée uniquement par Arboboard.",
     ],
   },
   {
     id: "cgv",
     titre: "Conditions générales de vente",
     description:
-      "Offres, abonnements, paiements, renouvellements et résiliations.",
+      "Offres, abonnements, paiements, renouvellements et résiliations Arboboard.",
     emoji: "🧾",
-    statut: "À rédiger",
+    statut: "En préparation",
+    typeDocument: "cgv",
+    cheminPublic: "/cgv",
     details: [
-      "Décrire les trois offres et leur facturation.",
-      "Encadrer le renouvellement et la résiliation.",
-      "Préciser les responsabilités et modalités de paiement.",
+      "Conditions applicables aux abonnements Arboboard.",
+      "Les chefs clients peuvent uniquement les consulter.",
+      "Les modifications et publications sont réservées à l’éditeur.",
     ],
   },
   {
@@ -167,19 +212,36 @@ const CATEGORIES = [
 ];
 
 function classesStatut(statut: StatutConformite) {
-  if (statut === "Actif") {
+  if (statut === "Actif" || statut === "Publié") {
     return "bg-emerald-50 text-emerald-700";
   }
 
-  if (statut === "À contrôler") {
+  if (
+    statut === "À contrôler" ||
+    statut === "En préparation"
+  ) {
     return "bg-amber-50 text-amber-700";
   }
 
-  if (statut === "À rédiger") {
-    return "bg-blue-50 text-blue-700";
-  }
-
   return "bg-slate-100 text-slate-700";
+}
+
+function normaliserTexte(valeur: string | null | undefined) {
+  return String(valeur || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function formatDatePublication(
+  date: string | null | undefined
+) {
+  if (!date) return null;
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+  }).format(new Date(date));
 }
 
 function classesResultat(resultat: ResultatJournal) {
@@ -232,6 +294,13 @@ export default function SecuriteChefPage() {
   const [categorie, setCategorie] = useState("toutes");
   const [resultat, setResultat] = useState("tous");
   const [retentionJours, setRetentionJours] = useState(365);
+  const [compteDeveloppeur, setCompteDeveloppeur] =
+    useState(false);
+  const [statutsDocuments, setStatutsDocuments] = useState<
+    StatutDocumentJuridique[]
+  >([]);
+  const [chargementConformite, setChargementConformite] =
+    useState(true);
 
   const statistiques = useMemo(() => {
     return {
@@ -249,9 +318,106 @@ export default function SecuriteChefPage() {
     };
   }, [evenements]);
 
+  const blocsAffiches = useMemo(() => {
+    return BLOCS.map((bloc) => {
+      if (!bloc.typeDocument) return bloc;
+
+      const document = statutsDocuments.find(
+        (element) =>
+          element.type_document === bloc.typeDocument
+      );
+
+      if (!document?.publie) {
+        return {
+          ...bloc,
+          statut: "En préparation" as StatutConformite,
+        };
+      }
+
+      const datePublication = formatDatePublication(
+        document.publie_at
+      );
+
+      return {
+        ...bloc,
+        statut: "Publié" as StatutConformite,
+        details: [
+          `Version publiée : ${document.version || "non renseignée"}.`,
+          datePublication
+            ? `Dernière publication : ${datePublication}.`
+            : "Document disponible publiquement.",
+          "Le document est maintenu par l’éditeur Arboboard.",
+        ],
+      };
+    });
+  }, [statutsDocuments]);
+
+  useEffect(() => {
+    void initialiserConformite();
+  }, []);
+
   useEffect(() => {
     void chargerJournal();
   }, [categorie, resultat]);
+
+  async function initialiserConformite() {
+    try {
+      setChargementConformite(true);
+
+      const resultatContexte =
+        await chargerContexteEntreprise();
+
+      const entreprise =
+        resultatContexte.contexte?.entreprise as
+          | EntrepriseContexte
+          | null
+          | undefined;
+
+      setCompteDeveloppeur(
+        normaliserTexte(entreprise?.plan_abonnement) ===
+          "dev"
+      );
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        return;
+      }
+
+      const reponse = await fetch(
+        "/api/securite/documents-juridiques-publics",
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const donnees =
+        (await reponse.json()) as ReponseStatutsDocuments;
+
+      if (!reponse.ok) {
+        console.warn(
+          "Statuts juridiques indisponibles :",
+          donnees.erreur
+        );
+        return;
+      }
+
+      setStatutsDocuments(donnees.documents || []);
+    } catch (error) {
+      console.warn(
+        "Initialisation conformité incomplète :",
+        error
+      );
+    } finally {
+      setChargementConformite(false);
+    }
+  }
 
   async function chargerJournal() {
     try {
@@ -408,9 +574,34 @@ export default function SecuriteChefPage() {
         </div>
       </header>
 
+      {compteDeveloppeur ? (
+        <section className="rounded-3xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div>
+              <p className="text-sm font-bold text-violet-950">
+                Administration Arboboard
+              </p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-violet-800">
+                Ton compte développeur peut préparer, enregistrer et
+                publier les documents juridiques communs à toute la
+                plateforme. Cette fonction n’apparaît pas pour les
+                entreprises clientes.
+              </p>
+            </div>
+
+            <Link
+              href="/chef/securite/documents-juridiques"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"
+            >
+              Administrer les documents Arboboard
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <nav className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex gap-2 overflow-x-auto">
-          {BLOCS.map((bloc) => (
+          {blocsAffiches.map((bloc) => (
             <a
               key={bloc.id}
               href={`#${bloc.id}`}
@@ -422,8 +613,14 @@ export default function SecuriteChefPage() {
         </div>
       </nav>
 
+      {chargementConformite ? (
+        <p className="text-sm text-slate-500">
+          Vérification des documents publiés…
+        </p>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-2">
-        {BLOCS.map((bloc) => (
+        {blocsAffiches.map((bloc) => (
           <article
             key={bloc.id}
             id={bloc.id}
@@ -474,17 +671,15 @@ export default function SecuriteChefPage() {
               </Link>
             ) : null}
 
-            {[
-              "mentions-legales",
-              "confidentialite",
-              "cgu",
-              "cgv",
-            ].includes(bloc.id) ? (
+            {bloc.typeDocument && bloc.cheminPublic ? (
               <Link
-                href="/chef/securite/documents-juridiques"
+                href={bloc.cheminPublic}
+                target="_blank"
                 className="mt-5 inline-flex rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Préparer les documents
+                {bloc.statut === "Publié"
+                  ? "Consulter le document"
+                  : "Voir la page publique"}
               </Link>
             ) : null}
           </article>

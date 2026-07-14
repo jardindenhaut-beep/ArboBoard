@@ -101,13 +101,13 @@ const BLOCS: BlocConformite[] = [
     id: "sauvegardes",
     titre: "Sauvegardes",
     description:
-      "Politique de sauvegarde, restauration et continuité du service.",
+      "Export manuel des données de l’entreprise et historique de contrôle.",
     emoji: "💾",
-    statut: "À configurer",
+    statut: "Actif",
     details: [
-      "Sauvegardes techniques de la plateforme gérées par Arboboard.",
-      "Procédure de restauration et de continuité à documenter.",
-      "Contrôles réguliers à intégrer au suivi technique.",
+      "Export JSON isolé pour chaque entreprise.",
+      "Empreinte SHA-256 et taille enregistrées dans l’historique.",
+      "Sauvegardes physiques de la plateforme gérées séparément.",
     ],
   },
   {
@@ -683,6 +683,15 @@ export default function SecuriteChefPage() {
                 </li>
               ))}
             </ul>
+
+            {bloc.id === "sauvegardes" ? (
+              <Link
+                href="/chef/securite/sauvegardes"
+                className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                Gérer mes sauvegardes
+              </Link>
+            ) : null}
 
             {bloc.id === "securite-compte" ? (
               <Link

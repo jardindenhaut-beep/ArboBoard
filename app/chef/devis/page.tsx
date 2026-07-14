@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseClient";
 
@@ -291,6 +292,8 @@ function adresseChantierTexte(item: Devis) {
 }
 
 export default function PageDevis() {
+  const searchParams = useSearchParams();
+  const devisSelectionneId = searchParams.get("devisId");
   const [entrepriseId, setEntrepriseId] = useState("");
   const [devis, setDevis] = useState<Devis[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -808,6 +811,53 @@ export default function PageDevis() {
     }
   }
 
+  useEffect(() => {
+    if (!devisSelectionneId || chargement) return;
+
+    setFiltre("tous");
+    setRecherche("");
+
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(
+        `devis-${devisSelectionneId}`
+      );
+
+      if (!element) {
+        setMessageErreur(
+          "Le devis demandé n’a pas été trouvé dans cette entreprise."
+        );
+        return;
+      }
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      element.classList.add(
+        "ring-4",
+        "ring-emerald-400",
+        "ring-offset-2"
+      );
+
+      const surbrillanceTimer = window.setTimeout(() => {
+        element.classList.remove(
+          "ring-4",
+          "ring-emerald-400",
+          "ring-offset-2"
+        );
+      }, 4000);
+
+      return () => {
+        window.clearTimeout(surbrillanceTimer);
+      };
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [devisSelectionneId, chargement, devis]);
+
   const totauxFormulaire = useMemo(() => calculerTotaux(lignes), [lignes]);
 
   return (
@@ -967,8 +1017,13 @@ Cordialement.`;
 
               return (
                 <div
+                  id={`devis-${item.id}`}
                   key={item.id}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                  className={`scroll-mt-24 rounded-3xl border bg-white p-5 shadow-sm transition-all duration-500 ${
+                    devisSelectionneId === item.id
+                      ? "border-emerald-300"
+                      : "border-slate-200"
+                  }`}
                 >
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
@@ -980,6 +1035,12 @@ Cordialement.`;
                         >
                           {libelleStatut(item.statut)}
                         </span>
+
+                        {devisSelectionneId === item.id && (
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                            Devis lié à la fiche
+                          </span>
+                        )}
                       </div>
 
                       <h2 className="mt-3 text-xl font-black text-slate-950">

@@ -9,7 +9,6 @@ import {
 } from "react";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
-import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
 type VuePlanning = "jour" | "semaine" | "mois" | "liste";
@@ -548,8 +547,6 @@ export default function PlanningChefPage() {
   ) {
     if (!entrepriseId || enregistrement) return;
 
-    const ancienStatut = (fiche.statut || "brouillon") as StatutFiche;
-
     try {
       setEnregistrement(true);
       setMessageErreur("");
@@ -572,46 +569,14 @@ export default function PlanningChefPage() {
       setMessageSucces(
         `Statut mis à jour : ${libelleStatut(statut)}.`
       );
-
-      await journaliserActivite({
-        action: "intervention_statut_modifie",
-        categorie: "planning",
-        ressource_type: "fiche_intervention",
-        ressource_id: fiche.id,
-        resultat: "succes",
-        description:
-          "Modification du statut d’une intervention depuis le planning.",
-        details: {
-          ancien_statut: ancienStatut,
-          nouveau_statut: statut,
-          numero_fiche: fiche.numero || null,
-        },
-      });
     } catch (error: unknown) {
       console.error("Erreur changement statut planning :", error);
-
-      const message = messageErreurInconnue(
-        error,
-        "Impossible de modifier le statut de la fiche."
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          "Impossible de modifier le statut de la fiche."
+        )
       );
-
-      setMessageErreur(message);
-
-      await journaliserActivite({
-        action: "intervention_statut_modification_echec",
-        categorie: "planning",
-        ressource_type: "fiche_intervention",
-        ressource_id: fiche.id,
-        resultat: "echec",
-        description:
-          "Échec de la modification du statut d’une intervention depuis le planning.",
-        details: {
-          ancien_statut: ancienStatut,
-          nouveau_statut: statut,
-          numero_fiche: fiche.numero || null,
-          erreur: message,
-        },
-      });
     } finally {
       setEnregistrement(false);
     }
@@ -623,10 +588,7 @@ export default function PlanningChefPage() {
   ) {
     if (!entrepriseId || enregistrement) return;
     if (!peutDeplacerFiche(fiche)) return;
-
-    const ancienneDate = dateFiche(fiche);
-
-    if (ancienneDate === nouvelleDate) return;
+    if (dateFiche(fiche) === nouvelleDate) return;
 
     try {
       setEnregistrement(true);
@@ -674,46 +636,14 @@ export default function PlanningChefPage() {
           nouvelleDate
         )}.`
       );
-
-      await journaliserActivite({
-        action: "intervention_replanifiee",
-        categorie: "planning",
-        ressource_type: "fiche_intervention",
-        ressource_id: fiche.id,
-        resultat: "succes",
-        description:
-          "Replanification d’une intervention par glisser-déposer.",
-        details: {
-          ancienne_date: ancienneDate || null,
-          nouvelle_date: nouvelleDate,
-          numero_fiche: fiche.numero || null,
-        },
-      });
     } catch (error: unknown) {
       console.error("Erreur replanification fiche :", error);
-
-      const message = messageErreurInconnue(
-        error,
-        "Impossible de déplacer cette intervention."
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          "Impossible de déplacer cette intervention."
+        )
       );
-
-      setMessageErreur(message);
-
-      await journaliserActivite({
-        action: "intervention_replanification_echec",
-        categorie: "planning",
-        ressource_type: "fiche_intervention",
-        ressource_id: fiche.id,
-        resultat: "echec",
-        description:
-          "Échec de la replanification d’une intervention.",
-        details: {
-          ancienne_date: ancienneDate || null,
-          nouvelle_date: nouvelleDate,
-          numero_fiche: fiche.numero || null,
-          erreur: message,
-        },
-      });
     } finally {
       setEnregistrement(false);
       setFicheGlisseeId(null);

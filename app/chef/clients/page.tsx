@@ -53,6 +53,85 @@ type FactureClient = {
   type_facture: string | null;
 };
 
+type StatutInscriptionUrssaf =
+  | "brouillon"
+  | "pret"
+  | "appareillage_en_cours"
+  | "actif"
+  | "refuse"
+  | "erreur";
+
+type FormulaireUrssaf = {
+  civilite: "1" | "2" | "";
+  nom_naissance: string;
+  nom_usage: string;
+  prenoms: string;
+  date_naissance: string;
+
+  code_pays_naissance: string;
+  departement_naissance: string;
+  code_commune_naissance: string;
+  libelle_commune_naissance: string;
+
+  numero_telephone_portable: string;
+  adresse_mail: string;
+
+  numero_voie: string;
+  lettre_voie: string;
+  code_type_voie: string;
+  libelle_voie: string;
+  complement_adresse: string;
+  lieu_dit: string;
+  libelle_commune: string;
+  code_commune: string;
+  code_postal: string;
+  code_pays: string;
+
+  iban: string;
+  bic: string;
+  titulaire_compte: string;
+
+  consentement_transmission: boolean;
+};
+
+type DossierUrssafClient = {
+  id: string | null;
+  formulaire: FormulaireUrssaf;
+  iban_enregistre: boolean;
+  bic_enregistre: boolean;
+  iban_suffixe: string | null;
+  bic_suffixe: string | null;
+  urssaf_id_client: string | null;
+  statut_inscription: StatutInscriptionUrssaf;
+  statut_transmission_code: string | null;
+  statut_transmission_etat: string | null;
+  statut_transmission_description: string | null;
+  consentement_transmission_at: string | null;
+  derniere_tentative_at: string | null;
+  derniere_verification_at: string | null;
+  dernier_code_http: number | null;
+  dernier_message: string | null;
+  integration: {
+    configuree: boolean;
+    active: boolean;
+    statut: string | null;
+  };
+};
+
+type ReponseDossierUrssaf = {
+  succes?: boolean;
+  message?: string;
+  erreur?: string;
+  erreurs?: string[];
+  dossier?: DossierUrssafClient;
+  adresse_client_actuelle?: string | null;
+};
+
+type ActionUrssaf =
+  | "enregistrer"
+  | "inscrire"
+  | "actualiser";
+
 type FormulaireClient = {
   type_client: TypeClient;
   nom: string;
@@ -87,6 +166,39 @@ const FORMULAIRE_VIDE: FormulaireClient = {
   notes: "",
   notes_chantier: "",
   statut: "actif",
+};
+
+const FORMULAIRE_URSSAF_VIDE: FormulaireUrssaf = {
+  civilite: "",
+  nom_naissance: "",
+  nom_usage: "",
+  prenoms: "",
+  date_naissance: "",
+
+  code_pays_naissance: "99100",
+  departement_naissance: "",
+  code_commune_naissance: "",
+  libelle_commune_naissance: "",
+
+  numero_telephone_portable: "",
+  adresse_mail: "",
+
+  numero_voie: "",
+  lettre_voie: "",
+  code_type_voie: "",
+  libelle_voie: "",
+  complement_adresse: "",
+  lieu_dit: "",
+  libelle_commune: "",
+  code_commune: "",
+  code_postal: "",
+  code_pays: "99100",
+
+  iban: "",
+  bic: "",
+  titulaire_compte: "",
+
+  consentement_transmission: false,
 };
 
 function nettoyerTexte(valeur: string) {
@@ -170,6 +282,37 @@ function adresseChantierComplete(client: Client) {
     .join("\n");
 }
 
+function libelleStatutUrssaf(
+  statut: StatutInscriptionUrssaf
+) {
+  if (statut === "actif") return "Actif";
+  if (statut === "appareillage_en_cours") {
+    return "Acceptation client en attente";
+  }
+  if (statut === "pret") return "Dossier prêt";
+  if (statut === "refuse") return "Refusé";
+  if (statut === "erreur") return "Erreur";
+  return "Brouillon";
+}
+
+function classesStatutUrssaf(
+  statut: StatutInscriptionUrssaf
+) {
+  if (statut === "actif") {
+    return "bg-emerald-100 text-emerald-700";
+  }
+
+  if (statut === "appareillage_en_cours") {
+    return "bg-blue-100 text-blue-700";
+  }
+
+  if (statut === "refuse" || statut === "erreur") {
+    return "bg-red-100 text-red-700";
+  }
+
+  return "bg-amber-100 text-amber-700";
+}
+
 export default function ClientsPage() {
   const [entrepriseId, setEntrepriseId] = useState<string>("");
   const [clients, setClients] = useState<Client[]>([]);
@@ -194,6 +337,27 @@ export default function ClientsPage() {
   const [devisClient, setDevisClient] = useState<DevisClient[]>([]);
   const [facturesClient, setFacturesClient] = useState<FactureClient[]>([]);
   const [chargementFicheClient, setChargementFicheClient] = useState(false);
+
+  const [modalUrssafOuverte, setModalUrssafOuverte] =
+    useState(false);
+  const [dossierUrssaf, setDossierUrssaf] =
+    useState<DossierUrssafClient | null>(null);
+  const [formulaireUrssaf, setFormulaireUrssaf] =
+    useState<FormulaireUrssaf>(
+      FORMULAIRE_URSSAF_VIDE
+    );
+  const [
+    adresseClientActuelleUrssaf,
+    setAdresseClientActuelleUrssaf,
+  ] = useState<string | null>(null);
+  const [chargementUrssaf, setChargementUrssaf] =
+    useState(false);
+  const [actionUrssaf, setActionUrssaf] =
+    useState<ActionUrssaf | null>(null);
+  const [erreurUrssaf, setErreurUrssaf] =
+    useState("");
+  const [messageUrssaf, setMessageUrssaf] =
+    useState("");
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
@@ -414,6 +578,198 @@ export default function ClientsPage() {
     }
   }
 
+  async function obtenirJetonSession() {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error || !session?.access_token) {
+      throw new Error(
+        "Votre session a expiré. Veuillez vous reconnecter."
+      );
+    }
+
+    return session.access_token;
+  }
+
+  function appliquerDossierUrssaf(
+    dossier: DossierUrssafClient
+  ) {
+    setDossierUrssaf(dossier);
+    setFormulaireUrssaf({
+      ...dossier.formulaire,
+      iban: "",
+      bic: "",
+      consentement_transmission: false,
+    });
+  }
+
+  async function ouvrirDossierUrssaf(
+    client: Client
+  ) {
+    if (client.type_client !== "particulier") {
+      setMessageErreur(
+        "L’Avance immédiate est réservée aux clients particuliers."
+      );
+      return;
+    }
+
+    try {
+      setModalUrssafOuverte(true);
+      setChargementUrssaf(true);
+      setErreurUrssaf("");
+      setMessageUrssaf("");
+      setDossierUrssaf(null);
+      setFormulaireUrssaf(
+        FORMULAIRE_URSSAF_VIDE
+      );
+
+      const jeton = await obtenirJetonSession();
+
+      const reponse = await fetch(
+        `/api/integrations/urssaf/clients/${encodeURIComponent(
+          client.id
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${jeton}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const donnees =
+        (await reponse.json()) as ReponseDossierUrssaf;
+
+      if (!reponse.ok || !donnees.dossier) {
+        throw new Error(
+          donnees.erreur ||
+            "Impossible de charger le dossier Avance immédiate."
+        );
+      }
+
+      appliquerDossierUrssaf(
+        donnees.dossier
+      );
+      setAdresseClientActuelleUrssaf(
+        donnees.adresse_client_actuelle ||
+          null
+      );
+    } catch (error) {
+      console.error(
+        "Erreur ouverture dossier Urssaf :",
+        error
+      );
+
+      setErreurUrssaf(
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger le dossier Avance immédiate."
+      );
+    } finally {
+      setChargementUrssaf(false);
+    }
+  }
+
+  function modifierChampUrssaf(
+    champ: keyof FormulaireUrssaf,
+    valeur: string | boolean
+  ) {
+    setFormulaireUrssaf((ancien) => ({
+      ...ancien,
+      [champ]: valeur,
+    }));
+  }
+
+  async function traiterDossierUrssaf(
+    action: ActionUrssaf
+  ) {
+    if (!clientSelectionne) return;
+
+    try {
+      setActionUrssaf(action);
+      setErreurUrssaf("");
+      setMessageUrssaf("");
+
+      const jeton = await obtenirJetonSession();
+
+      const reponse = await fetch(
+        `/api/integrations/urssaf/clients/${encodeURIComponent(
+          clientSelectionne.id
+        )}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: `Bearer ${jeton}`,
+          },
+          body: JSON.stringify({
+            action,
+            formulaire:
+              action === "actualiser"
+                ? undefined
+                : formulaireUrssaf,
+          }),
+        }
+      );
+
+      const donnees =
+        (await reponse.json()) as ReponseDossierUrssaf;
+
+      if (!reponse.ok) {
+        if (donnees.dossier) {
+          appliquerDossierUrssaf(
+            donnees.dossier
+          );
+        }
+
+        throw new Error(
+          donnees.erreur ||
+            "Impossible de traiter le dossier Avance immédiate."
+        );
+      }
+
+      if (donnees.dossier) {
+        appliquerDossierUrssaf(
+          donnees.dossier
+        );
+      }
+
+      setMessageUrssaf(
+        donnees.message ||
+          "Le dossier a été mis à jour."
+      );
+    } catch (error) {
+      console.error(
+        "Erreur traitement dossier Urssaf :",
+        error
+      );
+
+      setErreurUrssaf(
+        error instanceof Error
+          ? error.message
+          : "Impossible de traiter le dossier Avance immédiate."
+      );
+    } finally {
+      setActionUrssaf(null);
+    }
+  }
+
+  function fermerModalUrssaf() {
+    if (actionUrssaf) return;
+
+    setModalUrssafOuverte(false);
+    setDossierUrssaf(null);
+    setFormulaireUrssaf(
+      FORMULAIRE_URSSAF_VIDE
+    );
+    setAdresseClientActuelleUrssaf(null);
+    setErreurUrssaf("");
+    setMessageUrssaf("");
+  }
+
   function fermerModal() {
     if (enregistrement) return;
 
@@ -427,6 +783,11 @@ export default function ClientsPage() {
     setClientSelectionne(null);
     setDevisClient([]);
     setFacturesClient([]);
+    setModalUrssafOuverte(false);
+    setDossierUrssaf(null);
+    setFormulaireUrssaf(
+      FORMULAIRE_URSSAF_VIDE
+    );
   }
 
   function modifierChamp(champ: keyof FormulaireClient, valeur: string) {
@@ -1316,6 +1677,59 @@ export default function ClientsPage() {
                     </div>
                   </div>
 
+                  <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+                            Avance immédiate Urssaf
+                          </p>
+
+                          {dossierUrssaf &&
+                          dossierUrssaf.id &&
+                          clientSelectionne.type_client ===
+                            "particulier" ? (
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${classesStatutUrssaf(
+                                dossierUrssaf.statut_inscription
+                              )}`}
+                            >
+                              {libelleStatutUrssaf(
+                                dossierUrssaf.statut_inscription
+                              )}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <h3 className="mt-2 text-lg font-bold text-blue-950">
+                          Inscription du particulier
+                        </h3>
+
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-blue-800">
+                          {clientSelectionne.type_client ===
+                          "particulier"
+                            ? "Préparez les informations d’identité, de naissance, d’adresse et les coordonnées bancaires nécessaires, puis transmettez l’inscription à l’Urssaf."
+                            : "Cette fonctionnalité est uniquement disponible pour un client particulier."}
+                        </p>
+                      </div>
+
+                      {clientSelectionne.type_client ===
+                      "particulier" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void ouvrirDossierUrssaf(
+                              clientSelectionne
+                            )
+                          }
+                          className="shrink-0 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800"
+                        >
+                          Gérer l’inscription Urssaf
+                        </button>
+                      ) : null}
+                    </div>
+                  </section>
+
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs uppercase tracking-wide text-slate-400">
                       Notes internes
@@ -1493,6 +1907,831 @@ export default function ClientsPage() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {modalUrssafOuverte &&
+      clientSelectionne && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6">
+          <div className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white p-5">
+              <div>
+                <p className="text-sm font-semibold text-blue-700">
+                  Avance immédiate Urssaf
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-slate-950">
+                  {nomClient(clientSelectionne)}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Dossier d’inscription à l’API Tiers de prestation.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fermerModalUrssaf}
+                disabled={Boolean(actionUrssaf)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Fermer
+              </button>
+            </div>
+
+            {chargementUrssaf ? (
+              <div className="p-10 text-center">
+                <p className="font-semibold text-slate-900">
+                  Chargement du dossier Urssaf…
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6 p-5">
+                {erreurUrssaf ? (
+                  <div
+                    role="alert"
+                    className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                  >
+                    {erreurUrssaf}
+                  </div>
+                ) : null}
+
+                {messageUrssaf ? (
+                  <div
+                    role="status"
+                    className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                  >
+                    {messageUrssaf}
+                  </div>
+                ) : null}
+
+                {dossierUrssaf ? (
+                  <>
+                    <section className="grid gap-4 md:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          État du dossier
+                        </p>
+                        <span
+                          className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${classesStatutUrssaf(
+                            dossierUrssaf.statut_inscription
+                          )}`}
+                        >
+                          {libelleStatutUrssaf(
+                            dossierUrssaf.statut_inscription
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Connexion API
+                        </p>
+                        <p
+                          className={`mt-3 text-sm font-bold ${
+                            dossierUrssaf.integration
+                              .active
+                              ? "text-emerald-700"
+                              : "text-amber-700"
+                          }`}
+                        >
+                          {dossierUrssaf.integration
+                            .active
+                            ? "Configurée"
+                            : "À configurer"}
+                        </p>
+
+                        {!dossierUrssaf.integration
+                          .active ? (
+                          <Link
+                            href="/chef/parametres/avance-immediate"
+                            className="mt-2 inline-flex text-xs font-semibold text-blue-700 hover:underline"
+                          >
+                            Ouvrir les paramètres
+                          </Link>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Identifiant Urssaf
+                        </p>
+                        <p className="mt-3 break-all font-mono text-xs font-semibold text-slate-700">
+                          {dossierUrssaf.urssaf_id_client ||
+                            "Non attribué"}
+                        </p>
+                      </div>
+                    </section>
+
+                    {dossierUrssaf.dernier_message ? (
+                      <section
+                        className={`rounded-2xl border p-4 text-sm leading-6 ${
+                          dossierUrssaf.statut_inscription ===
+                            "erreur" ||
+                          dossierUrssaf.statut_inscription ===
+                            "refuse"
+                            ? "border-red-200 bg-red-50 text-red-700"
+                            : "border-blue-200 bg-blue-50 text-blue-800"
+                        }`}
+                      >
+                        {dossierUrssaf.dernier_message}
+                        {dossierUrssaf
+                          .dernier_code_http
+                          ? ` Code HTTP : ${dossierUrssaf.dernier_code_http}.`
+                          : ""}
+                      </section>
+                    ) : null}
+
+                    <section className="rounded-3xl border border-slate-200 p-5">
+                      <h3 className="text-lg font-bold text-slate-950">
+                        Identité du particulier
+                      </h3>
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Civilité *
+                          </span>
+                          <select
+                            value={
+                              formulaireUrssaf.civilite
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "civilite",
+                                event.target.value
+                              )
+                            }
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          >
+                            <option value="">
+                              Sélectionner
+                            </option>
+                            <option value="1">
+                              Monsieur
+                            </option>
+                            <option value="2">
+                              Madame
+                            </option>
+                          </select>
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Date de naissance *
+                          </span>
+                          <input
+                            type="date"
+                            value={
+                              formulaireUrssaf.date_naissance
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "date_naissance",
+                                event.target.value
+                              )
+                            }
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Nom de naissance *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.nom_naissance
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "nom_naissance",
+                                event.target.value
+                              )
+                            }
+                            maxLength={80}
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Nom d’usage
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.nom_usage
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "nom_usage",
+                                event.target.value
+                              )
+                            }
+                            maxLength={80}
+                            placeholder="Uniquement s’il diffère du nom de naissance"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label className="md:col-span-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            Prénom ou prénoms d’usage *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.prenoms
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "prenoms",
+                                event.target.value
+                              )
+                            }
+                            maxLength={80}
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-slate-200 p-5">
+                      <h3 className="text-lg font-bold text-slate-950">
+                        Lieu de naissance
+                      </h3>
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Code pays INSEE *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.code_pays_naissance
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "code_pays_naissance",
+                                event.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 5)
+                              )
+                            }
+                            inputMode="numeric"
+                            placeholder="99100"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        {formulaireUrssaf.code_pays_naissance ===
+                        "99100" ? (
+                          <>
+                            <label>
+                              <span className="text-sm font-medium text-slate-700">
+                                Département *
+                              </span>
+                              <input
+                                value={
+                                  formulaireUrssaf.departement_naissance
+                                }
+                                onChange={(event) =>
+                                  modifierChampUrssaf(
+                                    "departement_naissance",
+                                    event.target.value
+                                      .replace(
+                                        /[^0-9A-Za-z]/g,
+                                        ""
+                                      )
+                                      .toUpperCase()
+                                      .slice(0, 3)
+                                  )
+                                }
+                                placeholder="003"
+                                className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                              />
+                            </label>
+
+                            <label>
+                              <span className="text-sm font-medium text-slate-700">
+                                Code commune *
+                              </span>
+                              <input
+                                value={
+                                  formulaireUrssaf.code_commune_naissance
+                                }
+                                onChange={(event) =>
+                                  modifierChampUrssaf(
+                                    "code_commune_naissance",
+                                    event.target.value
+                                      .replace(/\D/g, "")
+                                      .slice(0, 3)
+                                  )
+                                }
+                                placeholder="072"
+                                className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                              />
+                            </label>
+
+                            <label>
+                              <span className="text-sm font-medium text-slate-700">
+                                Commune *
+                              </span>
+                              <input
+                                value={
+                                  formulaireUrssaf.libelle_commune_naissance
+                                }
+                                onChange={(event) =>
+                                  modifierChampUrssaf(
+                                    "libelle_commune_naissance",
+                                    event.target.value
+                                  )
+                                }
+                                maxLength={50}
+                                className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                              />
+                            </label>
+                          </>
+                        ) : (
+                          <div className="rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-600 md:col-span-1 lg:col-span-3">
+                            Pour une naissance hors de France,
+                            ne renseignez ni département ni
+                            commune de naissance.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-slate-200 p-5">
+                      <h3 className="text-lg font-bold text-slate-950">
+                        Contact
+                      </h3>
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Téléphone portable *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.numero_telephone_portable
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "numero_telephone_portable",
+                                event.target.value
+                                  .replace(/\s+/g, "")
+                                  .slice(0, 12)
+                              )
+                            }
+                            placeholder="0605040302"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Email *
+                          </span>
+                          <input
+                            type="email"
+                            value={
+                              formulaireUrssaf.adresse_mail
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "adresse_mail",
+                                event.target.value
+                              )
+                            }
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-slate-200 p-5">
+                      <h3 className="text-lg font-bold text-slate-950">
+                        Adresse postale structurée
+                      </h3>
+
+                      {adresseClientActuelleUrssaf ? (
+                        <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                          Adresse actuelle de la fiche :
+                          {" "}
+                          <strong>
+                            {adresseClientActuelleUrssaf}
+                          </strong>
+                        </p>
+                      ) : null}
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Numéro de voie
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.numero_voie
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "numero_voie",
+                                event.target.value
+                              )
+                            }
+                            maxLength={20}
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Lettre
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.lettre_voie
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "lettre_voie",
+                                event.target.value
+                                  .toUpperCase()
+                                  .slice(0, 1)
+                              )
+                            }
+                            placeholder="B, T, Q ou C"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Code type de voie
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.code_type_voie
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "code_type_voie",
+                                event.target.value
+                                  .replace(
+                                    /[^0-9A-Za-z]/g,
+                                    ""
+                                  )
+                                  .toUpperCase()
+                                  .slice(0, 4)
+                              )
+                            }
+                            placeholder="R"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Libellé de la voie
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.libelle_voie
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "libelle_voie",
+                                event.target.value
+                              )
+                            }
+                            maxLength={28}
+                            placeholder="du Soleil"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label className="md:col-span-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            Complément
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.complement_adresse
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "complement_adresse",
+                                event.target.value
+                              )
+                            }
+                            maxLength={38}
+                            placeholder="Bâtiment, appartement…"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label className="md:col-span-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            Lieu-dit
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.lieu_dit
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "lieu_dit",
+                                event.target.value
+                              )
+                            }
+                            maxLength={38}
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Code postal *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.code_postal
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "code_postal",
+                                event.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 5)
+                              )
+                            }
+                            inputMode="numeric"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Commune *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.libelle_commune
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "libelle_commune",
+                                event.target.value
+                              )
+                            }
+                            maxLength={50}
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Code commune INSEE *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.code_commune
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "code_commune",
+                                event.target.value
+                                  .replace(
+                                    /[^0-9A-Za-z]/g,
+                                    ""
+                                  )
+                                  .toUpperCase()
+                                  .slice(0, 5)
+                              )
+                            }
+                            placeholder="03102"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Code pays INSEE *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.code_pays
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "code_pays",
+                                event.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 5)
+                              )
+                            }
+                            inputMode="numeric"
+                            placeholder="99100"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-slate-200 p-5">
+                      <h3 className="text-lg font-bold text-slate-950">
+                        Coordonnées bancaires
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        Les valeurs sont chiffrées côté
+                        serveur. Une valeur déjà enregistrée
+                        n’est jamais réaffichée.
+                      </p>
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            IBAN *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.iban
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "iban",
+                                event.target.value
+                                  .replace(/\s+/g, "")
+                                  .toUpperCase()
+                                  .slice(0, 38)
+                              )
+                            }
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder={
+                              dossierUrssaf.iban_enregistre
+                                ? `Déjà enregistré ···${dossierUrssaf.iban_suffixe}`
+                                : "FR76…"
+                            }
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            BIC *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.bic
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "bic",
+                                event.target.value
+                                  .replace(/\s+/g, "")
+                                  .toUpperCase()
+                                  .slice(0, 11)
+                              )
+                            }
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder={
+                              dossierUrssaf.bic_enregistre
+                                ? `Déjà enregistré ···${dossierUrssaf.bic_suffixe}`
+                                : "AGRIFRPPXXX"
+                            }
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+
+                        <label className="md:col-span-2">
+                          <span className="text-sm font-medium text-slate-700">
+                            Titulaire du compte *
+                          </span>
+                          <input
+                            value={
+                              formulaireUrssaf.titulaire_compte
+                            }
+                            onChange={(event) =>
+                              modifierChampUrssaf(
+                                "titulaire_compte",
+                                event.target.value
+                              )
+                            }
+                            maxLength={100}
+                            placeholder="Mme Jeanne Martin"
+                            className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={
+                            formulaireUrssaf.consentement_transmission
+                          }
+                          onChange={(event) =>
+                            modifierChampUrssaf(
+                              "consentement_transmission",
+                              event.target.checked
+                            )
+                          }
+                          className="mt-1 h-4 w-4 rounded border-amber-300"
+                        />
+
+                        <span>
+                          <span className="block font-bold text-amber-950">
+                            Confirmation avant transmission
+                          </span>
+                          <span className="mt-1 block text-sm leading-6 text-amber-800">
+                            Je confirme avoir informé le
+                            particulier du dispositif et avoir
+                            obtenu son accord pour transmettre
+                            ses données d’identité, de contact,
+                            d’adresse et bancaires à l’Urssaf
+                            afin de demander son inscription.
+                          </span>
+                        </span>
+                      </label>
+                    </section>
+
+                    {dossierUrssaf.statut_transmission_description ? (
+                      <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-800">
+                        <strong>
+                          Statut de transmission :
+                        </strong>{" "}
+                        {
+                          dossierUrssaf.statut_transmission_description
+                        }
+                        {dossierUrssaf.statut_transmission_code
+                          ? ` (${dossierUrssaf.statut_transmission_code})`
+                          : ""}
+                      </section>
+                    ) : null}
+
+                    <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-end">
+                      {dossierUrssaf.urssaf_id_client ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void traiterDossierUrssaf(
+                              "actualiser"
+                            )
+                          }
+                          disabled={Boolean(actionUrssaf)}
+                          className="rounded-xl border border-blue-200 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
+                        >
+                          {actionUrssaf === "actualiser"
+                            ? "Actualisation…"
+                            : "Actualiser le statut"}
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void traiterDossierUrssaf(
+                            "enregistrer"
+                          )
+                        }
+                        disabled={Boolean(actionUrssaf)}
+                        className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {actionUrssaf === "enregistrer"
+                          ? "Enregistrement…"
+                          : "Enregistrer le dossier"}
+                      </button>
+
+                      {!dossierUrssaf.urssaf_id_client ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void traiterDossierUrssaf(
+                              "inscrire"
+                            )
+                          }
+                          disabled={
+                            Boolean(actionUrssaf) ||
+                            !dossierUrssaf.integration
+                              .active ||
+                            !formulaireUrssaf.consentement_transmission
+                          }
+                          className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {actionUrssaf === "inscrire"
+                            ? "Transmission à l’Urssaf…"
+                            : "Inscrire auprès de l’Urssaf"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       )}

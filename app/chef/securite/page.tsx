@@ -85,6 +85,19 @@ type EntrepriseContexte = NonNullable<
 
 const BLOCS: BlocConformite[] = [
   {
+    id: "securite-compte",
+    titre: "Sécurité du compte",
+    description:
+      "Mot de passe, informations de connexion et gestion des sessions.",
+    emoji: "🔐",
+    statut: "Actif",
+    details: [
+      "Modification sécurisée du mot de passe connecté.",
+      "Révocation des sessions ouvertes sur les autres appareils.",
+      "Journalisation des opérations sensibles du compte.",
+    ],
+  },
+  {
     id: "sauvegardes",
     titre: "Sauvegardes",
     description:
@@ -101,13 +114,13 @@ const BLOCS: BlocConformite[] = [
     id: "rgpd",
     titre: "RGPD",
     description:
-      "Gestion des droits, durées de conservation et demandes des utilisateurs.",
+      "Export personnel et suivi des demandes d’exercice de droits.",
     emoji: "🇪🇺",
-    statut: "À contrôler",
+    statut: "Actif",
     details: [
-      "Les choix facultatifs sont gérés depuis le compte utilisateur.",
-      "Les demandes d’accès, d’export et de suppression seront centralisées ici.",
-      "Les durées de conservation sont définies par Arboboard.",
+      "Téléchargement JSON des données personnelles du compte.",
+      "Demandes d’accès, rectification, effacement, limitation, opposition et portabilité.",
+      "Suivi des échéances, réponses et éventuelles prolongations.",
     ],
   },
   {
@@ -661,6 +674,24 @@ export default function SecuriteChefPage() {
                 </li>
               ))}
             </ul>
+
+            {bloc.id === "securite-compte" ? (
+              <Link
+                href="/chef/securite/compte"
+                className="mt-5 inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                Sécuriser mon compte
+              </Link>
+            ) : null}
+
+            {bloc.id === "rgpd" ? (
+              <Link
+                href="/chef/securite/donnees-personnelles"
+                className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Gérer mes données et demandes
+              </Link>
+            ) : null}
 
             {bloc.id === "consentements" ? (
               <Link

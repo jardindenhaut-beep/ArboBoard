@@ -1,265 +1,401 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent,
+} from "react";
+import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
+import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
-type ResultatContexteEntreprise = Awaited<
-  ReturnType<typeof chargerContexteEntreprise>
->;
+type VuePlanning = "jour" | "semaine" | "mois" | "liste";
 
-type ContexteEntrepriseBrut = NonNullable<
-  ResultatContexteEntreprise["contexte"]
->;
+type FiltreRapide =
+  | "toutes"
+  | "aujourd_hui"
+  | "a_venir"
+  | "en_cours"
+  | "terminees"
+  | "problemes";
 
-type ProfilUtilisateur = NonNullable<ContexteEntrepriseBrut["profil"]> & {
+type StatutFiche =
+  | "brouillon"
+  | "planifiee"
+  | "en_cours"
+  | "terminee"
+  | "annulee"
+  | "archivee";
+
+type FiltreStatut = "tous" | StatutFiche;
+
+type FicheIntervention = {
   id: string;
-  email?: string | null;
-  role?: string | null;
-  statut?: string | null;
-  nom?: string | null;
-  prenom?: string | null;
-  entreprise_id?: string | null;
+  entreprise_id: string;
+  numero: string | null;
+  devis_id: string | null;
+  facture_id: string | null;
+  client_id: string | null;
+  client_nom: string | null;
+  salarie_id: string | null;
+  salarie_nom: string | null;
+  titre: string | null;
+  type_intervention: string | null;
+  statut: string | null;
+
+  date_intervention: string | null;
+  heure_debut: string | null;
+  heure_fin: string | null;
+
+  date_prevue: string | null;
+  heure_debut_prevue: string | null;
+  heure_fin_prevue: string | null;
+  heure_debut_reelle: string | null;
+  heure_fin_reelle: string | null;
+
+  adresse: string | null;
+  code_postal: string | null;
+  ville: string | null;
+
+  adresse_chantier: string | null;
+  code_postal_chantier: string | null;
+  ville_chantier: string | null;
+  notes_chantier: string | null;
+
+  travaux_prevus: string | null;
+  materiel_prevu: string | null;
+  consignes_securite: string | null;
+  notes_internes: string | null;
+
+  etape_materiel_statut: string | null;
+  etape_arrivee_statut: string | null;
+  etape_fin_statut: string | null;
+
+  materiel_valide_at: string | null;
+  arrivee_validee_at: string | null;
+  fin_validee_at: string | null;
+
+  commentaire_preparation: string | null;
+  commentaire_arrivee: string | null;
+  commentaire_fin: string | null;
+
+  probleme_signale: boolean | null;
+  description_probleme: string | null;
+  pv_fin_chantier_id: string | null;
+
+  created_at: string | null;
+  updated_at: string | null;
 };
 
-type Entreprise = NonNullable<ContexteEntrepriseBrut["entreprise"]> & {
+type FicheElement = {
   id: string;
-  nom_entreprise?: string | null;
-  slug?: string | null;
-  email_contact?: string | null;
-  telephone?: string | null;
-  adresse?: string | null;
-  code_postal?: string | null;
-  ville?: string | null;
-  siret?: string | null;
-  numero_tva?: string | null;
-  forme_juridique?: string | null;
-  assurance_nom?: string | null;
-  assurance_numero_contrat?: string | null;
-  assurance_zone_couverture?: string | null;
-  mentions_legales_documents?: string | null;
-  statut_abonnement?: string | null;
-  plan_abonnement?: string | null;
-};
-
-type FormulaireProfil = {
+  fiche_id: string;
+  article_id: string | null;
   nom: string;
-  prenom: string;
+  categorie: string;
+  icone: string | null;
+  couleur: string | null;
+  quantite_prevue: number | null;
+  quantite_reelle: number | null;
+  unite: string | null;
+  obligatoire: boolean | null;
+  coche_prepare: boolean | null;
+  commentaire_chef: string | null;
+  commentaire_salarie: string | null;
+  ordre: number | null;
 };
 
-type FormulaireEntreprise = {
-  nom_entreprise: string;
-  email_contact: string;
-  telephone: string;
-  adresse: string;
-  code_postal: string;
-  ville: string;
-  siret: string;
-  numero_tva: string;
-  forme_juridique: string;
-  assurance_nom: string;
-  assurance_numero_contrat: string;
-  assurance_zone_couverture: string;
-  mentions_legales_documents: string;
+type FicheSalarie = {
+  id: string;
+  entreprise_id: string;
+  fiche_id: string;
+  salarie_id: string | null;
+  salarie_nom: string | null;
+  role_chantier: string | null;
+  heure_arrivee_prevue: string | null;
+  heure_depart_prevue: string | null;
+  heure_arrivee_reelle: string | null;
+  heure_depart_reelle: string | null;
 };
 
-const MENTIONS_LEGALES_DEFAUT =
-  "Entreprise assurée pour les travaux réalisés selon les garanties du contrat d’assurance en vigueur. Les travaux seront exécutés conformément au devis accepté et aux règles professionnelles applicables.";
-
-const FORMULAIRE_PROFIL_VIDE: FormulaireProfil = {
-  nom: "",
-  prenom: "",
+type OptionSalarie = {
+  valeur: string;
+  libelle: string;
 };
 
-const FORMULAIRE_ENTREPRISE_VIDE: FormulaireEntreprise = {
-  nom_entreprise: "",
-  email_contact: "",
-  telephone: "",
-  adresse: "",
-  code_postal: "",
-  ville: "",
-  siret: "",
-  numero_tva: "",
-  forme_juridique: "",
-  assurance_nom: "",
-  assurance_numero_contrat: "",
-  assurance_zone_couverture: "",
-  mentions_legales_documents: MENTIONS_LEGALES_DEFAUT,
-};
-
-function valeurTexte(valeur: string | null | undefined) {
-  return valeur || "";
+function messageErreurInconnue(
+  error: unknown,
+  messageParDefaut: string
+) {
+  return error instanceof Error && error.message
+    ? error.message
+    : messageParDefaut;
 }
 
-function nettoyerTexte(valeur: string) {
-  const texte = valeur.trim();
-  return texte.length > 0 ? texte : null;
+function dateLocaleIso(date = new Date()) {
+  const annee = date.getFullYear();
+  const mois = String(date.getMonth() + 1).padStart(2, "0");
+  const jour = String(date.getDate()).padStart(2, "0");
+
+  return `${annee}-${mois}-${jour}`;
 }
 
-function normaliserRole(role: string | null | undefined) {
-  return String(role || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
+function dateDepuisIso(dateIso: string) {
+  return new Date(`${dateIso}T12:00:00`);
 }
 
-function roleChefAutorise(role: string | null | undefined) {
-  return [
-    "chef",
-    "admin",
-    "administrateur",
-    "gerant",
-    "dirigeant",
-    "patron",
-  ].includes(normaliserRole(role));
+function ajouterJours(dateIso: string, jours: number) {
+  const date = dateDepuisIso(dateIso);
+  date.setDate(date.getDate() + jours);
+  return dateLocaleIso(date);
 }
 
-function libelleRole(role: string | null | undefined) {
-  const roleNormalise = normaliserRole(role);
+function ajouterMois(dateIso: string, mois: number) {
+  const date = dateDepuisIso(dateIso);
+  const jourInitial = date.getDate();
 
-  if (roleNormalise === "admin" || roleNormalise === "administrateur") {
-    return "Administrateur";
+  date.setDate(1);
+  date.setMonth(date.getMonth() + mois);
+
+  const dernierJourDuMois = new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0
+  ).getDate();
+
+  date.setDate(Math.min(jourInitial, dernierJourDuMois));
+  return dateLocaleIso(date);
+}
+
+function debutSemaine(dateIso: string) {
+  const date = dateDepuisIso(dateIso);
+  const jour = date.getDay();
+  const decalage = jour === 0 ? -6 : 1 - jour;
+
+  date.setDate(date.getDate() + decalage);
+  return dateLocaleIso(date);
+}
+
+function debutMois(dateIso: string) {
+  const date = dateDepuisIso(dateIso);
+  date.setDate(1);
+  return dateLocaleIso(date);
+}
+
+function construireSemaine(dateIso: string) {
+  const debut = debutSemaine(dateIso);
+  return Array.from({ length: 7 }, (_, index) =>
+    ajouterJours(debut, index)
+  );
+}
+
+function construireGrilleMois(dateIso: string) {
+  const premierJour = debutMois(dateIso);
+  const premierJourGrille = debutSemaine(premierJour);
+
+  return Array.from({ length: 42 }, (_, index) =>
+    ajouterJours(premierJourGrille, index)
+  );
+}
+
+function formatDate(date: string | null | undefined) {
+  if (!date) return "Non planifiée";
+
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }).format(dateDepuisIso(date));
+  } catch {
+    return date;
+  }
+}
+
+function formatDateCourte(date: string | null | undefined) {
+  if (!date) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(dateDepuisIso(date));
+  } catch {
+    return date;
+  }
+}
+
+function formatJourSemaine(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short",
+  }).format(dateDepuisIso(date));
+}
+
+function formatNumeroJour(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+  }).format(dateDepuisIso(date));
+}
+
+function formatMoisAnnee(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+  }).format(dateDepuisIso(date));
+}
+
+function formatHeure(heure: string | null | undefined) {
+  if (!heure) return "—";
+  return heure.slice(0, 5);
+}
+
+function titreFiche(fiche: FicheIntervention) {
+  return fiche.titre || fiche.type_intervention || "Intervention";
+}
+
+function dateFiche(fiche: FicheIntervention) {
+  return fiche.date_prevue || fiche.date_intervention || "";
+}
+
+function heureDebutFiche(fiche: FicheIntervention) {
+  return fiche.heure_debut_prevue || fiche.heure_debut || "";
+}
+
+function heureFinFiche(fiche: FicheIntervention) {
+  return fiche.heure_fin_prevue || fiche.heure_fin || "";
+}
+
+function adresseFiche(fiche: FicheIntervention) {
+  const adresse = fiche.adresse_chantier || fiche.adresse || "";
+  const codePostal =
+    fiche.code_postal_chantier || fiche.code_postal || "";
+  const ville = fiche.ville_chantier || fiche.ville || "";
+  const villeComplete = [codePostal, ville].filter(Boolean).join(" ");
+
+  if (!adresse && !villeComplete) {
+    return "Adresse non renseignée";
   }
 
-  if (roleNormalise === "gerant") return "Gérant";
-  if (roleNormalise === "dirigeant") return "Dirigeant";
-  if (roleNormalise === "patron") return "Chef d’entreprise";
-
-  return "Chef d’entreprise";
+  return [adresse, villeComplete].filter(Boolean).join(", ");
 }
 
-function libellePlan(plan: string | null | undefined) {
-  const planNormalise = String(plan || "").toLowerCase();
-
-  if (planNormalise === "essentiel") return "Essentiel";
-  if (planNormalise === "pro") return "Pro";
-  if (planNormalise === "expert") return "Expert";
-  if (planNormalise === "dev") return "Développement";
-  if (planNormalise === "essai") return "Essai";
-
-  return plan || "Non défini";
-}
-
-function libelleStatutAbonnement(statut: string | null | undefined) {
-  const statutNormalise = String(statut || "").toLowerCase();
-
-  if (statutNormalise === "actif") return "Actif";
-  if (statutNormalise === "essai") return "Essai";
-  if (statutNormalise === "suspendu") return "Suspendu";
-  if (statutNormalise === "annule" || statutNormalise === "annulé") {
-    return "Annulé";
-  }
-  if (statutNormalise === "dev") return "Développement";
-
-  return statut || "Non défini";
+function libelleStatut(statut: string | null | undefined) {
+  if (statut === "planifiee") return "Planifiée";
+  if (statut === "en_cours") return "En cours";
+  if (statut === "terminee") return "Terminée";
+  if (statut === "annulee") return "Annulée";
+  if (statut === "archivee") return "Archivée";
+  return "Brouillon";
 }
 
 function badgeStatut(statut: string | null | undefined) {
-  const statutNormalise = String(statut || "").toLowerCase();
-
-  if (statutNormalise === "actif" || statutNormalise === "dev") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (statutNormalise === "essai") {
+  if (statut === "planifiee") {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
-  if (statutNormalise === "suspendu") {
+  if (statut === "en_cours") {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  if (statutNormalise === "annule" || statutNormalise === "annulé") {
+  if (statut === "terminee") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (statut === "annulee") {
     return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (statut === "archivee") {
+    return "border-slate-200 bg-slate-100 text-slate-600";
   }
 
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
-function adresseComplete(entreprise: Entreprise | null) {
-  if (!entreprise) return "—";
-
-  const adresse = entreprise.adresse?.trim();
-  const ville = [entreprise.code_postal, entreprise.ville]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-
-  return [adresse, ville].filter(Boolean).join(", ") || "—";
-}
-
-function obtenirMessageErreur(error: unknown, messageParDefaut: string) {
-  if (error instanceof Error && error.message) {
-    return error.message;
+function bordureEvenement(fiche: FicheIntervention) {
+  if (fiche.probleme_signale) {
+    return "border-red-300 bg-red-50 hover:border-red-400";
   }
 
-  return messageParDefaut;
+  if (fiche.statut === "en_cours") {
+    return "border-amber-300 bg-amber-50 hover:border-amber-400";
+  }
+
+  if (fiche.statut === "terminee") {
+    return "border-emerald-300 bg-emerald-50 hover:border-emerald-400";
+  }
+
+  if (fiche.statut === "annulee") {
+    return "border-slate-300 bg-slate-100 opacity-70";
+  }
+
+  return "border-blue-200 bg-blue-50 hover:border-blue-300";
 }
 
-function emailValide(email: string) {
-  if (!email.trim()) return true;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+function libelleEtape(statut: string | null | undefined) {
+  if (statut === "valide") return "Validée";
+  if (statut === "en_cours") return "En cours";
+  if (statut === "probleme") return "Problème";
+  if (statut === "a_preparer") return "À préparer";
+  return "En attente";
 }
 
-function siretValide(siret: string) {
-  if (!siret.trim()) return true;
-  return siret.replace(/\s/g, "").length === 14;
+function classeEtape(statut: string | null | undefined) {
+  if (statut === "valide") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (statut === "en_cours") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (statut === "probleme") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-export default function ProfilChefPage() {
-  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
-  const [entreprise, setEntreprise] = useState<Entreprise | null>(null);
+function peutDeplacerFiche(fiche: FicheIntervention) {
+  return !["terminee", "annulee", "archivee"].includes(
+    fiche.statut || "brouillon"
+  );
+}
 
-  const [formulaireProfil, setFormulaireProfil] =
-    useState<FormulaireProfil>(FORMULAIRE_PROFIL_VIDE);
-  const [profilEnregistre, setProfilEnregistre] =
-    useState<FormulaireProfil>(FORMULAIRE_PROFIL_VIDE);
-
-  const [formulaireEntreprise, setFormulaireEntreprise] =
-    useState<FormulaireEntreprise>(FORMULAIRE_ENTREPRISE_VIDE);
-  const [entrepriseEnregistree, setEntrepriseEnregistree] =
-    useState<FormulaireEntreprise>(FORMULAIRE_ENTREPRISE_VIDE);
+export default function PlanningChefPage() {
+  const [entrepriseId, setEntrepriseId] = useState("");
+  const [fiches, setFiches] = useState<FicheIntervention[]>([]);
+  const [elements, setElements] = useState<FicheElement[]>([]);
+  const [equipes, setEquipes] = useState<FicheSalarie[]>([]);
 
   const [chargement, setChargement] = useState(true);
-  const [enregistrementProfil, setEnregistrementProfil] = useState(false);
-  const [enregistrementEntreprise, setEnregistrementEntreprise] =
-    useState(false);
+  const [enregistrement, setEnregistrement] = useState(false);
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
-  const profilModifie = useMemo(
-    () => JSON.stringify(formulaireProfil) !== JSON.stringify(profilEnregistre),
-    [formulaireProfil, profilEnregistre]
-  );
+  const [vue, setVue] = useState<VuePlanning>("semaine");
+  const [dateReference, setDateReference] = useState(dateLocaleIso());
+  const [recherche, setRecherche] = useState("");
+  const [filtreRapide, setFiltreRapide] =
+    useState<FiltreRapide>("toutes");
+  const [filtreStatut, setFiltreStatut] =
+    useState<FiltreStatut>("tous");
+  const [filtreSalarie, setFiltreSalarie] = useState("tous");
 
-  const entrepriseModifiee = useMemo(
-    () =>
-      JSON.stringify(formulaireEntreprise) !==
-      JSON.stringify(entrepriseEnregistree),
-    [formulaireEntreprise, entrepriseEnregistree]
+  const [ficheGlisseeId, setFicheGlisseeId] = useState<string | null>(
+    null
   );
+  const [dateSurvolee, setDateSurvolee] = useState<string | null>(null);
 
   useEffect(() => {
-    void initialiserPage();
+    initialiserPage();
   }, []);
-
-  useEffect(() => {
-    function avertirAvantFermeture(event: BeforeUnloadEvent) {
-      if (!profilModifie && !entrepriseModifiee) return;
-
-      event.preventDefault();
-      event.returnValue = "";
-    }
-
-    window.addEventListener("beforeunload", avertirAvantFermeture);
-
-    return () => {
-      window.removeEventListener("beforeunload", avertirAvantFermeture);
-    };
-  }, [entrepriseModifiee, profilModifie]);
 
   async function initialiserPage() {
     try {
@@ -271,61 +407,24 @@ export default function ProfilChefPage() {
 
       if (
         resultat.erreur ||
-        !resultat.contexte?.profil ||
-        !resultat.contexte?.entreprise
+        !resultat.contexte?.entreprise?.id
       ) {
-        throw new Error(
-          resultat.erreur ||
-            "Impossible de charger votre profil. Veuillez vous reconnecter."
+        setMessageErreur(
+          "Impossible de charger votre entreprise. Veuillez vous reconnecter."
         );
+        return;
       }
 
-      const profilCharge = resultat.contexte.profil as ProfilUtilisateur;
-      const entrepriseChargee = resultat.contexte.entreprise as Entreprise;
+      const idEntreprise = resultat.contexte.entreprise.id as string;
 
-      if (!roleChefAutorise(profilCharge.role)) {
-        throw new Error("Cette page est réservée au chef d’entreprise.");
-      }
-
-      const nouveauFormulaireProfil: FormulaireProfil = {
-        nom: valeurTexte(profilCharge.nom),
-        prenom: valeurTexte(profilCharge.prenom),
-      };
-
-      const nouveauFormulaireEntreprise: FormulaireEntreprise = {
-        nom_entreprise: valeurTexte(entrepriseChargee.nom_entreprise),
-        email_contact: valeurTexte(entrepriseChargee.email_contact),
-        telephone: valeurTexte(entrepriseChargee.telephone),
-        adresse: valeurTexte(entrepriseChargee.adresse),
-        code_postal: valeurTexte(entrepriseChargee.code_postal),
-        ville: valeurTexte(entrepriseChargee.ville),
-        siret: valeurTexte(entrepriseChargee.siret),
-        numero_tva: valeurTexte(entrepriseChargee.numero_tva),
-        forme_juridique: valeurTexte(entrepriseChargee.forme_juridique),
-        assurance_nom: valeurTexte(entrepriseChargee.assurance_nom),
-        assurance_numero_contrat: valeurTexte(
-          entrepriseChargee.assurance_numero_contrat
-        ),
-        assurance_zone_couverture: valeurTexte(
-          entrepriseChargee.assurance_zone_couverture
-        ),
-        mentions_legales_documents:
-          valeurTexte(entrepriseChargee.mentions_legales_documents) ||
-          MENTIONS_LEGALES_DEFAUT,
-      };
-
-      setProfil(profilCharge);
-      setEntreprise(entrepriseChargee);
-      setFormulaireProfil(nouveauFormulaireProfil);
-      setProfilEnregistre(nouveauFormulaireProfil);
-      setFormulaireEntreprise(nouveauFormulaireEntreprise);
-      setEntrepriseEnregistree(nouveauFormulaireEntreprise);
-    } catch (error) {
-      console.error("Erreur chargement profil chef :", error);
+      setEntrepriseId(idEntreprise);
+      await chargerPlanning(idEntreprise);
+    } catch (error: unknown) {
+      console.error("Erreur initialisation planning chef :", error);
       setMessageErreur(
-        obtenirMessageErreur(
+        messageErreurInconnue(
           error,
-          "Une erreur est survenue pendant le chargement."
+          "Impossible de charger le planning chef."
         )
       );
     } finally {
@@ -333,224 +432,1253 @@ export default function ProfilChefPage() {
     }
   }
 
-  function modifierProfil(champ: keyof FormulaireProfil, valeur: string) {
-    setFormulaireProfil((ancien) => ({
-      ...ancien,
-      [champ]: valeur,
-    }));
-    setMessageErreur("");
-    setMessageSucces("");
-  }
+  async function chargerPlanning(idEntreprise = entrepriseId) {
+    if (!idEntreprise) return;
 
-  function modifierEntreprise(
-    champ: keyof FormulaireEntreprise,
-    valeur: string
-  ) {
-    setFormulaireEntreprise((ancien) => ({
-      ...ancien,
-      [champ]: valeur,
-    }));
-    setMessageErreur("");
-    setMessageSucces("");
-  }
+    const { data, error } = await supabase
+      .from("fiches_intervention")
+      .select("*")
+      .eq("entreprise_id", idEntreprise)
+      .or("statut.is.null,statut.neq.archivee")
+      .order("date_prevue", { ascending: true })
+      .order("date_intervention", { ascending: true })
+      .order("created_at", { ascending: false });
 
-  async function enregistrerProfil() {
-    if (!profil?.id) {
-      setMessageErreur("Profil introuvable. Veuillez vous reconnecter.");
-      return;
-    }
-
-    try {
-      setEnregistrementProfil(true);
-      setMessageErreur("");
-      setMessageSucces("");
-
-      const payload = {
-        nom: nettoyerTexte(formulaireProfil.nom),
-        prenom: nettoyerTexte(formulaireProfil.prenom),
-      };
-
-      const { error } = await supabase
-        .from("profils_utilisateurs")
-        .update(payload)
-        .eq("id", profil.id);
-
-      if (error) throw error;
-
-      const profilMisAJour: ProfilUtilisateur = {
-        ...profil,
-        ...payload,
-      };
-
-      const formulaireSauvegarde: FormulaireProfil = {
-        nom: valeurTexte(payload.nom),
-        prenom: valeurTexte(payload.prenom),
-      };
-
-      setProfil(profilMisAJour);
-      setFormulaireProfil(formulaireSauvegarde);
-      setProfilEnregistre(formulaireSauvegarde);
-      setMessageSucces("Vos informations personnelles ont été enregistrées.");
-    } catch (error) {
-      console.error("Erreur mise à jour profil chef :", error);
+    if (error) {
+      console.error("Erreur chargement planning chef :", error);
       setMessageErreur(
-        obtenirMessageErreur(
-          error,
-          "Impossible de mettre à jour votre profil."
-        )
+        error.message ||
+          "Impossible de charger les fiches du planning."
       );
-    } finally {
-      setEnregistrementProfil(false);
-    }
-  }
-
-  async function enregistrerEntreprise() {
-    if (!entreprise?.id) {
-      setMessageErreur("Entreprise introuvable. Veuillez vous reconnecter.");
+      setFiches([]);
+      setElements([]);
+      setEquipes([]);
       return;
     }
 
-    if (!formulaireEntreprise.nom_entreprise.trim()) {
-      setMessageErreur("Le nom de l’entreprise est obligatoire.");
-      return;
-    }
+    const fichesChargees = (
+      (data || []) as FicheIntervention[]
+    ).sort((a, b) => {
+      const dateA = dateFiche(a) || "9999-12-31";
+      const dateB = dateFiche(b) || "9999-12-31";
 
-    if (!emailValide(formulaireEntreprise.email_contact)) {
-      setMessageErreur("L’adresse email de contact n’est pas valide.");
-      return;
-    }
-
-    if (!siretValide(formulaireEntreprise.siret)) {
-      setMessageErreur("Le numéro SIRET doit contenir 14 chiffres.");
-      return;
-    }
-
-    try {
-      setEnregistrementEntreprise(true);
-      setMessageErreur("");
-      setMessageSucces("");
-
-      const payload = {
-        nom_entreprise: nettoyerTexte(formulaireEntreprise.nom_entreprise),
-        email_contact: nettoyerTexte(formulaireEntreprise.email_contact),
-        telephone: nettoyerTexte(formulaireEntreprise.telephone),
-        adresse: nettoyerTexte(formulaireEntreprise.adresse),
-        code_postal: nettoyerTexte(formulaireEntreprise.code_postal),
-        ville: nettoyerTexte(formulaireEntreprise.ville),
-        siret: nettoyerTexte(
-          formulaireEntreprise.siret.replace(/\s/g, "")
-        ),
-        numero_tva: nettoyerTexte(formulaireEntreprise.numero_tva),
-        forme_juridique: nettoyerTexte(formulaireEntreprise.forme_juridique),
-        assurance_nom: nettoyerTexte(formulaireEntreprise.assurance_nom),
-        assurance_numero_contrat: nettoyerTexte(
-          formulaireEntreprise.assurance_numero_contrat
-        ),
-        assurance_zone_couverture: nettoyerTexte(
-          formulaireEntreprise.assurance_zone_couverture
-        ),
-        mentions_legales_documents: nettoyerTexte(
-          formulaireEntreprise.mentions_legales_documents
-        ),
-      };
-
-      const { error } = await supabase
-        .from("entreprises_abonnees")
-        .update(payload)
-        .eq("id", entreprise.id);
-
-      if (error) throw error;
-
-      const { error: synchronisationError } = await supabase
-        .from("entreprise_parametres")
-        .update({
-          nom_entreprise: payload.nom_entreprise,
-          adresse: payload.adresse,
-          code_postal: payload.code_postal,
-          ville: payload.ville,
-          telephone: payload.telephone,
-          email: payload.email_contact,
-          siret: payload.siret,
-          numero_tva_intracommunautaire: payload.numero_tva,
-          forme_juridique: payload.forme_juridique,
-        })
-        .eq("entreprise_id", entreprise.id);
-
-      if (synchronisationError) {
-        console.warn(
-          "Synchronisation des paramètres entreprise impossible :",
-          synchronisationError
-        );
+      if (dateA !== dateB) {
+        return dateA.localeCompare(dateB);
       }
 
-      const entrepriseMiseAJour: Entreprise = {
-        ...entreprise,
-        ...payload,
-      };
+      const heureA = heureDebutFiche(a) || "99:99";
+      const heureB = heureDebutFiche(b) || "99:99";
 
-      const formulaireSauvegarde: FormulaireEntreprise = {
-        nom_entreprise: valeurTexte(payload.nom_entreprise),
-        email_contact: valeurTexte(payload.email_contact),
-        telephone: valeurTexte(payload.telephone),
-        adresse: valeurTexte(payload.adresse),
-        code_postal: valeurTexte(payload.code_postal),
-        ville: valeurTexte(payload.ville),
-        siret: valeurTexte(payload.siret),
-        numero_tva: valeurTexte(payload.numero_tva),
-        forme_juridique: valeurTexte(payload.forme_juridique),
-        assurance_nom: valeurTexte(payload.assurance_nom),
-        assurance_numero_contrat: valeurTexte(
-          payload.assurance_numero_contrat
-        ),
-        assurance_zone_couverture: valeurTexte(
-          payload.assurance_zone_couverture
-        ),
-        mentions_legales_documents: valeurTexte(
-          payload.mentions_legales_documents
-        ),
-      };
+      return heureA.localeCompare(heureB);
+    });
 
-      setEntreprise(entrepriseMiseAJour);
-      setFormulaireEntreprise(formulaireSauvegarde);
-      setEntrepriseEnregistree(formulaireSauvegarde);
-      setMessageSucces(
-        "Les informations de l’entreprise ont été enregistrées."
+    setFiches(fichesChargees);
+
+    const ids = fichesChargees.map((fiche) => fiche.id);
+
+    if (ids.length === 0) {
+      setElements([]);
+      setEquipes([]);
+      return;
+    }
+
+    const [elementsResult, equipesResult] = await Promise.all([
+      supabase
+        .from("fiches_intervention_elements")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .in("fiche_id", ids)
+        .order("ordre", { ascending: true }),
+
+      supabase
+        .from("fiches_intervention_salaries")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .in("fiche_id", ids)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (elementsResult.error) {
+      console.error(
+        "Erreur chargement éléments planning :",
+        elementsResult.error
       );
-    } catch (error) {
-      console.error("Erreur mise à jour entreprise :", error);
-      setMessageErreur(
-        obtenirMessageErreur(
-          error,
-          "Impossible de mettre à jour l’entreprise."
-        )
+      setElements([]);
+    } else {
+      setElements((elementsResult.data || []) as FicheElement[]);
+    }
+
+    if (equipesResult.error) {
+      console.error(
+        "Erreur chargement équipes planning :",
+        equipesResult.error
       );
-    } finally {
-      setEnregistrementEntreprise(false);
+      setEquipes([]);
+    } else {
+      setEquipes((equipesResult.data || []) as FicheSalarie[]);
     }
   }
 
-  function restaurerMentionsLegales() {
-    modifierEntreprise(
-      "mentions_legales_documents",
-      MENTIONS_LEGALES_DEFAUT
+  async function rafraichir() {
+    if (!entrepriseId || enregistrement) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      await chargerPlanning(entrepriseId);
+      setMessageSucces("Planning actualisé.");
+    } catch (error: unknown) {
+      console.error("Erreur actualisation planning chef :", error);
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          "Impossible d’actualiser le planning."
+        )
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function changerStatut(
+    fiche: FicheIntervention,
+    statut: StatutFiche
+  ) {
+    if (!entrepriseId || enregistrement) return;
+
+    const ancienStatut = (fiche.statut || "brouillon") as StatutFiche;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const { error } = await supabase
+        .from("fiches_intervention")
+        .update({ statut })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (error) throw error;
+
+      setFiches((liste) =>
+        liste.map((item) =>
+          item.id === fiche.id ? { ...item, statut } : item
+        )
+      );
+
+      setMessageSucces(
+        `Statut mis à jour : ${libelleStatut(statut)}.`
+      );
+
+      await journaliserActivite({
+        action: "intervention_statut_modifie",
+        categorie: "planning",
+        ressource_type: "fiche_intervention",
+        ressource_id: fiche.id,
+        resultat: "succes",
+        description:
+          "Modification du statut d’une intervention depuis le planning.",
+        details: {
+          ancien_statut: ancienStatut,
+          nouveau_statut: statut,
+          numero_fiche: fiche.numero || null,
+        },
+      });
+    } catch (error: unknown) {
+      console.error("Erreur changement statut planning :", error);
+
+      const message = messageErreurInconnue(
+        error,
+        "Impossible de modifier le statut de la fiche."
+      );
+
+      setMessageErreur(message);
+
+      await journaliserActivite({
+        action: "intervention_statut_modification_echec",
+        categorie: "planning",
+        ressource_type: "fiche_intervention",
+        ressource_id: fiche.id,
+        resultat: "echec",
+        description:
+          "Échec de la modification du statut d’une intervention depuis le planning.",
+        details: {
+          ancien_statut: ancienStatut,
+          nouveau_statut: statut,
+          numero_fiche: fiche.numero || null,
+          erreur: message,
+        },
+      });
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function replanifierFiche(
+    fiche: FicheIntervention,
+    nouvelleDate: string
+  ) {
+    if (!entrepriseId || enregistrement) return;
+    if (!peutDeplacerFiche(fiche)) return;
+
+    const ancienneDate = dateFiche(fiche);
+
+    if (ancienneDate === nouvelleDate) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const { error } = await supabase
+        .from("fiches_intervention")
+        .update({
+          date_prevue: nouvelleDate,
+          date_intervention: nouvelleDate,
+        })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (error) throw error;
+
+      setFiches((liste) =>
+        liste
+          .map((item) =>
+            item.id === fiche.id
+              ? {
+                  ...item,
+                  date_prevue: nouvelleDate,
+                  date_intervention: nouvelleDate,
+                }
+              : item
+          )
+          .sort((a, b) => {
+            const dateA = dateFiche(a) || "9999-12-31";
+            const dateB = dateFiche(b) || "9999-12-31";
+
+            if (dateA !== dateB) {
+              return dateA.localeCompare(dateB);
+            }
+
+            return (heureDebutFiche(a) || "99:99").localeCompare(
+              heureDebutFiche(b) || "99:99"
+            );
+          })
+      );
+
+      setMessageSucces(
+        `${titreFiche(fiche)} déplacée au ${formatDateCourte(
+          nouvelleDate
+        )}.`
+      );
+
+      await journaliserActivite({
+        action: "intervention_replanifiee",
+        categorie: "planning",
+        ressource_type: "fiche_intervention",
+        ressource_id: fiche.id,
+        resultat: "succes",
+        description:
+          "Replanification d’une intervention par glisser-déposer.",
+        details: {
+          ancienne_date: ancienneDate || null,
+          nouvelle_date: nouvelleDate,
+          numero_fiche: fiche.numero || null,
+        },
+      });
+    } catch (error: unknown) {
+      console.error("Erreur replanification fiche :", error);
+
+      const message = messageErreurInconnue(
+        error,
+        "Impossible de déplacer cette intervention."
+      );
+
+      setMessageErreur(message);
+
+      await journaliserActivite({
+        action: "intervention_replanification_echec",
+        categorie: "planning",
+        ressource_type: "fiche_intervention",
+        ressource_id: fiche.id,
+        resultat: "echec",
+        description:
+          "Échec de la replanification d’une intervention.",
+        details: {
+          ancienne_date: ancienneDate || null,
+          nouvelle_date: nouvelleDate,
+          numero_fiche: fiche.numero || null,
+          erreur: message,
+        },
+      });
+    } finally {
+      setEnregistrement(false);
+      setFicheGlisseeId(null);
+      setDateSurvolee(null);
+    }
+  }
+
+  function equipeDeFiche(fiche: FicheIntervention) {
+    const equipe = equipes.filter(
+      (item) => item.fiche_id === fiche.id
     );
-    setMessageSucces(
-      "Le texte par défaut a été restauré. Enregistrez l’entreprise pour le conserver."
+
+    if (equipe.length > 0) {
+      return equipe;
+    }
+
+    if (fiche.salarie_id || fiche.salarie_nom) {
+      return [
+        {
+          id: `legacy-${fiche.id}`,
+          entreprise_id: fiche.entreprise_id,
+          fiche_id: fiche.id,
+          salarie_id: fiche.salarie_id,
+          salarie_nom: fiche.salarie_nom,
+          role_chantier: "Intervenant",
+          heure_arrivee_prevue:
+            fiche.heure_debut_prevue || fiche.heure_debut,
+          heure_depart_prevue:
+            fiche.heure_fin_prevue || fiche.heure_fin,
+          heure_arrivee_reelle: fiche.heure_debut_reelle,
+          heure_depart_reelle: fiche.heure_fin_reelle,
+        },
+      ] as FicheSalarie[];
+    }
+
+    return [];
+  }
+
+  function elementsDeFiche(ficheId: string) {
+    return elements.filter((element) => element.fiche_id === ficheId);
+  }
+
+  const optionsSalaries = useMemo(() => {
+    const options = new Map<string, OptionSalarie>();
+
+    for (const item of equipes) {
+      const libelle = item.salarie_nom?.trim();
+      if (!libelle) continue;
+
+      const valeur = item.salarie_id
+        ? `id:${item.salarie_id}`
+        : `nom:${libelle.toLowerCase()}`;
+
+      options.set(valeur, { valeur, libelle });
+    }
+
+    for (const fiche of fiches) {
+      const libelle = fiche.salarie_nom?.trim();
+      if (!libelle) continue;
+
+      const valeur = fiche.salarie_id
+        ? `id:${fiche.salarie_id}`
+        : `nom:${libelle.toLowerCase()}`;
+
+      if (!options.has(valeur)) {
+        options.set(valeur, { valeur, libelle });
+      }
+    }
+
+    return Array.from(options.values()).sort((a, b) =>
+      a.libelle.localeCompare(b.libelle, "fr")
+    );
+  }, [equipes, fiches]);
+
+  const statistiques = useMemo(() => {
+    const aujourdhui = dateLocaleIso();
+
+    return {
+      total: fiches.length,
+      aujourdHui: fiches.filter(
+        (fiche) => dateFiche(fiche) === aujourdhui
+      ).length,
+      aVenir: fiches.filter((fiche) => {
+        const date = dateFiche(fiche);
+
+        return Boolean(
+          date &&
+            date >= aujourdhui &&
+            fiche.statut !== "terminee" &&
+            fiche.statut !== "annulee" &&
+            fiche.statut !== "archivee"
+        );
+      }).length,
+      enCours: fiches.filter(
+        (fiche) => fiche.statut === "en_cours"
+      ).length,
+      terminees: fiches.filter(
+        (fiche) => fiche.statut === "terminee"
+      ).length,
+      problemes: fiches.filter(
+        (fiche) => fiche.probleme_signale === true
+      ).length,
+    };
+  }, [fiches]);
+
+  const fichesFiltrees = useMemo(() => {
+    const texte = recherche.trim().toLowerCase();
+    const aujourdhui = dateLocaleIso();
+
+    return fiches.filter((fiche) => {
+      const date = dateFiche(fiche);
+      const statut = (fiche.statut || "brouillon") as StatutFiche;
+      const equipe = equipeDeFiche(fiche);
+
+      const correspondFiltreRapide =
+        filtreRapide === "toutes" ||
+        (filtreRapide === "aujourd_hui" && date === aujourdhui) ||
+        (filtreRapide === "a_venir" &&
+          Boolean(
+            date &&
+              date >= aujourdhui &&
+              statut !== "terminee" &&
+              statut !== "annulee" &&
+              statut !== "archivee"
+          )) ||
+        (filtreRapide === "en_cours" && statut === "en_cours") ||
+        (filtreRapide === "terminees" && statut === "terminee") ||
+        (filtreRapide === "problemes" &&
+          fiche.probleme_signale === true);
+
+      const correspondStatut =
+        filtreStatut === "tous" || statut === filtreStatut;
+
+      const correspondSalarie =
+        filtreSalarie === "tous" ||
+        equipe.some((item) => {
+          const valeur = item.salarie_id
+            ? `id:${item.salarie_id}`
+            : `nom:${(item.salarie_nom || "").toLowerCase()}`;
+
+          return valeur === filtreSalarie;
+        });
+
+      const elementsFiche = elementsDeFiche(fiche.id)
+        .map((element) => element.nom)
+        .join(" ");
+
+      const equipeFiche = equipe
+        .map((item) => item.salarie_nom)
+        .join(" ");
+
+      const zoneRecherche = [
+        fiche.numero,
+        fiche.titre,
+        fiche.type_intervention,
+        fiche.client_nom,
+        fiche.salarie_nom,
+        fiche.adresse_chantier,
+        fiche.code_postal_chantier,
+        fiche.ville_chantier,
+        fiche.adresse,
+        fiche.code_postal,
+        fiche.ville,
+        fiche.notes_chantier,
+        fiche.travaux_prevus,
+        fiche.materiel_prevu,
+        fiche.consignes_securite,
+        elementsFiche,
+        equipeFiche,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const correspondRecherche =
+        texte.length === 0 || zoneRecherche.includes(texte);
+
+      return (
+        correspondFiltreRapide &&
+        correspondStatut &&
+        correspondSalarie &&
+        correspondRecherche
+      );
+    });
+  }, [
+    fiches,
+    elements,
+    equipes,
+    recherche,
+    filtreRapide,
+    filtreStatut,
+    filtreSalarie,
+  ]);
+
+  const fichesParDate = useMemo(() => {
+    const groupes: Record<string, FicheIntervention[]> = {};
+
+    for (const fiche of fichesFiltrees) {
+      const date = dateFiche(fiche) || "non_planifiee";
+
+      if (!groupes[date]) {
+        groupes[date] = [];
+      }
+
+      groupes[date].push(fiche);
+    }
+
+    return Object.entries(groupes).sort(([dateA], [dateB]) => {
+      if (dateA === "non_planifiee") return 1;
+      if (dateB === "non_planifiee") return -1;
+      return dateA.localeCompare(dateB);
+    });
+  }, [fichesFiltrees]);
+
+  const joursSemaine = useMemo(
+    () => construireSemaine(dateReference),
+    [dateReference]
+  );
+
+  const joursMois = useMemo(
+    () => construireGrilleMois(dateReference),
+    [dateReference]
+  );
+
+  function fichesPourDate(date: string) {
+    return fichesFiltrees
+      .filter((fiche) => dateFiche(fiche) === date)
+      .sort((a, b) =>
+        (heureDebutFiche(a) || "99:99").localeCompare(
+          heureDebutFiche(b) || "99:99"
+        )
+      );
+  }
+
+  function naviguer(direction: -1 | 1) {
+    if (vue === "jour") {
+      setDateReference(ajouterJours(dateReference, direction));
+      return;
+    }
+
+    if (vue === "semaine") {
+      setDateReference(ajouterJours(dateReference, direction * 7));
+      return;
+    }
+
+    if (vue === "liste") {
+      return;
+    }
+
+    setDateReference(ajouterMois(dateReference, direction));
+  }
+
+  function allerAujourdhui() {
+    const aujourdhui = dateLocaleIso();
+    setDateReference(aujourdhui);
+  }
+
+  function titrePeriode() {
+    if (vue === "jour") {
+      return formatDate(dateReference);
+    }
+
+    if (vue === "semaine") {
+      const debut = debutSemaine(dateReference);
+      const fin = ajouterJours(debut, 6);
+      return `${formatDateCourte(debut)} — ${formatDateCourte(fin)}`;
+    }
+
+    if (vue === "liste") {
+      return "Toutes les interventions filtrées";
+    }
+
+    return formatMoisAnnee(dateReference);
+  }
+
+  function reinitialiserFiltres() {
+    setRecherche("");
+    setFiltreRapide("toutes");
+    setFiltreStatut("tous");
+    setFiltreSalarie("tous");
+  }
+
+  function commencerGlisser(
+    event: DragEvent<HTMLElement>,
+    fiche: FicheIntervention
+  ) {
+    if (!peutDeplacerFiche(fiche) || enregistrement) {
+      event.preventDefault();
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", fiche.id);
+    setFicheGlisseeId(fiche.id);
+  }
+
+  function autoriserDepot(
+    event: DragEvent<HTMLElement>,
+    date: string
+  ) {
+    if (!ficheGlisseeId || enregistrement) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDateSurvolee(date);
+  }
+
+  async function deposerFiche(
+    event: DragEvent<HTMLElement>,
+    date: string
+  ) {
+    event.preventDefault();
+
+    const id =
+      event.dataTransfer.getData("text/plain") || ficheGlisseeId;
+    const fiche = fiches.find((item) => item.id === id);
+
+    setDateSurvolee(null);
+
+    if (!fiche) {
+      setFicheGlisseeId(null);
+      return;
+    }
+
+    await replanifierFiche(fiche, date);
+  }
+
+  function finGlisser() {
+    setFicheGlisseeId(null);
+    setDateSurvolee(null);
+  }
+
+  function activerFiltreRapide(filtre: FiltreRapide) {
+    setFiltreRapide(filtre);
+
+    if (filtre === "aujourd_hui") {
+      setDateReference(dateLocaleIso());
+      setVue("jour");
+    }
+
+    if (filtre === "a_venir") {
+      setVue("liste");
+    }
+  }
+
+  function renduEtapes(fiche: FicheIntervention) {
+    return (
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div
+          className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${classeEtape(
+            fiche.etape_materiel_statut
+          )}`}
+        >
+          <p>1. Matériel</p>
+          <p className="mt-1 font-normal">
+            {libelleEtape(fiche.etape_materiel_statut)}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${classeEtape(
+            fiche.etape_arrivee_statut
+          )}`}
+        >
+          <p>2. Arrivée</p>
+          <p className="mt-1 font-normal">
+            {libelleEtape(fiche.etape_arrivee_statut)}
+          </p>
+        </div>
+
+        <div
+          className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${classeEtape(
+            fiche.etape_fin_statut
+          )}`}
+        >
+          <p>3. Fin / PV</p>
+          <p className="mt-1 font-normal">
+            {libelleEtape(fiche.etape_fin_statut)}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  function renduElementsMini(fiche: FicheIntervention) {
+    const liste = elementsDeFiche(fiche.id);
+
+    if (liste.length === 0) {
+      return (
+        <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Aucun élément renseigné.
+        </p>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {liste.slice(0, 7).map((element) => (
+          <span
+            key={element.id}
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+          >
+            <span>{element.icone || "•"}</span>
+            <span>{element.nom}</span>
+          </span>
+        ))}
+
+        {liste.length > 7 && (
+          <span className="inline-flex rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500">
+            +{liste.length - 7}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  function renduActions(fiche: FicheIntervention) {
+    const statut = (fiche.statut || "brouillon") as StatutFiche;
+
+    return (
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <Link
+          href={`/chef/interventions/${fiche.id}`}
+          className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700"
+        >
+          Ouvrir fiche
+        </Link>
+
+        {(statut === "brouillon" || statut === "planifiee") && (
+          <button
+            type="button"
+            onClick={() => changerStatut(fiche, "en_cours")}
+            disabled={enregistrement}
+            className="rounded-xl border border-amber-200 px-4 py-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Passer en cours
+          </button>
+        )}
+
+        {statut === "en_cours" && (
+          <button
+            type="button"
+            onClick={() => changerStatut(fiche, "terminee")}
+            disabled={enregistrement}
+            className="rounded-xl border border-emerald-200 px-4 py-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Marquer terminée
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  function renduCarteCalendrier(
+    fiche: FicheIntervention,
+    compacte = false
+  ) {
+    const equipe = equipeDeFiche(fiche);
+    const deplacable = peutDeplacerFiche(fiche);
+
+    return (
+      <article
+        key={fiche.id}
+        draggable={deplacable && !enregistrement}
+        onDragStart={(event) => commencerGlisser(event, fiche)}
+        onDragEnd={finGlisser}
+        className={`rounded-xl border p-2.5 shadow-sm transition ${bordureEvenement(
+          fiche
+        )} ${
+          ficheGlisseeId === fiche.id
+            ? "scale-[0.98] opacity-50"
+            : ""
+        } ${
+          deplacable
+            ? "cursor-grab active:cursor-grabbing"
+            : "cursor-default"
+        }`}
+        title={
+          deplacable
+            ? "Glissez cette intervention vers un autre jour"
+            : "Une intervention terminée ou annulée ne peut pas être déplacée"
+        }
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-bold text-slate-950">
+              {formatHeure(heureDebutFiche(fiche))} · {titreFiche(fiche)}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] font-medium text-slate-600">
+              {fiche.client_nom || "Client non renseigné"}
+            </p>
+          </div>
+
+          {fiche.probleme_signale && (
+            <span className="shrink-0 text-xs" title="Problème signalé">
+              ⚠️
+            </span>
+          )}
+        </div>
+
+        {!compacte && (
+          <>
+            <p className="mt-2 line-clamp-2 text-[10px] text-slate-500">
+              📍 {adresseFiche(fiche)}
+            </p>
+
+            {equipe.length > 0 && (
+              <p className="mt-2 line-clamp-1 text-[10px] font-medium text-slate-600">
+                👤 {equipe.map((item) => item.salarie_nom).join(", ")}
+              </p>
+            )}
+          </>
+        )}
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-semibold ${badgeStatut(
+              fiche.statut
+            )}`}
+          >
+            {libelleStatut(fiche.statut)}
+          </span>
+
+          <Link
+            href={`/chef/interventions/${fiche.id}`}
+            draggable={false}
+            className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900"
+          >
+            Ouvrir
+          </Link>
+        </div>
+      </article>
+    );
+  }
+
+  function renduCarteListe(fiche: FicheIntervention) {
+    const equipe = equipeDeFiche(fiche);
+    const terminee = fiche.statut === "terminee";
+    const annulee = fiche.statut === "annulee";
+
+    return (
+      <article
+        key={fiche.id}
+        className={`rounded-3xl border bg-white p-4 shadow-sm transition sm:p-5 ${
+          fiche.probleme_signale
+            ? "border-red-200 hover:border-red-300"
+            : terminee
+              ? "border-emerald-200 hover:border-emerald-300"
+              : annulee
+                ? "border-slate-200 opacity-80"
+                : "border-slate-200 hover:border-emerald-200"
+        } hover:shadow-md`}
+      >
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl sm:h-12 sm:w-12 sm:text-2xl">
+                🛠️
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="break-words text-base font-bold text-slate-950 sm:text-lg">
+                  {titreFiche(fiche)}
+                </h2>
+
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  {fiche.type_intervention || "Intervention"}
+                  {fiche.numero ? ` · ${fiche.numero}` : ""}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm font-semibold text-slate-800">
+              {fiche.client_nom || "Client non renseigné"}
+            </p>
+
+            <p className="mt-1 break-words text-sm text-slate-500">
+              📍 {adresseFiche(fiche)}
+            </p>
+
+            {fiche.notes_chantier && (
+              <p className="mt-2 whitespace-pre-line rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Note chantier : {fiche.notes_chantier}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {fiche.probleme_signale && (
+              <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                ⚠️ Problème signalé
+              </span>
+            )}
+
+            <span
+              className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
+                fiche.statut
+              )}`}
+            >
+              {libelleStatut(fiche.statut)}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-400">Date</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {formatDateCourte(dateFiche(fiche))}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-400">
+              Horaires prévus
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {formatHeure(heureDebutFiche(fiche))} →{" "}
+              {formatHeure(heureFinFiche(fiche))}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-400">
+              Horaires réels
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {formatHeure(fiche.heure_debut_reelle)} →{" "}
+              {formatHeure(fiche.heure_fin_reelle)}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <p className="text-xs font-medium text-slate-400">Équipe</p>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {equipe.length > 0
+                ? `${equipe.length} salarié${equipe.length > 1 ? "s" : ""}`
+                : "Non affectée"}
+            </p>
+          </div>
+        </div>
+
+        {equipe.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {equipe.map((item) => (
+              <span
+                key={item.id}
+                className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+              >
+                👤 {item.salarie_nom || "Salarié"}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-5">{renduEtapes(fiche)}</div>
+
+        <ResumeRetourTerrainFiche
+          entrepriseId={entrepriseId}
+          ficheId={fiche.id}
+          problemeSignale={fiche.probleme_signale}
+          descriptionProbleme={fiche.description_probleme}
+          afficherActionsPv={false}
+          autoriserEnvoiClient={false}
+        />
+
+        <div className="mt-5">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Éléments fiche
+          </p>
+          {renduElementsMini(fiche)}
+        </div>
+
+        {renduActions(fiche)}
+      </article>
+    );
+  }
+
+  function renduVueJour() {
+    const liste = fichesPourDate(dateReference);
+
+    return (
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Vue jour
+              </p>
+              <h2 className="mt-1 text-xl font-bold capitalize text-slate-950">
+                {formatDate(dateReference)}
+              </h2>
+            </div>
+
+            <p className="text-sm font-semibold text-slate-500">
+              {liste.length} intervention{liste.length > 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+
+        <div
+          onDragOver={(event) => autoriserDepot(event, dateReference)}
+          onDrop={(event) => deposerFiche(event, dateReference)}
+          onDragLeave={() => setDateSurvolee(null)}
+          className={`min-h-[360px] p-4 transition ${
+            dateSurvolee === dateReference
+              ? "bg-emerald-50 ring-2 ring-inset ring-emerald-300"
+              : "bg-white"
+          }`}
+        >
+          {liste.length === 0 ? (
+            <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+                📅
+              </div>
+              <p className="mt-4 font-semibold text-slate-900">
+                Aucune intervention ce jour
+              </p>
+              <p className="mt-1 max-w-md text-sm text-slate-500">
+                Vous pouvez glisser une intervention depuis une autre date ou
+                créer une nouvelle fiche d’intervention.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+              {liste.map((fiche) => renduCarteCalendrier(fiche))}
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  function renduVueSemaine() {
+    return (
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <div className="min-w-[1050px]">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+              {joursSemaine.map((date) => {
+                const aujourdhui = date === dateLocaleIso();
+                const liste = fichesPourDate(date);
+
+                return (
+                  <div
+                    key={date}
+                    className={`border-r border-slate-200 px-3 py-3 last:border-r-0 ${
+                      aujourdhui ? "bg-emerald-50" : ""
+                    }`}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {formatJourSemaine(date)}
+                    </p>
+                    <div className="mt-1 flex items-center justify-between">
+                      <p
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                          aujourdhui
+                            ? "bg-emerald-600 text-white"
+                            : "text-slate-950"
+                        }`}
+                      >
+                        {formatNumeroJour(date)}
+                      </p>
+                      <span className="text-xs font-semibold text-slate-400">
+                        {liste.length}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {joursSemaine.map((date) => {
+                const liste = fichesPourDate(date);
+                const survolee = dateSurvolee === date;
+
+                return (
+                  <div
+                    key={date}
+                    onDragOver={(event) => autoriserDepot(event, date)}
+                    onDrop={(event) => deposerFiche(event, date)}
+                    onDragLeave={() => setDateSurvolee(null)}
+                    className={`min-h-[440px] space-y-2 border-r border-slate-200 p-2 last:border-r-0 transition ${
+                      survolee
+                        ? "bg-emerald-50 ring-2 ring-inset ring-emerald-300"
+                        : date === dateLocaleIso()
+                          ? "bg-emerald-50/30"
+                          : "bg-white"
+                    }`}
+                  >
+                    {liste.map((fiche) => renduCarteCalendrier(fiche))}
+
+                    {liste.length === 0 && (
+                      <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 px-2 text-center text-[10px] text-slate-400">
+                        Déposez une intervention ici
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renduVueMois() {
+    const moisReference = dateReference.slice(0, 7);
+
+    return (
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <div className="min-w-[980px]">
+        <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+          {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(
+            (jour) => (
+              <div
+                key={jour}
+                className="border-r border-slate-200 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 last:border-r-0"
+              >
+                {jour}
+              </div>
+            )
+          )}
+        </div>
+
+        <div className="grid grid-cols-7">
+          {joursMois.map((date) => {
+            const liste = fichesPourDate(date);
+            const dansMois = date.slice(0, 7) === moisReference;
+            const aujourdhui = date === dateLocaleIso();
+            const survolee = dateSurvolee === date;
+
+            return (
+              <div
+                key={date}
+                onDragOver={(event) => autoriserDepot(event, date)}
+                onDrop={(event) => deposerFiche(event, date)}
+                onDragLeave={() => setDateSurvolee(null)}
+                className={`min-h-[145px] border-b border-r border-slate-200 p-1.5 transition [&:nth-child(7n)]:border-r-0 ${
+                  dansMois ? "bg-white" : "bg-slate-50/80"
+                } ${
+                  survolee
+                    ? "bg-emerald-50 ring-2 ring-inset ring-emerald-300"
+                    : ""
+                }`}
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateReference(date);
+                      setVue("jour");
+                    }}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                      aujourdhui
+                        ? "bg-emerald-600 text-white"
+                        : dansMois
+                          ? "text-slate-900 hover:bg-slate-100"
+                          : "text-slate-400 hover:bg-slate-200"
+                    }`}
+                  >
+                    {formatNumeroJour(date)}
+                  </button>
+
+                  {liste.length > 0 && (
+                    <span className="text-[9px] font-semibold text-slate-400">
+                      {liste.length}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  {liste
+                    .slice(0, 3)
+                    .map((fiche) => renduCarteCalendrier(fiche, true))}
+
+                  {liste.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateReference(date);
+                        setVue("jour");
+                      }}
+                      className="w-full rounded-lg bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600 hover:bg-slate-200"
+                    >
+                      +{liste.length - 3} autre
+                      {liste.length - 3 > 1 ? "s" : ""}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renduVueListe() {
+    if (fichesFiltrees.length === 0) {
+      return (
+        <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+            📅
+          </div>
+          <p className="mt-4 font-semibold text-slate-900">
+            Aucune intervention trouvée
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Aucune fiche ne correspond aux filtres ou à la recherche.
+          </p>
+          <Link
+            href="/chef/interventions"
+            className="mt-5 inline-flex rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Ouvrir les fiches d’intervention
+          </Link>
+        </section>
+      );
+    }
+
+    return (
+      <section className="space-y-6">
+        {fichesParDate.map(([date, liste]) => (
+          <section key={date} className="space-y-3">
+            <div className="sticky top-2 z-10 rounded-2xl border border-slate-200 bg-slate-50/95 px-4 py-3 shadow-sm backdrop-blur">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="font-bold capitalize text-slate-950">
+                  {date === "non_planifiee"
+                    ? "Non planifiées"
+                    : formatDate(date)}
+                </h2>
+
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {liste.length} intervention{liste.length > 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              {liste.map((fiche) => renduCarteListe(fiche))}
+            </div>
+          </section>
+        ))}
+      </section>
     );
   }
 
   if (chargement) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
-            👤
+      <div className="space-y-6">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            📅
           </div>
-          <p className="text-lg font-bold text-slate-950">
-            Chargement du profil…
+          <p className="font-semibold text-slate-950">
+            Chargement du planning...
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Récupération de vos informations.
+            Récupération des fiches planifiées et des équipes.
           </p>
         </div>
       </div>
@@ -558,553 +1686,283 @@ export default function ProfilChefPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Mon compte
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Profil et entreprise
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Gérez vos informations personnelles et les données officielles
-              utilisées pour identifier votre entreprise dans Arboboard.
-            </p>
-          </div>
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
+          <h1 className="mt-1 text-3xl font-bold text-slate-950">
+            Planning chantier
+          </h1>
+          <p className="mt-2 max-w-4xl text-sm text-slate-600">
+            Organisez les interventions en vue jour, semaine ou mois. Glissez
+            une fiche vers une autre date pour la replanifier instantanément.
+          </p>
+        </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/chef/compte"
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              ← Mon compte
-            </Link>
-            <Link
-              href="/chef/parametres"
-              className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              Paramètres documents
-            </Link>
-          </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link
+            href="/chef/interventions"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            + Nouvelle intervention
+          </Link>
+
+          <button
+            type="button"
+            onClick={rafraichir}
+            disabled={enregistrement}
+            className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {enregistrement ? "Enregistrement..." : "Actualiser"}
+          </button>
         </div>
       </section>
 
-      {messageErreur ? (
-        <div
-          role="alert"
-          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
-        >
+      {messageErreur && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {messageErreur}
         </div>
-      ) : null}
+      )}
 
-      {messageSucces ? (
-        <div
-          role="status"
-          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
-        >
+      {messageSucces && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {messageSucces}
         </div>
-      ) : null}
+      )}
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
-          <article className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-5 sm:p-6">
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">
-                    Informations personnelles
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Nom affiché dans votre espace et sur les signatures.
-                  </p>
-                </div>
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <button
+          type="button"
+          onClick={() => activerFiltreRapide("toutes")}
+          aria-pressed={filtreRapide === "toutes"}
+          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+            filtreRapide === "toutes"
+              ? "border-slate-400 bg-slate-100 ring-2 ring-slate-100"
+              : "border-slate-200 bg-white hover:border-slate-300"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Total
+          </p>
+          <p className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
+            {statistiques.total}
+          </p>
+        </button>
 
-                {profilModifie ? (
-                  <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Modifications non enregistrées
-                  </span>
-                ) : null}
-              </div>
-            </div>
+        <button
+          type="button"
+          onClick={() => activerFiltreRapide("aujourd_hui")}
+          aria-pressed={filtreRapide === "aujourd_hui"}
+          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+            filtreRapide === "aujourd_hui"
+              ? "border-blue-400 bg-blue-100 ring-2 ring-blue-100"
+              : "border-blue-100 bg-blue-50 hover:border-blue-300"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-blue-600">
+            Aujourd’hui
+          </p>
+          <p className="mt-1 text-2xl font-bold text-blue-900 sm:text-3xl">
+            {statistiques.aujourdHui}
+          </p>
+        </button>
 
-            <div className="space-y-5 p-5 sm:p-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <ChampTexte
-                  label="Prénom"
-                  value={formulaireProfil.prenom}
-                  onChange={(valeur) => modifierProfil("prenom", valeur)}
-                  autoComplete="given-name"
-                  placeholder="Votre prénom"
-                />
-                <ChampTexte
-                  label="Nom"
-                  value={formulaireProfil.nom}
-                  onChange={(valeur) => modifierProfil("nom", valeur)}
-                  autoComplete="family-name"
-                  placeholder="Votre nom"
-                />
-              </div>
+        <button
+          type="button"
+          onClick={() => activerFiltreRapide("a_venir")}
+          aria-pressed={filtreRapide === "a_venir"}
+          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+            filtreRapide === "a_venir"
+              ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100"
+              : "border-emerald-100 bg-emerald-50 hover:border-emerald-300"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-emerald-600">
+            À venir
+          </p>
+          <p className="mt-1 text-2xl font-bold text-emerald-900 sm:text-3xl">
+            {statistiques.aVenir}
+          </p>
+        </button>
 
-              <ChampTexte
-                label="Email de connexion"
-                value={profil?.email || ""}
-                onChange={() => undefined}
-                type="email"
-                disabled
-                aide="L’adresse de connexion ne peut pas être modifiée depuis cette page."
-              />
+        <button
+          type="button"
+          onClick={() => activerFiltreRapide("en_cours")}
+          aria-pressed={filtreRapide === "en_cours"}
+          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+            filtreRapide === "en_cours"
+              ? "border-amber-400 bg-amber-100 ring-2 ring-amber-100"
+              : "border-amber-100 bg-amber-50 hover:border-amber-300"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-amber-600">
+            En cours
+          </p>
+          <p className="mt-1 text-2xl font-bold text-amber-900 sm:text-3xl">
+            {statistiques.enCours}
+          </p>
+        </button>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={enregistrerProfil}
-                  disabled={enregistrementProfil || !profilModifie}
-                  className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {enregistrementProfil
-                    ? "Enregistrement…"
-                    : "Enregistrer mon profil"}
-                </button>
-              </div>
-            </div>
-          </article>
+        <button
+          type="button"
+          onClick={() => activerFiltreRapide("terminees")}
+          aria-pressed={filtreRapide === "terminees"}
+          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+            filtreRapide === "terminees"
+              ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100"
+              : "border-slate-200 bg-white hover:border-emerald-300"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Terminées
+          </p>
+          <p className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
+            {statistiques.terminees}
+          </p>
+        </button>
 
-          <article className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-5 sm:p-6">
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">
-                    Identité de l’entreprise
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Coordonnées utilisées sur les documents et les emails.
-                  </p>
-                </div>
+        <button
+          type="button"
+          onClick={() => activerFiltreRapide("problemes")}
+          aria-pressed={filtreRapide === "problemes"}
+          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+            filtreRapide === "problemes"
+              ? "border-red-400 bg-red-100 ring-2 ring-red-100"
+              : "border-red-100 bg-red-50 hover:border-red-300"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-wide text-red-600">
+            Problèmes
+          </p>
+          <p className="mt-1 text-2xl font-bold text-red-900 sm:text-3xl">
+            {statistiques.problemes}
+          </p>
+        </button>
+      </section>
 
-                {entrepriseModifiee ? (
-                  <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Modifications non enregistrées
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="space-y-5 p-5 sm:p-6">
-              <ChampTexte
-                label="Nom de l’entreprise"
-                value={formulaireEntreprise.nom_entreprise}
-                onChange={(valeur) =>
-                  modifierEntreprise("nom_entreprise", valeur)
-                }
-                autoComplete="organization"
-                placeholder="Ex. Jardin d’en Haut"
-                required
-              />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <ChampTexte
-                  label="Email de contact"
-                  value={formulaireEntreprise.email_contact}
-                  onChange={(valeur) =>
-                    modifierEntreprise("email_contact", valeur)
-                  }
-                  type="email"
-                  autoComplete="email"
-                  placeholder="contact@entreprise.fr"
-                />
-                <ChampTexte
-                  label="Téléphone"
-                  value={formulaireEntreprise.telephone}
-                  onChange={(valeur) =>
-                    modifierEntreprise("telephone", valeur)
-                  }
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="06 00 00 00 00"
-                />
-              </div>
-
-              <ChampTexte
-                label="Adresse"
-                value={formulaireEntreprise.adresse}
-                onChange={(valeur) =>
-                  modifierEntreprise("adresse", valeur)
-                }
-                autoComplete="street-address"
-                placeholder="Adresse de l’entreprise"
-              />
-
-              <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
-                <ChampTexte
-                  label="Code postal"
-                  value={formulaireEntreprise.code_postal}
-                  onChange={(valeur) =>
-                    modifierEntreprise("code_postal", valeur)
-                  }
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  maxLength={10}
-                  placeholder="03500"
-                />
-                <ChampTexte
-                  label="Ville"
-                  value={formulaireEntreprise.ville}
-                  onChange={(valeur) =>
-                    modifierEntreprise("ville", valeur)
-                  }
-                  autoComplete="address-level2"
-                  placeholder="Châtel-de-Neuvre"
-                />
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-950">
-                Informations légales
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Données d’identification affichées sur les documents commerciaux.
-              </p>
-            </div>
-
-            <div className="space-y-5 p-5 sm:p-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <ChampTexte
-                  label="SIRET"
-                  value={formulaireEntreprise.siret}
-                  onChange={(valeur) =>
-                    modifierEntreprise("siret", valeur)
-                  }
-                  inputMode="numeric"
-                  maxLength={17}
-                  placeholder="14 chiffres"
-                  aide="Les espaces sont supprimés lors de l’enregistrement."
-                />
-                <ChampTexte
-                  label="TVA intracommunautaire"
-                  value={formulaireEntreprise.numero_tva}
-                  onChange={(valeur) =>
-                    modifierEntreprise("numero_tva", valeur.toUpperCase())
-                  }
-                  placeholder="FR..."
-                />
-              </div>
-
-              <ChampTexte
-                label="Forme juridique"
-                value={formulaireEntreprise.forme_juridique}
-                onChange={(valeur) =>
-                  modifierEntreprise("forme_juridique", valeur)
-                }
-                placeholder="Entreprise individuelle, SASU, EURL…"
-              />
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-950">
-                Assurance professionnelle
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Références de l’assurance couvrant les travaux de l’entreprise.
-              </p>
-            </div>
-
-            <div className="space-y-5 p-5 sm:p-6">
-              <ChampTexte
-                label="Compagnie d’assurance"
-                value={formulaireEntreprise.assurance_nom}
-                onChange={(valeur) =>
-                  modifierEntreprise("assurance_nom", valeur)
-                }
-                placeholder="Nom de l’assureur"
-              />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <ChampTexte
-                  label="Numéro du contrat"
-                  value={formulaireEntreprise.assurance_numero_contrat}
-                  onChange={(valeur) =>
-                    modifierEntreprise(
-                      "assurance_numero_contrat",
-                      valeur
-                    )
-                  }
-                  placeholder="Référence du contrat"
-                />
-                <ChampTexte
-                  label="Zone de couverture"
-                  value={formulaireEntreprise.assurance_zone_couverture}
-                  onChange={(valeur) =>
-                    modifierEntreprise(
-                      "assurance_zone_couverture",
-                      valeur
-                    )
-                  }
-                  placeholder="France métropolitaine"
-                />
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">
-                  Mention complémentaire
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Texte d’entreprise pouvant être repris sur les documents.
-                </p>
-              </div>
-
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="inline-flex w-full rounded-2xl bg-slate-100 p-1 xl:w-auto">
+            {(
+              [
+                ["jour", "Jour"],
+                ["semaine", "Semaine"],
+                ["mois", "Mois"],
+                ["liste", "Liste"],
+              ] as Array<[VuePlanning, string]>
+            ).map(([valeur, libelle]) => (
               <button
+                key={valeur}
                 type="button"
-                onClick={restaurerMentionsLegales}
-                className="w-fit rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                onClick={() => setVue(valeur)}
+                className={`flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition xl:flex-none ${
+                  vue === valeur
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
               >
-                Restaurer le texte
+                {libelle}
               </button>
-            </div>
+            ))}
+          </div>
 
-            <div className="space-y-5 p-5 sm:p-6">
-              <ChampTextarea
-                label="Mention"
-                value={formulaireEntreprise.mentions_legales_documents}
-                onChange={(valeur) =>
-                  modifierEntreprise(
-                    "mentions_legales_documents",
-                    valeur
-                  )
-                }
-                rows={5}
-                placeholder="Mention complémentaire de l’entreprise…"
-              />
+          <div className="flex items-center justify-between gap-2 xl:justify-center">
+            <button
+              type="button"
+              onClick={() => naviguer(-1)}
+              disabled={vue === "liste"}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Période précédente"
+            >
+              ‹
+            </button>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={enregistrerEntreprise}
-                  disabled={
-                    enregistrementEntreprise || !entrepriseModifiee
-                  }
-                  className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {enregistrementEntreprise
-                    ? "Enregistrement…"
-                    : "Enregistrer l’entreprise"}
-                </button>
-              </div>
-            </div>
-          </article>
+            <button
+              type="button"
+              onClick={allerAujourdhui}
+              disabled={vue === "liste"}
+              className="min-h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              Aujourd’hui
+            </button>
+
+            <button
+              type="button"
+              onClick={() => naviguer(1)}
+              disabled={vue === "liste"}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Période suivante"
+            >
+              ›
+            </button>
+          </div>
+
+          <h2 className="text-center text-base font-bold capitalize text-slate-950 xl:min-w-72 xl:text-right">
+            {titrePeriode()}
+          </h2>
         </div>
 
-        <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">
-              Résumé du compte
-            </h2>
+        <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 lg:grid-cols-[minmax(0,1fr)_190px_220px_auto]">
+          <input
+            value={recherche}
+            onChange={(event) => setRecherche(event.target.value)}
+            placeholder="Rechercher par client, ville, salarié, chantier, matériel..."
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+          />
 
-            <div className="mt-4 space-y-4 text-sm">
-              <LigneResume
-                label="Utilisateur"
-                valeur={
-                  `${profil?.prenom || ""} ${profil?.nom || ""}`.trim() ||
-                  profil?.email ||
-                  "—"
-                }
-              />
-              <LigneResume
-                label="Rôle"
-                valeur={libelleRole(profil?.role)}
-              />
-              <LigneResume
-                label="Statut"
-                valeur={profil?.statut || "—"}
-              />
-              <LigneResume
-                label="Entreprise"
-                valeur={entreprise?.nom_entreprise || "—"}
-              />
-              <LigneResume
-                label="Adresse"
-                valeur={adresseComplete(entreprise)}
-              />
-              <LigneResume
-                label="SIRET"
-                valeur={entreprise?.siret || "—"}
-              />
-            </div>
-          </article>
+          <select
+            value={filtreStatut}
+            onChange={(event) =>
+              setFiltreStatut(event.target.value as FiltreStatut)
+            }
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+          >
+            <option value="tous">Tous les statuts</option>
+            <option value="brouillon">Brouillons</option>
+            <option value="planifiee">Planifiées</option>
+            <option value="en_cours">En cours</option>
+            <option value="terminee">Terminées</option>
+            <option value="annulee">Annulées</option>
+          </select>
 
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Abonnement</h2>
+          <select
+            value={filtreSalarie}
+            onChange={(event) => setFiltreSalarie(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+          >
+            <option value="tous">Toute l’équipe</option>
+            {optionsSalaries.map((option) => (
+              <option key={option.valeur} value={option.valeur}>
+                {option.libelle}
+              </option>
+            ))}
+          </select>
 
-            <div className="mt-4 space-y-3 text-sm">
-              <LigneResume
-                label="Plan"
-                valeur={libellePlan(entreprise?.plan_abonnement)}
-              />
+          <button
+            type="button"
+            onClick={reinitialiserFiltres}
+            className="min-h-12 rounded-2xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Réinitialiser
+          </button>
+        </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-500">Statut</span>
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-                    entreprise?.statut_abonnement
-                  )}`}
-                >
-                  {libelleStatutAbonnement(
-                    entreprise?.statut_abonnement
-                  )}
-                </span>
-              </div>
-            </div>
-
-            <Link
-              href="/chef/abonnement"
-              className="mt-5 inline-flex text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-            >
-              Gérer l’abonnement →
-            </Link>
-          </article>
-
-          <article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
-            <p className="font-bold text-emerald-950">
-              Paramètres des documents
-            </p>
-            <p className="mt-2 text-sm leading-6 text-emerald-800">
-              Le logo, la TVA, les délais, les préfixes et les conditions
-              générales se règlent dans la page Paramètres.
-            </p>
-            <Link
-              href="/chef/parametres"
-              className="mt-4 inline-flex text-sm font-semibold text-emerald-800 hover:text-emerald-950"
-            >
-              Ouvrir les paramètres →
-            </Link>
-          </article>
-
-          <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">
-              Sécurité et conformité
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Accédez aux sauvegardes, au RGPD et aux documents juridiques.
-            </p>
-            <Link
-              href="/chef/securite"
-              className="mt-4 inline-flex text-sm font-semibold text-slate-800 hover:text-slate-950"
-            >
-              Ouvrir la sécurité →
-            </Link>
-          </article>
-        </aside>
+        <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            {fichesFiltrees.length} intervention
+            {fichesFiltrees.length > 1 ? "s" : ""} après filtrage
+          </p>
+          <p>
+            Glisser-déposer actif pour les fiches brouillon, planifiées et en
+            cours.
+          </p>
+        </div>
       </section>
-    </div>
-  );
-}
 
-function ChampTexte({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-  aide,
-  disabled = false,
-  required = false,
-  autoComplete,
-  inputMode,
-  maxLength,
-}: {
-  label: string;
-  value: string;
-  onChange: (valeur: string) => void;
-  type?: string;
-  placeholder?: string;
-  aide?: string;
-  disabled?: boolean;
-  required?: boolean;
-  autoComplete?: string;
-  inputMode?: "text" | "search" | "tel" | "url" | "email" | "numeric" | "decimal";
-  maxLength?: number;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">
-        {label}
-        {required ? <span className="text-red-500"> *</span> : null}
-      </span>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        required={required}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        maxLength={maxLength}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-      />
-      {aide ? (
-        <span className="mt-1.5 block text-xs leading-5 text-slate-500">
-          {aide}
-        </span>
-      ) : null}
-    </label>
-  );
-}
-
-function ChampTextarea({
-  label,
-  value,
-  onChange,
-  placeholder,
-  rows = 4,
-}: {
-  label: string;
-  value: string;
-  onChange: (valeur: string) => void;
-  placeholder?: string;
-  rows?: number;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-      <textarea
-        value={value}
-        placeholder={placeholder}
-        rows={rows}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-      />
-    </label>
-  );
-}
-
-function LigneResume({
-  label,
-  valeur,
-}: {
-  label: string;
-  valeur: string;
-}) {
-  return (
-    <div>
-      <span className="block text-xs font-medium uppercase tracking-wide text-slate-400">
-        {label}
-      </span>
-      <span className="mt-1 block break-words font-semibold text-slate-900">
-        {valeur}
-      </span>
+      {vue === "jour" && renduVueJour()}
+      {vue === "semaine" && renduVueSemaine()}
+      {vue === "mois" && renduVueMois()}
+      {vue === "liste" && renduVueListe()}
     </div>
   );
 }

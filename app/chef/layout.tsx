@@ -42,6 +42,8 @@ type LienCompte = {
   emoji: string;
 };
 
+type NiveauAuthentification = "aal1" | "aal2" | null;
+
 const TOUS_LES_PLANS = ["essai", "essentiel", "pro", "expert", "dev"];
 const PLANS_EQUIPE = ["essai", "pro", "expert", "dev"];
 
@@ -392,6 +394,9 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
   const [contexte, setContexte] = useState<ContexteEntreprise | null>(null);
   const [messageErreur, setMessageErreur] = useState("");
   const [menuUtilisateurOuvert, setMenuUtilisateurOuvert] = useState(false);
+  const [niveauAuthentification, setNiveauAuthentification] =
+    useState<NiveauAuthentification>(null);
+  const [mfaRequise, setMfaRequise] = useState(false);
 
   useEffect(() => {
     let actif = true;
@@ -400,6 +405,8 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
       try {
         setChargement(true);
         setMessageErreur("");
+        setMfaRequise(false);
+        setNiveauAuthentification(null);
 
         const resultat = await chargerContexteEntreprise();
 
@@ -413,7 +420,10 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
         const contexteEntreprise =
           resultat.contexte as ContexteEntreprise;
 
-        if (!contexteEntreprise.profil || !contexteEntreprise.entreprise) {
+        if (
+          !contexteEntreprise.profil ||
+          !contexteEntreprise.entreprise
+        ) {
           router.replace("/connexion");
           return;
         }
@@ -436,7 +446,36 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           return;
         }
 
-        const abonnementBloque = abonnementEstBloque(entreprise);
+        const {
+          data: niveauMfa,
+          error: niveauMfaError,
+        } =
+          await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+        if (!actif) return;
+
+        if (niveauMfaError) {
+          throw niveauMfaError;
+        }
+
+        const niveauActuel =
+          niveauMfa.currentLevel as NiveauAuthentification;
+        const prochainNiveau =
+          niveauMfa.nextLevel as NiveauAuthentification;
+
+        setNiveauAuthentification(niveauActuel);
+
+        if (
+          niveauActuel === "aal1" &&
+          prochainNiveau === "aal2"
+        ) {
+          setMfaRequise(true);
+          router.replace("/connexion?mfa=required");
+          return;
+        }
+
+        const abonnementBloque =
+          abonnementEstBloque(entreprise);
 
         if (
           abonnementBloque &&
@@ -463,13 +502,13 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
         if (!actif) return;
 
         setMessageErreur(
-          "Impossible de vérifier votre accès. Veuillez vous reconnecter."
+          "Impossible de vérifier votre accès et le niveau de sécurité de la session. Veuillez vous reconnecter."
         );
         setChargement(false);
       }
     }
 
-    verifierAcces();
+    void verifierAcces();
 
     return () => {
       actif = false;
@@ -536,8 +575,9 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
             Chargement de votre espace
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Vérification de votre compte, de votre entreprise et de votre
-            abonnement.
+            {mfaRequise
+              ? "La double authentification doit être validée avant d’ouvrir cet espace."
+              : "Vérification de votre compte, de votre entreprise, de votre abonnement et du niveau de sécurité de la session."}
           </p>
         </div>
       </main>
@@ -617,6 +657,11 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
             >
               {entreprise.statut_abonnement || "essai"}
             </span>
+            {niveauAuthentification === "aal2" ? (
+              <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-medium text-violet-700">
+                MFA vérifiée
+              </span>
+            ) : null}
           </div>
         </div>
 

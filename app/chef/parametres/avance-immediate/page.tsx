@@ -566,6 +566,13 @@ export default function AvanceImmediateParametresPage() {
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              href="/chef/parametres/avance-immediate/historique"
+              className="shrink-0 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-center text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            >
+              Historique complet
+            </Link>
+
             <button
               type="button"
               onClick={() =>

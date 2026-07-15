@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -87,6 +92,7 @@ export default function SecuriteCompteChefPage() {
     useState(false);
 
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [modificationMotDePasse, setModificationMotDePasse] =
     useState(false);
   const [fermetureAutresSessions, setFermetureAutresSessions] =
@@ -113,20 +119,57 @@ export default function SecuriteCompteChefPage() {
     let score = 0;
 
     if (compte?.emailConfirme) score += 30;
-    if (compte?.fournisseur === "email") score += 20;
+    if (compte?.fournisseur) score += 20;
     if (mfaActive) score += 50;
 
     return Math.min(score, 100);
   }, [compte, mfaActive]);
 
-  useEffect(() => {
-    void chargerCompte();
-  }, []);
+  const couleurNiveauSecurite = useMemo(() => {
+    if (niveauSecurite >= 80) {
+      return {
+        barre: "bg-emerald-600",
+        fond: "border-emerald-200 bg-emerald-50",
+        texte: "text-emerald-700",
+        libelle: "Protection renforcée",
+      };
+    }
 
-  async function chargerCompte() {
-    try {
-      setChargement(true);
-      setErreur("");
+    if (niveauSecurite >= 50) {
+      return {
+        barre: "bg-amber-500",
+        fond: "border-amber-200 bg-amber-50",
+        texte: "text-amber-700",
+        libelle: "Protection intermédiaire",
+      };
+    }
+
+    return {
+      barre: "bg-red-600",
+      fond: "border-red-200 bg-red-50",
+      texte: "text-red-700",
+      libelle: "Protection à renforcer",
+    };
+  }, [niveauSecurite]);
+
+  const confirmationCorrespond = useMemo(
+    () =>
+      confirmation.length > 0 &&
+      motDePasse === confirmation,
+    [confirmation, motDePasse]
+  );
+
+  const chargerCompte = useCallback(
+    async (chargementInitial = false) => {
+      try {
+        if (chargementInitial) {
+          setChargement(true);
+        } else {
+          setActualisation(true);
+        }
+
+        setErreur("");
+        setMessage("");
 
       const {
         data: { user },
@@ -189,9 +232,23 @@ export default function SecuriteCompteChefPage() {
           "Impossible de charger les informations du compte."
         )
       );
-    } finally {
-      setChargement(false);
-    }
+      } finally {
+        setChargement(false);
+        setActualisation(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    void chargerCompte(true);
+  }, [chargerCompte]);
+
+  async function actualiserCompte() {
+    await chargerCompte(false);
+    setMessage(
+      "Les informations de sécurité du compte ont été actualisées."
+    );
   }
 
   async function modifierMotDePasse() {
@@ -361,12 +418,25 @@ export default function SecuriteCompteChefPage() {
         error
       );
 
-      setErreur(
-        messageErreurInconnue(
-          error,
-          "Impossible de fermer toutes les sessions."
-        )
+      const messageErreur = messageErreurInconnue(
+        error,
+        "Impossible de fermer toutes les sessions."
       );
+
+      setErreur(messageErreur);
+
+      await journaliserActivite({
+        action: "fermeture_toutes_sessions_echec",
+        categorie: "securite",
+        ressource_type: "compte_utilisateur",
+        ressource_id: compte.id,
+        resultat: "echec",
+        description:
+          "Échec de la déconnexion globale du compte.",
+        details: {
+          erreur: messageErreur,
+        },
+      });
 
       setFermetureGlobale(false);
     }
@@ -374,38 +444,74 @@ export default function SecuriteCompteChefPage() {
 
   if (chargement) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="font-semibold text-slate-700">
-          Chargement de la sécurité du compte…
-        </p>
+      <div className="mx-auto max-w-6xl">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
+          </div>
+
+          <p className="font-semibold text-slate-950">
+            Chargement de la sécurité du compte…
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Vérification de l’identité, des facteurs MFA et de la session.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <main className="mx-auto max-w-6xl space-y-6">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Sécurité & conformité
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Sécurité du compte
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Contrôlez les informations de connexion, renforcez votre
-              mot de passe et révoquez les sessions ouvertes sur
-              d’autres appareils.
-            </p>
-          </div>
+      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-emerald-600" />
 
-          <Link
-            href="/chef/securite"
-            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            ← Sécurité
-          </Link>
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
+                🔐
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Sécurité & conformité
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Sécurité du compte
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Contrôlez les informations de connexion, renforcez votre
+                  mot de passe et révoquez les sessions ouvertes sur
+                  d’autres appareils.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <button
+                type="button"
+                onClick={() => void actualiserCompte()}
+                disabled={actualisation}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true">↻</span>
+                {actualisation
+                  ? "Actualisation…"
+                  : "Actualiser"}
+              </button>
+
+              <Link
+                href="/chef/securite"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                ← Sécurité
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -427,7 +533,7 @@ export default function SecuriteCompteChefPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <CarteInformation
           label="Adresse email"
           valeur={compte?.email || "Non disponible"}
@@ -451,44 +557,66 @@ export default function SecuriteCompteChefPage() {
         />
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">
-              État du compte
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+      <section
+        className={`rounded-3xl border p-5 shadow-sm sm:p-6 ${couleurNiveauSecurite.fond}`}
+      >
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-black text-slate-950">
+                État du compte
+              </h2>
+
+              <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-bold text-emerald-700">
+                Session active
+              </span>
+            </div>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               Compte créé le{" "}
               <strong className="font-semibold text-slate-800">
                 {formaterDate(compte?.creeAt || null)}
               </strong>
               .
             </p>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+                <span>Indicateur de sécurité</span>
+                <span className={couleurNiveauSecurite.texte}>
+                  {niveauSecurite} %
+                </span>
+              </div>
+
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white">
+                <div
+                  className={`h-full rounded-full transition-all ${couleurNiveauSecurite.barre}`}
+                  style={{ width: `${niveauSecurite}%` }}
+                />
+              </div>
+
+              <p
+                className={`mt-3 text-sm font-semibold ${couleurNiveauSecurite.texte}`}
+              >
+                {couleurNiveauSecurite.libelle}
+              </p>
+            </div>
           </div>
 
-          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-            Session active
-          </span>
-        </div>
-
-        <div className="mt-5">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-            <span>Indicateur de sécurité</span>
-            <span>{niveauSecurite} %</span>
-          </div>
-
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-emerald-600 transition-all"
-              style={{ width: `${niveauSecurite}%` }}
+          <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:w-[390px]">
+            <IndicateurProtection
+              actif={Boolean(compte?.emailConfirme)}
+              label="Email confirmé"
+            />
+            <IndicateurProtection
+              actif={Boolean(compte?.fournisseur)}
+              label="Connexion identifiée"
+            />
+            <IndicateurProtection
+              actif={mfaActive}
+              label="MFA activée"
             />
           </div>
-
-          <p className="mt-3 text-xs leading-5 text-slate-500">
-            {mfaActive
-              ? "La double authentification protège actuellement ce compte."
-              : "Active la double authentification pour renforcer fortement la connexion."}
-          </p>
         </div>
       </section>
 
@@ -573,11 +701,13 @@ export default function SecuriteCompteChefPage() {
             <input
               type={afficherMotDePasse ? "text" : "password"}
               value={motDePasse}
-              onChange={(event) =>
-                setMotDePasse(event.target.value)
-              }
+              onChange={(event) => {
+                setMotDePasse(event.target.value);
+                setErreur("");
+                setMessage("");
+              }}
               autoComplete="new-password"
-              className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-3 text-sm text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             />
           </label>
 
@@ -588,11 +718,24 @@ export default function SecuriteCompteChefPage() {
             <input
               type={afficherMotDePasse ? "text" : "password"}
               value={confirmation}
-              onChange={(event) =>
-                setConfirmation(event.target.value)
-              }
+              onChange={(event) => {
+                setConfirmation(event.target.value);
+                setErreur("");
+                setMessage("");
+              }}
               autoComplete="new-password"
-              className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              aria-invalid={
+                confirmation.length > 0 &&
+                motDePasse !== confirmation
+              }
+              className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 text-sm text-slate-950 outline-none transition focus:ring-4 ${
+                confirmation.length > 0 &&
+                motDePasse !== confirmation
+                  ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                  : confirmationCorrespond
+                    ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-100"
+                    : "border-slate-300 focus:border-emerald-500 focus:ring-emerald-100"
+              }`}
             />
           </label>
         </div>
@@ -632,14 +775,39 @@ export default function SecuriteCompteChefPage() {
           />
         </div>
 
-        {confirmation &&
-        motDePasse !== confirmation ? (
-          <p className="mt-3 text-sm font-medium text-red-600">
-            Les deux mots de passe ne correspondent pas.
+        {confirmation.length > 0 ? (
+          <p
+            className={`mt-3 text-sm font-medium ${
+              confirmationCorrespond
+                ? "text-emerald-600"
+                : "text-red-600"
+            }`}
+          >
+            {confirmationCorrespond
+              ? "✓ Les deux mots de passe correspondent."
+              : "Les deux mots de passe ne correspondent pas."}
           </p>
         ) : null}
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setMotDePasse("");
+              setConfirmation("");
+              setAfficherMotDePasse(false);
+              setErreur("");
+              setMessage("");
+            }}
+            disabled={
+              modificationMotDePasse ||
+              (!motDePasse && !confirmation)
+            }
+            className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Effacer les champs
+          </button>
+
           <button
             type="button"
             onClick={() => void modifierMotDePasse()}
@@ -672,15 +840,15 @@ export default function SecuriteCompteChefPage() {
               Fermer les autres sessions
             </h3>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Déconnecte les autres appareils tout en conservant la
-              session utilisée maintenant.
+              Déconnecte les autres appareils tout en conservant
+              la session utilisée actuellement.
             </p>
 
             <button
               type="button"
               onClick={() => void fermerAutresSessions()}
               disabled={fermetureAutresSessions}
-              className="mt-5 rounded-xl border border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 disabled:opacity-50"
+              className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {fermetureAutresSessions
                 ? "Fermeture…"
@@ -703,7 +871,7 @@ export default function SecuriteCompteChefPage() {
                 void fermerToutesLesSessions()
               }
               disabled={fermetureGlobale}
-              className="mt-5 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
+              className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {fermetureGlobale
                 ? "Déconnexion…"
@@ -738,6 +906,31 @@ function CarteInformation({
         }`}
       >
         {valeur}
+      </p>
+    </div>
+  );
+}
+
+function IndicateurProtection({
+  actif,
+  label,
+}: {
+  actif: boolean;
+  label: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-3 text-center ${
+        actif
+          ? "border-emerald-200 bg-white text-emerald-700"
+          : "border-slate-200 bg-white/70 text-slate-500"
+      }`}
+    >
+      <p className="text-lg" aria-hidden="true">
+        {actif ? "✓" : "○"}
+      </p>
+      <p className="mt-1 text-xs font-bold">
+        {label}
       </p>
     </div>
   );

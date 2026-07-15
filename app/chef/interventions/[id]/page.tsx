@@ -252,6 +252,65 @@ function badgeStatut(statut: string | null | undefined) {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
+function decorationEntete(statut: string | null | undefined) {
+  if (statut === "planifiee") {
+    return {
+      fond: "from-blue-50 via-white to-white",
+      icone: "📅",
+      iconeFond: "bg-blue-100 text-blue-700",
+      barre: "bg-blue-600",
+    };
+  }
+
+  if (statut === "en_cours") {
+    return {
+      fond: "from-amber-50 via-white to-white",
+      icone: "🚧",
+      iconeFond: "bg-amber-100 text-amber-700",
+      barre: "bg-amber-500",
+    };
+  }
+
+  if (statut === "terminee") {
+    return {
+      fond: "from-emerald-50 via-white to-white",
+      icone: "✅",
+      iconeFond: "bg-emerald-100 text-emerald-700",
+      barre: "bg-emerald-600",
+    };
+  }
+
+  if (statut === "annulee") {
+    return {
+      fond: "from-red-50 via-white to-white",
+      icone: "⛔",
+      iconeFond: "bg-red-100 text-red-700",
+      barre: "bg-red-600",
+    };
+  }
+
+  if (statut === "archivee") {
+    return {
+      fond: "from-slate-100 via-white to-white",
+      icone: "🗄️",
+      iconeFond: "bg-slate-200 text-slate-700",
+      barre: "bg-slate-500",
+    };
+  }
+
+  return {
+    fond: "from-slate-50 via-white to-white",
+    icone: "📝",
+    iconeFond: "bg-slate-100 text-slate-700",
+    barre: "bg-slate-500",
+  };
+}
+
+function pourcentageProgression(valeur: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((valeur / total) * 100)));
+}
+
 function libelleEtape(statut: string | null | undefined) {
   if (statut === "valide") return "Validée";
   if (statut === "en_cours") return "En cours";
@@ -574,11 +633,11 @@ export default function DetailFicheInterventionPage() {
               <div className="h-2 w-36 overflow-hidden rounded-full bg-slate-200 sm:w-48">
                 <div
                   className="h-full rounded-full bg-emerald-600 transition-all"
-                  style={{ width: `${(nombreEtapesValidees / 3) * 100}%` }}
+                  style={{ width: `${progressionEtapes}%` }}
                 />
               </div>
               <span className="text-xs font-bold text-slate-700">
-                {Math.round((nombreEtapesValidees / 3) * 100)} %
+                {progressionEtapes} %
               </span>
             </div>
           </div>
@@ -720,33 +779,51 @@ export default function DetailFicheInterventionPage() {
     const statut = fiche.statut || "brouillon";
 
     return (
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+      <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
         <button
           type="button"
-          onClick={rafraichir}
+          onClick={() => void rafraichir()}
           disabled={enregistrement}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {enregistrement ? "Mise à jour..." : "Actualiser"}
+          {enregistrement ? "Mise à jour…" : "↻ Actualiser"}
         </button>
+
+        {devis ? (
+          <Link
+            href={`/chef/devis?devisId=${devis.id}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+          >
+            Voir le devis
+          </Link>
+        ) : null}
+
+        {facture ? (
+          <Link
+            href={`/chef/factures?factureId=${facture.id}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+          >
+            Voir la facture
+          </Link>
+        ) : null}
 
         {(statut === "brouillon" || statut === "planifiee") && (
           <button
             type="button"
-            onClick={() => changerStatut("en_cours")}
+            onClick={() => void changerStatut("en_cours")}
             disabled={enregistrement}
-            className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Passer en cours
+            Démarrer l’intervention
           </button>
         )}
 
         {statut === "en_cours" && (
           <button
             type="button"
-            onClick={() => changerStatut("terminee")}
+            onClick={() => void changerStatut("terminee")}
             disabled={enregistrement}
-            className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Marquer terminée
           </button>
@@ -755,9 +832,9 @@ export default function DetailFicheInterventionPage() {
         {statut === "terminee" && (
           <button
             type="button"
-            onClick={() => changerStatut("archivee")}
+            onClick={() => void changerStatut("archivee")}
             disabled={enregistrement}
-            className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Archiver la fiche
           </button>
@@ -808,78 +885,112 @@ export default function DetailFicheInterventionPage() {
   const ficheArchivee = statutActuel === "archivee";
   const ficheTerminee = statutActuel === "terminee";
   const clientAffiche = nomClient(client, fiche.client_nom);
+  const decoration = decorationEntete(statutActuel);
+  const progressionEtapes = pourcentageProgression(
+    nombreEtapesValidees,
+    3
+  );
+  const progressionPreparation = pourcentageProgression(
+    nombreElementsPrepares,
+    elements.length
+  );
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-6 pb-28 xl:pb-10">
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className={`h-1.5 w-full ${decoration.barre}`} />
+
+        <div
+          className={`border-b border-slate-200 bg-gradient-to-br ${decoration.fond} p-5 sm:p-7`}
+        >
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <Link
                 href="/chef/interventions"
-                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 ← Retour aux fiches
               </Link>
 
-              <div className="mt-5 flex flex-wrap items-center gap-2">
-                <span
-                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${badgeStatut(
-                    fiche.statut
-                  )}`}
+              <div className="mt-5 flex items-start gap-4">
+                <div
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-sm ${decoration.iconeFond}`}
                 >
-                  {libelleStatut(fiche.statut)}
-                </span>
+                  {decoration.icone}
+                </div>
 
-                {fiche.numero && (
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
-                    {fiche.numero}
-                  </span>
-                )}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${badgeStatut(
+                        fiche.statut
+                      )}`}
+                    >
+                      {libelleStatut(fiche.statut)}
+                    </span>
 
-                {fiche.type_intervention && (
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                    {fiche.type_intervention}
-                  </span>
-                )}
-              </div>
+                    {fiche.numero ? (
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                        {fiche.numero}
+                      </span>
+                    ) : null}
 
-              <h1 className="mt-3 break-words text-2xl font-bold text-slate-950 sm:text-3xl">
-                {titreFiche(fiche)}
-              </h1>
+                    {fiche.type_intervention ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                        {fiche.type_intervention}
+                      </span>
+                    ) : null}
+                  </div>
 
-              <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
-                <p className="flex items-start gap-2">
-                  <span>👤</span>
-                  <span className="font-semibold text-slate-800">
-                    {clientAffiche}
-                  </span>
-                </p>
-                <p className="flex items-start gap-2 sm:col-span-2 xl:col-span-2">
-                  <span>📍</span>
-                  <span>{adresseFiche(fiche)}</span>
-                </p>
+                  <h1 className="mt-3 break-words text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    {titreFiche(fiche)}
+                  </h1>
+
+                  <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+                    <p className="flex min-w-0 items-start gap-2">
+                      <span className="shrink-0">👤</span>
+                      <span className="truncate font-semibold text-slate-800">
+                        {clientAffiche}
+                      </span>
+                    </p>
+
+                    <p className="flex min-w-0 items-start gap-2">
+                      <span className="shrink-0">📍</span>
+                      <span className="break-words">
+                        {adresseFiche(fiche)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="xl:max-w-md">{renduActionsStatut()}</div>
+            <div className="w-full xl:max-w-xl">
+              {renduActionsStatut()}
+            </div>
           </div>
         </div>
 
         <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">
           <div className="bg-white p-4 sm:p-5">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              Date prévue
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📅</span>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                Date prévue
+              </p>
+            </div>
             <p className="mt-2 text-base font-bold text-slate-950">
               {formatDate(fiche.date_prevue || fiche.date_intervention)}
             </p>
           </div>
 
           <div className="bg-white p-4 sm:p-5">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              Horaires prévus
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🕘</span>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                Horaires prévus
+              </p>
+            </div>
             <p className="mt-2 text-base font-bold text-slate-950">
               {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)} →{" "}
               {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
@@ -887,9 +998,12 @@ export default function DetailFicheInterventionPage() {
           </div>
 
           <div className="bg-white p-4 sm:p-5">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              Horaires réels
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⏱️</span>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                Horaires réels
+              </p>
+            </div>
             <p className="mt-2 text-base font-bold text-slate-950">
               {formatHeure(fiche.heure_debut_reelle)} →{" "}
               {formatHeure(fiche.heure_fin_reelle)}
@@ -897,15 +1011,51 @@ export default function DetailFicheInterventionPage() {
           </div>
 
           <div className="bg-white p-4 sm:p-5">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              Préparation
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🧰</span>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Préparation
+                </p>
+              </div>
+              <span className="text-xs font-bold text-emerald-700">
+                {progressionPreparation} %
+              </span>
+            </div>
+
             <p className="mt-2 text-base font-bold text-slate-950">
               {nombreElementsPrepares}/{elements.length} élément(s)
             </p>
+
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-all"
+                style={{ width: `${progressionPreparation}%` }}
+              />
+            </div>
           </div>
         </div>
       </section>
+
+      <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="flex min-w-max gap-2">
+          {[
+            ["#suivi-terrain", "🧭 Suivi terrain"],
+            ["#informations-chantier", "📍 Chantier"],
+            ["#contenu-fiche", "📋 Travaux et matériel"],
+            ["#photos-chantier", "📷 Photos"],
+            ["#pv-fin-chantier", "✍️ PV de fin"],
+          ].map(([href, label]) => (
+            <a
+              key={href}
+              href={href}
+              className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+      </nav>
 
       {messageErreur && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -950,7 +1100,10 @@ export default function DetailFicheInterventionPage() {
         </section>
       )}
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section
+        id="suivi-terrain"
+        className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+      >
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
             🧭
@@ -979,7 +1132,10 @@ export default function DetailFicheInterventionPage() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-5">
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section
+            id="informations-chantier"
+            className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                 📍
@@ -1059,14 +1215,16 @@ export default function DetailFicheInterventionPage() {
             )}
           </section>
 
-          {BLOCS_ELEMENTS.map((bloc) =>
-            renduBlocElements(
-              bloc.categorie,
-              bloc.titre,
-              bloc.icone,
-              bloc.description
-            )
-          )}
+          <div id="contenu-fiche" className="scroll-mt-24 space-y-5">
+            {BLOCS_ELEMENTS.map((bloc) =>
+              renduBlocElements(
+                bloc.categorie,
+                bloc.titre,
+                bloc.icone,
+                bloc.description
+              )
+            )}
+          </div>
 
           {travauxSimples && elements.length === 0 && (
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -1089,10 +1247,13 @@ export default function DetailFicheInterventionPage() {
             </section>
           )}
 
-          <section className="space-y-5">
+          <section
+            id="photos-chantier"
+            className="scroll-mt-24 space-y-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+          >
             <div>
               <p className="text-sm font-bold text-slate-950">
-                1. Photos du chantier
+                Photos du chantier
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Photos avant, pendant et après l’intervention.
@@ -1106,10 +1267,13 @@ export default function DetailFicheInterventionPage() {
             />
           </section>
 
-          <section className="space-y-5">
+          <section
+            id="pv-fin-chantier"
+            className="scroll-mt-24 space-y-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+          >
             <div>
               <p className="text-sm font-bold text-slate-950">
-                2. Procès-verbal de fin de chantier
+                Procès-verbal de fin de chantier
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Signature, téléchargement et envoi au client par le chef.
@@ -1209,10 +1373,10 @@ export default function DetailFicheInterventionPage() {
                     {formatMontant(devis.total_ttc)}
                   </p>
                   <Link
-                    href="/chef/devis"
-                    className="mt-3 inline-flex rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                    href={`/chef/devis?devisId=${devis.id}`}
+                    className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                   >
-                    Voir les devis
+                    Ouvrir ce devis
                   </Link>
                 </div>
               ) : (
@@ -1243,10 +1407,10 @@ export default function DetailFicheInterventionPage() {
                     {formatMontant(facture.total_ttc)}
                   </p>
                   <Link
-                    href="/chef/factures"
-                    className="mt-3 inline-flex rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    href={`/chef/factures?factureId=${facture.id}`}
+                    className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                   >
-                    Voir les factures
+                    Ouvrir cette facture
                   </Link>
                 </div>
               ) : (
@@ -1286,6 +1450,26 @@ export default function DetailFicheInterventionPage() {
           </section>
         </aside>
       </section>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur xl:hidden">
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2">
+          <Link
+            href="/chef/interventions"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+          >
+            ← Liste des fiches
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => void rafraichir()}
+            disabled={enregistrement}
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {enregistrement ? "Mise à jour…" : "↻ Actualiser"}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }

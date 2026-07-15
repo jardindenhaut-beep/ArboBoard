@@ -314,22 +314,54 @@ export default function SecuriteChefPage() {
   >([]);
   const [chargementConformite, setChargementConformite] =
     useState(true);
+  const [erreurConformite, setErreurConformite] = useState("");
+  const [actualisationGlobale, setActualisationGlobale] =
+    useState(false);
+  const [exportEnCours, setExportEnCours] = useState(false);
+  const [rechercheJournal, setRechercheJournal] = useState("");
+  const [messageSucces, setMessageSucces] = useState("");
+
+  const evenementsAffiches = useMemo(() => {
+    const recherche = normaliserTexte(rechercheJournal);
+
+    if (!recherche) {
+      return evenements;
+    }
+
+    return evenements.filter((evenement) => {
+      const contenu = normaliserTexte(
+        [
+          evenement.action,
+          evenement.description,
+          evenement.utilisateur_nom,
+          evenement.utilisateur_email,
+          evenement.categorie,
+          evenement.ressource_type,
+          evenement.ressource_id,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      return contenu.includes(recherche);
+    });
+  }, [evenements, rechercheJournal]);
 
   const statistiques = useMemo(() => {
     return {
-      total: evenements.length,
-      succes: evenements.filter(
+      total: evenementsAffiches.length,
+      succes: evenementsAffiches.filter(
         (evenement) => evenement.resultat === "succes"
       ).length,
-      echecs: evenements.filter(
+      echecs: evenementsAffiches.filter(
         (evenement) => evenement.resultat === "echec"
       ).length,
-      informations: evenements.filter(
+      informations: evenementsAffiches.filter(
         (evenement) =>
           evenement.resultat === "information"
       ).length,
     };
-  }, [evenements]);
+  }, [evenementsAffiches]);
 
   const blocsAffiches = useMemo(() => {
     return BLOCS.map((bloc) => {
@@ -365,6 +397,35 @@ export default function SecuriteChefPage() {
     });
   }, [statutsDocuments]);
 
+  const statistiquesConformite = useMemo(() => {
+    const conformes = blocsAffiches.filter(
+      (bloc) =>
+        bloc.statut === "Actif" ||
+        bloc.statut === "Publié"
+    ).length;
+
+    const documentsJuridiques = blocsAffiches.filter(
+      (bloc) => Boolean(bloc.typeDocument)
+    );
+
+    const documentsPublies = documentsJuridiques.filter(
+      (bloc) => bloc.statut === "Publié"
+    ).length;
+
+    return {
+      conformes,
+      total: blocsAffiches.length,
+      pourcentage:
+        blocsAffiches.length > 0
+          ? Math.round(
+              (conformes / blocsAffiches.length) * 100
+            )
+          : 0,
+      documentsPublies,
+      documentsTotal: documentsJuridiques.length,
+    };
+  }, [blocsAffiches]);
+
   useEffect(() => {
     void initialiserConformite();
   }, []);
@@ -376,6 +437,7 @@ export default function SecuriteChefPage() {
   async function initialiserConformite() {
     try {
       setChargementConformite(true);
+      setErreurConformite("");
 
       const resultatContexte =
         await chargerContexteEntreprise();
@@ -397,6 +459,9 @@ export default function SecuriteChefPage() {
       } = await supabase.auth.getSession();
 
       if (sessionError || !session?.access_token) {
+        setErreurConformite(
+          "La session ne permet pas de vérifier les documents juridiques publiés."
+        );
         return;
       }
 
@@ -414,10 +479,16 @@ export default function SecuriteChefPage() {
         (await reponse.json()) as ReponseStatutsDocuments;
 
       if (!reponse.ok) {
+        const message =
+          donnees.erreur ||
+          "Les statuts des documents juridiques sont indisponibles.";
+
         console.warn(
           "Statuts juridiques indisponibles :",
-          donnees.erreur
+          message
         );
+
+        setErreurConformite(message);
         return;
       }
 
@@ -427,8 +498,32 @@ export default function SecuriteChefPage() {
         "Initialisation conformité incomplète :",
         error
       );
+
+      setErreurConformite(
+        error instanceof Error
+          ? error.message
+          : "Impossible de vérifier la conformité."
+      );
     } finally {
       setChargementConformite(false);
+    }
+  }
+
+  async function actualiserTout() {
+    try {
+      setActualisationGlobale(true);
+      setMessageSucces("");
+
+      await Promise.all([
+        initialiserConformite(),
+        chargerJournal(),
+      ]);
+
+      setMessageSucces(
+        "Les informations de sécurité et de conformité ont été actualisées."
+      );
+    } finally {
+      setActualisationGlobale(false);
     }
   }
 
@@ -490,9 +585,14 @@ export default function SecuriteChefPage() {
   }
 
   async function exporterJournalCsv() {
-    if (evenements.length === 0) return;
+    if (evenementsAffiches.length === 0) return;
 
-    const entetes = [
+    try {
+      setExportEnCours(true);
+      setErreurJournal("");
+      setMessageSucces("");
+
+      const entetes = [
       "Date",
       "Utilisateur",
       "Email",
@@ -504,7 +604,7 @@ export default function SecuriteChefPage() {
       "Description",
     ];
 
-    const lignes = evenements.map((evenement) => [
+        const lignes = evenementsAffiches.map((evenement) => [
       formatDate(evenement.created_at),
       evenement.utilisateur_nom || "",
       evenement.utilisateur_email || "",
@@ -516,76 +616,196 @@ export default function SecuriteChefPage() {
       evenement.description || "",
     ]);
 
-    const contenu = [
+      const contenu = [
       entetes.map(echapperCsv).join(";"),
       ...lignes.map((ligne) =>
         ligne.map(echapperCsv).join(";")
       ),
     ].join("\n");
 
-    const blob = new Blob(
+      const blob = new Blob(
       [`\uFEFF${contenu}`],
       {
         type: "text/csv;charset=utf-8",
       }
     );
 
-    const url = URL.createObjectURL(blob);
-    const lien = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      const lien = document.createElement("a");
 
-    lien.href = url;
-    lien.download = `journal-activite-arboboard-${new Date()
+      lien.href = url;
+      lien.download = `journal-activite-arboboard-${new Date()
       .toISOString()
       .slice(0, 10)}.csv`;
 
-    document.body.appendChild(lien);
-    lien.click();
-    lien.remove();
-    URL.revokeObjectURL(url);
+      document.body.appendChild(lien);
+      lien.click();
+      lien.remove();
+      URL.revokeObjectURL(url);
 
-    await journaliserActivite({
-      action: "journal_activite_exporte",
-      categorie: "securite",
-      resultat: "succes",
-      ressource_type: "journal_activite",
-      description:
-        "Export CSV du journal d’activité depuis l’espace Sécurité.",
-      details: {
-        nombre_evenements: evenements.length,
-        filtre_categorie: categorie,
-        filtre_resultat: resultat,
-      },
-    });
+      await journaliserActivite({
+        action: "journal_activite_exporte",
+        categorie: "securite",
+        resultat: "succes",
+        ressource_type: "journal_activite",
+        description:
+          "Export CSV du journal d’activité depuis l’espace Sécurité.",
+        details: {
+          nombre_evenements: evenementsAffiches.length,
+          filtre_categorie: categorie,
+          filtre_resultat: resultat,
+          recherche: rechercheJournal.trim() || null,
+        },
+      });
 
-    await chargerJournal();
+      setMessageSucces(
+        `${evenementsAffiches.length} événement(s) exporté(s) au format CSV.`
+      );
+
+      await chargerJournal();
+    } catch (error) {
+      console.error("Erreur export journal :", error);
+
+      setErreurJournal(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’exporter le journal d’activité."
+      );
+    } finally {
+      setExportEnCours(false);
+    }
   }
 
   return (
     <section className="mx-auto max-w-7xl space-y-6">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Compte entreprise
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Sécurité & conformité
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Centralisez les contrôles techniques, les documents
-              juridiques, les consentements et la traçabilité des
-              opérations sensibles d’Arboboard.
-            </p>
-          </div>
+      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-emerald-600" />
 
-          <Link
-            href="/chef/compte"
-            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            ← Mon compte
-          </Link>
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
+                🛡️
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Compte entreprise
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Sécurité & conformité
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Centralisez les contrôles techniques, les documents
+                  juridiques, les consentements et la traçabilité des
+                  opérations sensibles d’Arboboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <button
+                type="button"
+                onClick={() => void actualiserTout()}
+                disabled={actualisationGlobale}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true">↻</span>
+                {actualisationGlobale
+                  ? "Actualisation…"
+                  : "Tout actualiser"}
+              </button>
+
+              <Link
+                href="/chef/compte"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                ← Mon compte
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
+
+      {messageSucces ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+        >
+          {messageSucces}
+        </div>
+      ) : null}
+
+      {erreurConformite ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800"
+        >
+          {erreurConformite}
+        </div>
+      ) : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+            Conformité suivie
+          </p>
+
+          <p className="mt-2 text-2xl font-black text-emerald-950">
+            {statistiquesConformite.pourcentage} %
+          </p>
+
+          <p className="mt-1 text-xs text-emerald-700">
+            {statistiquesConformite.conformes} bloc(s) actif(s) ou publié(s)
+            sur {statistiquesConformite.total}
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
+            Documents juridiques
+          </p>
+
+          <p className="mt-2 text-2xl font-black text-violet-950">
+            {statistiquesConformite.documentsPublies}/
+            {statistiquesConformite.documentsTotal}
+          </p>
+
+          <p className="mt-1 text-xs text-violet-700">
+            Documents actuellement publiés
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+            Journal chargé
+          </p>
+
+          <p className="mt-2 text-2xl font-black text-blue-950">
+            {evenements.length}
+          </p>
+
+          <p className="mt-1 text-xs text-blue-700">
+            Événements correspondant aux filtres serveur
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Conservation
+          </p>
+
+          <p className="mt-2 text-2xl font-black text-slate-950">
+            {retentionJours} jours
+          </p>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Durée technique communiquée par le serveur
+          </p>
+        </div>
+      </section>
 
       {compteDeveloppeur ? (
         <section className="rounded-3xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
@@ -621,13 +841,16 @@ export default function SecuriteChefPage() {
         </section>
       ) : null}
 
-      <nav className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex gap-2 overflow-x-auto">
+      <nav
+        aria-label="Accès rapides sécurité"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {blocsAffiches.map((bloc) => (
             <a
               key={bloc.id}
               href={`#${bloc.id}`}
-              className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+              className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
             >
               {bloc.emoji} {bloc.titre}
             </a>
@@ -641,7 +864,7 @@ export default function SecuriteChefPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {blocsAffiches.map((bloc) => (
           <article
             key={bloc.id}
@@ -757,19 +980,26 @@ export default function SecuriteChefPage() {
                 type="button"
                 onClick={() => void chargerJournal()}
                 disabled={chargementJournal}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Actualiser
+                {chargementJournal
+                  ? "Actualisation…"
+                  : "Actualiser"}
               </button>
+
               <button
                 type="button"
                 onClick={() => void exporterJournalCsv()}
                 disabled={
-                  chargementJournal || evenements.length === 0
+                  chargementJournal ||
+                  exportEnCours ||
+                  evenementsAffiches.length === 0
                 }
-                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Exporter en CSV
+                {exportEnCours
+                  ? "Export en cours…"
+                  : "Exporter en CSV"}
               </button>
             </div>
           </div>
@@ -793,7 +1023,7 @@ export default function SecuriteChefPage() {
             />
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
             <label>
               <span className="text-sm font-medium text-slate-700">
                 Catégorie
@@ -833,7 +1063,30 @@ export default function SecuriteChefPage() {
                 <option value="information">Informations</option>
               </select>
             </label>
+
+            <label>
+              <span className="text-sm font-medium text-slate-700">
+                Recherche
+              </span>
+
+              <input
+                type="search"
+                value={rechercheJournal}
+                onChange={(event) =>
+                  setRechercheJournal(event.target.value)
+                }
+                placeholder="Action, utilisateur, ressource…"
+                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              />
+            </label>
           </div>
+
+          {rechercheJournal.trim() ? (
+            <p className="mt-3 text-xs font-medium text-slate-600">
+              {evenementsAffiches.length} résultat(s) parmi{" "}
+              {evenements.length} événement(s) chargé(s).
+            </p>
+          ) : null}
 
           <p className="mt-4 text-xs leading-5 text-slate-500">
             Durée technique configurée : {retentionJours} jours.
@@ -853,11 +1106,11 @@ export default function SecuriteChefPage() {
             <div className="p-8 text-center text-sm text-slate-500">
               Chargement du journal d’activité…
             </div>
-          ) : evenements.length === 0 ? (
+          ) : evenementsAffiches.length === 0 ? (
             <div className="p-8 text-center">
               <div className="text-3xl">📋</div>
               <p className="mt-3 font-semibold text-slate-900">
-                Aucun événement pour ces filtres
+                Aucun événement pour ces critères
               </p>
               <p className="mt-1 text-sm text-slate-500">
                 Les prochaines actions sensibles raccordées au journal
@@ -866,7 +1119,7 @@ export default function SecuriteChefPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {evenements.map((evenement) => (
+              {evenementsAffiches.map((evenement) => (
                 <article
                   key={evenement.id}
                   className="p-5 sm:p-6"
@@ -935,16 +1188,25 @@ export default function SecuriteChefPage() {
         </div>
       </section>
 
-      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
-        <h2 className="font-bold text-amber-900">
-          Validation juridique nécessaire
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-amber-800">
-          La structure technique ne remplace pas la validation des
-          durées, des documents et des procédures définitives par un
-          professionnel compétent avant la commercialisation.
-        </p>
-      </div>
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
+            ⚖️
+          </div>
+
+          <div>
+            <h2 className="font-black text-amber-950">
+              Validation juridique nécessaire
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-amber-800">
+              La structure technique ne remplace pas la validation des
+              durées, des documents et des procédures définitives par un
+              professionnel compétent avant la commercialisation.
+            </p>
+          </div>
+        </div>
+      </section>
     </section>
   );
 }
@@ -957,7 +1219,7 @@ function CarteStatistique({
   valeur: number;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>

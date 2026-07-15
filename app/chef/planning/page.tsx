@@ -366,6 +366,33 @@ function peutDeplacerFiche(fiche: FicheIntervention) {
   );
 }
 
+function iconeStatutPlanning(statut: string | null | undefined) {
+  if (statut === "planifiee") return "📅";
+  if (statut === "en_cours") return "🚧";
+  if (statut === "terminee") return "✅";
+  if (statut === "annulee") return "⛔";
+  if (statut === "archivee") return "🗄️";
+  return "📝";
+}
+
+function barreStatutPlanning(fiche: FicheIntervention) {
+  if (fiche.probleme_signale) return "bg-red-500";
+  if (fiche.statut === "en_cours") return "bg-amber-500";
+  if (fiche.statut === "terminee") return "bg-emerald-600";
+  if (fiche.statut === "annulee") return "bg-slate-400";
+  if (fiche.statut === "planifiee") return "bg-blue-500";
+  return "bg-slate-400";
+}
+
+function estWeekend(dateIso: string) {
+  const jour = dateDepuisIso(dateIso).getDay();
+  return jour === 0 || jour === 6;
+}
+
+function pluraliserIntervention(nombre: number) {
+  return `${nombre} intervention${nombre === 1 ? "" : "s"}`;
+}
+
 export default function PlanningChefPage() {
   const [entrepriseId, setEntrepriseId] = useState("");
   const [fiches, setFiches] = useState<FicheIntervention[]>([]);
@@ -1110,7 +1137,7 @@ export default function PlanningChefPage() {
         draggable={deplacable && !enregistrement}
         onDragStart={(event) => commencerGlisser(event, fiche)}
         onDragEnd={finGlisser}
-        className={`rounded-xl border p-2.5 shadow-sm transition ${bordureEvenement(
+        className={`relative overflow-hidden rounded-xl border p-2.5 pl-3.5 shadow-sm transition ${bordureEvenement(
           fiche
         )} ${
           ficheGlisseeId === fiche.id
@@ -1127,6 +1154,13 @@ export default function PlanningChefPage() {
             : "Une intervention terminée ou annulée ne peut pas être déplacée"
         }
       >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1 ${barreStatutPlanning(
+            fiche
+          )}`}
+        />
+
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate text-[11px] font-bold text-slate-950">
@@ -1137,11 +1171,18 @@ export default function PlanningChefPage() {
             </p>
           </div>
 
-          {fiche.probleme_signale && (
-            <span className="shrink-0 text-xs" title="Problème signalé">
-              ⚠️
-            </span>
-          )}
+          <span
+            className="shrink-0 text-xs"
+            title={
+              fiche.probleme_signale
+                ? "Problème signalé"
+                : libelleStatut(fiche.statut)
+            }
+          >
+            {fiche.probleme_signale
+              ? "⚠️"
+              : iconeStatutPlanning(fiche.statut)}
+          </span>
         </div>
 
         {!compacte && (
@@ -1187,7 +1228,7 @@ export default function PlanningChefPage() {
     return (
       <article
         key={fiche.id}
-        className={`rounded-3xl border bg-white p-4 shadow-sm transition sm:p-5 ${
+        className={`relative overflow-hidden rounded-3xl border bg-white p-4 pl-5 shadow-sm transition sm:p-5 sm:pl-6 ${
           fiche.probleme_signale
             ? "border-red-200 hover:border-red-300"
             : terminee
@@ -1197,11 +1238,20 @@ export default function PlanningChefPage() {
                 : "border-slate-200 hover:border-emerald-200"
         } hover:shadow-md`}
       >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1.5 ${barreStatutPlanning(
+            fiche
+          )}`}
+        />
+
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl sm:h-12 sm:w-12 sm:text-2xl">
-                🛠️
+                {fiche.probleme_signale
+                  ? "⚠️"
+                  : iconeStatutPlanning(fiche.statut)}
               </div>
 
               <div className="min-w-0">
@@ -1338,8 +1388,8 @@ export default function PlanningChefPage() {
               </h2>
             </div>
 
-            <p className="text-sm font-semibold text-slate-500">
-              {liste.length} intervention{liste.length > 1 ? "s" : ""}
+            <p className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-500 shadow-sm">
+              {pluraliserIntervention(liste.length)}
             </p>
           </div>
         </div>
@@ -1380,6 +1430,10 @@ export default function PlanningChefPage() {
   function renduVueSemaine() {
     return (
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 lg:hidden">
+          Faites défiler horizontalement pour consulter toute la semaine.
+        </div>
+
         <div className="overflow-x-auto">
           <div className="min-w-[1050px]">
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
@@ -1388,17 +1442,26 @@ export default function PlanningChefPage() {
                 const liste = fichesPourDate(date);
 
                 return (
-                  <div
+                  <button
                     key={date}
-                    className={`border-r border-slate-200 px-3 py-3 last:border-r-0 ${
-                      aujourdhui ? "bg-emerald-50" : ""
+                    type="button"
+                    onClick={() => {
+                      setDateReference(date);
+                      setVue("jour");
+                    }}
+                    className={`border-r border-slate-200 px-3 py-3 text-left transition last:border-r-0 hover:bg-emerald-50 ${
+                      aujourdhui
+                        ? "bg-emerald-50"
+                        : estWeekend(date)
+                          ? "bg-slate-50/80"
+                          : "bg-white"
                     }`}
                   >
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {formatJourSemaine(date)}
                     </p>
                     <div className="mt-1 flex items-center justify-between">
-                      <p
+                      <span
                         className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
                           aujourdhui
                             ? "bg-emerald-600 text-white"
@@ -1406,12 +1469,12 @@ export default function PlanningChefPage() {
                         }`}
                       >
                         {formatNumeroJour(date)}
-                      </p>
-                      <span className="text-xs font-semibold text-slate-400">
+                      </span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-400 shadow-sm">
                         {liste.length}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -1432,7 +1495,9 @@ export default function PlanningChefPage() {
                         ? "bg-emerald-50 ring-2 ring-inset ring-emerald-300"
                         : date === dateLocaleIso()
                           ? "bg-emerald-50/30"
-                          : "bg-white"
+                          : estWeekend(date)
+                            ? "bg-slate-50/60"
+                            : "bg-white"
                     }`}
                   >
                     {liste.map((fiche) => renduCarteCalendrier(fiche))}
@@ -1457,6 +1522,10 @@ export default function PlanningChefPage() {
 
     return (
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 lg:hidden">
+          Faites défiler horizontalement pour consulter tout le mois.
+        </div>
+
         <div className="overflow-x-auto">
           <div className="min-w-[980px]">
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
@@ -1486,7 +1555,11 @@ export default function PlanningChefPage() {
                 onDrop={(event) => deposerFiche(event, date)}
                 onDragLeave={() => setDateSurvolee(null)}
                 className={`min-h-[145px] border-b border-r border-slate-200 p-1.5 transition [&:nth-child(7n)]:border-r-0 ${
-                  dansMois ? "bg-white" : "bg-slate-50/80"
+                  dansMois
+                    ? estWeekend(date)
+                      ? "bg-slate-50/70"
+                      : "bg-white"
+                    : "bg-slate-50/80"
                 } ${
                   survolee
                     ? "bg-emerald-50 ring-2 ring-inset ring-emerald-300"
@@ -1599,73 +1672,99 @@ export default function PlanningChefPage() {
 
   if (chargement) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-            📅
+      <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+              ⏳
+            </div>
+            <p className="font-semibold text-slate-950">
+              Chargement du planning…
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Récupération des fiches, équipes et éléments chantier.
+            </p>
           </div>
-          <p className="font-semibold text-slate-950">
-            Chargement du planning...
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Récupération des fiches planifiées et des équipes.
-          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            Planning chantier
-          </h1>
-          <p className="mt-2 max-w-4xl text-sm text-slate-600">
-            Organisez les interventions en vue jour, semaine ou mois. Glissez
-            une fiche vers une autre date pour la replanifier instantanément.
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-emerald-600" />
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link
-            href="/chef/interventions"
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
+                  📅
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                    Organisation chantier
+                  </p>
+                  <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Planning chantier
+                  </h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Organisez les interventions en vue jour, semaine, mois ou
+                    liste. Glissez une fiche vers une autre date pour la
+                    replanifier.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+                <Link
+                  href="/chef/interventions"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <span aria-hidden="true">＋</span>
+                  Nouvelle intervention
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => void rafraichir()}
+                  disabled={enregistrement}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true">↻</span>
+                  {enregistrement ? "Enregistrement…" : "Actualiser"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {messageErreur && (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
           >
-            + Nouvelle intervention
-          </Link>
+            {messageErreur}
+          </div>
+        )}
 
-          <button
-            type="button"
-            onClick={rafraichir}
-            disabled={enregistrement}
-            className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        {messageSucces && (
+          <div
+            role="status"
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
           >
-            {enregistrement ? "Enregistrement..." : "Actualiser"}
-          </button>
-        </div>
-      </section>
-
-      {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {messageErreur}
-        </div>
-      )}
-
-      {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {messageSucces}
-        </div>
-      )}
+            {messageSucces}
+          </div>
+        )}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <button
           type="button"
           onClick={() => activerFiltreRapide("toutes")}
           aria-pressed={filtreRapide === "toutes"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreRapide === "toutes"
               ? "border-slate-400 bg-slate-100 ring-2 ring-slate-100"
               : "border-slate-200 bg-white hover:border-slate-300"
@@ -1683,7 +1782,7 @@ export default function PlanningChefPage() {
           type="button"
           onClick={() => activerFiltreRapide("aujourd_hui")}
           aria-pressed={filtreRapide === "aujourd_hui"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreRapide === "aujourd_hui"
               ? "border-blue-400 bg-blue-100 ring-2 ring-blue-100"
               : "border-blue-100 bg-blue-50 hover:border-blue-300"
@@ -1701,7 +1800,7 @@ export default function PlanningChefPage() {
           type="button"
           onClick={() => activerFiltreRapide("a_venir")}
           aria-pressed={filtreRapide === "a_venir"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreRapide === "a_venir"
               ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100"
               : "border-emerald-100 bg-emerald-50 hover:border-emerald-300"
@@ -1719,7 +1818,7 @@ export default function PlanningChefPage() {
           type="button"
           onClick={() => activerFiltreRapide("en_cours")}
           aria-pressed={filtreRapide === "en_cours"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreRapide === "en_cours"
               ? "border-amber-400 bg-amber-100 ring-2 ring-amber-100"
               : "border-amber-100 bg-amber-50 hover:border-amber-300"
@@ -1737,7 +1836,7 @@ export default function PlanningChefPage() {
           type="button"
           onClick={() => activerFiltreRapide("terminees")}
           aria-pressed={filtreRapide === "terminees"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreRapide === "terminees"
               ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100"
               : "border-slate-200 bg-white hover:border-emerald-300"
@@ -1755,7 +1854,7 @@ export default function PlanningChefPage() {
           type="button"
           onClick={() => activerFiltreRapide("problemes")}
           aria-pressed={filtreRapide === "problemes"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
+          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
             filtreRapide === "problemes"
               ? "border-red-400 bg-red-100 ring-2 ring-red-100"
               : "border-red-100 bg-red-50 hover:border-red-300"
@@ -1770,7 +1869,7 @@ export default function PlanningChefPage() {
         </button>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="sticky top-3 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="inline-flex w-full rounded-2xl bg-slate-100 p-1 xl:w-auto">
             {(
@@ -1796,12 +1895,12 @@ export default function PlanningChefPage() {
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-2 xl:justify-center">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => naviguer(-1)}
               disabled={vue === "liste"}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Période précédente"
             >
               ‹
@@ -1811,16 +1910,27 @@ export default function PlanningChefPage() {
               type="button"
               onClick={allerAujourdhui}
               disabled={vue === "liste"}
-              className="min-h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+              className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
             >
               Aujourd’hui
             </button>
+
+            <input
+              type="date"
+              value={dateReference}
+              onChange={(event) => {
+                if (event.target.value) setDateReference(event.target.value);
+              }}
+              disabled={vue === "liste"}
+              aria-label="Choisir une date de référence"
+              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-30"
+            />
 
             <button
               type="button"
               onClick={() => naviguer(1)}
               disabled={vue === "liste"}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Période suivante"
             >
               ›
@@ -1878,10 +1988,7 @@ export default function PlanningChefPage() {
         </div>
 
         <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            {fichesFiltrees.length} intervention
-            {fichesFiltrees.length > 1 ? "s" : ""} après filtrage
-          </p>
+          <p>{pluraliserIntervention(fichesFiltrees.length)} après filtrage</p>
           <p>
             Glisser-déposer actif pour les fiches brouillon, planifiées et en
             cours.
@@ -1889,10 +1996,11 @@ export default function PlanningChefPage() {
         </div>
       </section>
 
-      {vue === "jour" && renduVueJour()}
-      {vue === "semaine" && renduVueSemaine()}
-      {vue === "mois" && renduVueMois()}
-      {vue === "liste" && renduVueListe()}
+        {vue === "jour" && renduVueJour()}
+        {vue === "semaine" && renduVueSemaine()}
+        {vue === "mois" && renduVueMois()}
+        {vue === "liste" && renduVueListe()}
+      </div>
     </div>
   );
 }

@@ -30,6 +30,50 @@ type ReponseApi = {
   erreur?: string;
 };
 
+type AlerteUrssaf = {
+  id: string;
+  type: "client" | "demande";
+  statut: string;
+  titre: string;
+  message: string;
+  date: string | null;
+  lien: string;
+};
+
+type TableauUrssaf = {
+  clients: {
+    total: number;
+    brouillon: number;
+    pret: number;
+    appareillage_en_cours: number;
+    actif: number;
+    refuse: number;
+    erreur: number;
+  };
+  demandes: {
+    total: number;
+    brouillon: number;
+    prete: number;
+    transmise: number;
+    payee: number;
+    impayee: number;
+    annulee: number;
+    erreur: number;
+  };
+  virements: {
+    rapproches: number;
+    a_rapprocher: number;
+  };
+  derniere_verification: string | null;
+  alertes: AlerteUrssaf[];
+};
+
+type ReponseTableau = {
+  succes?: boolean;
+  tableau?: TableauUrssaf;
+  erreur?: string;
+};
+
 function formaterDate(date: string | null | undefined) {
   if (!date) return "Jamais testée";
 
@@ -96,8 +140,17 @@ export default function AvanceImmediateParametresPage() {
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
 
+  const [tableau, setTableau] =
+    useState<TableauUrssaf | null>(null);
+
+  const [
+    chargementTableau,
+    setChargementTableau,
+  ] = useState(true);
+
   useEffect(() => {
     void chargerConfiguration();
+    void chargerTableauDeBord();
   }, []);
 
   async function obtenirJeton() {
@@ -164,6 +217,40 @@ export default function AvanceImmediateParametresPage() {
     }
   }
 
+  async function chargerTableauDeBord() {
+    try {
+      setChargementTableau(true);
+
+      const jeton = await obtenirJeton();
+
+      const reponse = await fetch(
+        "/api/integrations/urssaf/tableau-de-bord",
+        {
+          headers: {
+            Authorization: `Bearer ${jeton}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const donnees =
+        (await reponse.json()) as ReponseTableau;
+
+      if (!reponse.ok || !donnees.succes) {
+        setTableau(null);
+        return;
+      }
+
+      setTableau(
+        donnees.tableau || null
+      );
+    } catch {
+      setTableau(null);
+    } finally {
+      setChargementTableau(false);
+    }
+  }
+
   async function enregistrerEtTester() {
     try {
       setEnregistrement(true);
@@ -203,6 +290,7 @@ export default function AvanceImmediateParametresPage() {
       );
       setClientId("");
       setClientSecret("");
+      await chargerTableauDeBord();
 
       if (donnees.connexion_ok) {
         setMessage(
@@ -272,6 +360,7 @@ export default function AvanceImmediateParametresPage() {
       setMessage(
         "La configuration Urssaf a été supprimée."
       );
+      await chargerTableauDeBord();
     } catch (error) {
       console.error(
         "Erreur suppression intégration Urssaf :",
@@ -381,6 +470,195 @@ export default function AvanceImmediateParametresPage() {
             "connectee"
           }
         />
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div>
+            <p className="text-sm font-semibold text-blue-700">
+              Suivi opérationnel
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-slate-950">
+              Tableau de bord Avance immédiate
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Suivez les dossiers particuliers, les demandes de paiement
+              et les virements restant à rapprocher.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              void chargerTableauDeBord()
+            }
+            disabled={chargementTableau}
+            className="shrink-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {chargementTableau
+              ? "Actualisation…"
+              : "Actualiser le suivi"}
+          </button>
+        </div>
+
+        {chargementTableau ? (
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-600">
+            Chargement des indicateurs URSSAF…
+          </div>
+        ) : tableau ? (
+          <>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Indicateur
+                label="Clients actifs"
+                valeur={tableau.clients.actif}
+                detail={`${tableau.clients.total} dossier(s) au total`}
+                variante="succes"
+                lien="/chef/clients"
+              />
+
+              <Indicateur
+                label="Inscriptions en attente"
+                valeur={
+                  tableau.clients.pret +
+                  tableau.clients.appareillage_en_cours
+                }
+                detail={`${tableau.clients.brouillon} brouillon(s)`}
+                variante="attente"
+                lien="/chef/clients"
+              />
+
+              <Indicateur
+                label="Demandes transmises"
+                valeur={tableau.demandes.transmise}
+                detail={`${tableau.demandes.payee} payée(s)`}
+                variante="information"
+                lien="/chef/factures"
+              />
+
+              <Indicateur
+                label="Virements à rapprocher"
+                valeur={tableau.virements.a_rapprocher}
+                detail={`${tableau.virements.rapproches} déjà rapproché(s)`}
+                variante={
+                  tableau.virements.a_rapprocher > 0
+                    ? "attention"
+                    : "succes"
+                }
+                lien="/chef/factures"
+              />
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <PetitIndicateur
+                label="Demandes en préparation"
+                valeur={
+                  tableau.demandes.brouillon +
+                  tableau.demandes.prete
+                }
+              />
+
+              <PetitIndicateur
+                label="Impayées ou annulées"
+                valeur={
+                  tableau.demandes.impayee +
+                  tableau.demandes.annulee
+                }
+                alerte={
+                  tableau.demandes.impayee +
+                    tableau.demandes.annulee >
+                  0
+                }
+              />
+
+              <PetitIndicateur
+                label="Erreurs à traiter"
+                valeur={
+                  tableau.clients.erreur +
+                  tableau.clients.refuse +
+                  tableau.demandes.erreur
+                }
+                alerte={
+                  tableau.clients.erreur +
+                    tableau.clients.refuse +
+                    tableau.demandes.erreur >
+                  0
+                }
+              />
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Dernière vérification automatique
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800">
+                  {tableau.derniere_verification
+                    ? formaterDate(
+                        tableau.derniere_verification
+                      )
+                    : "Aucune demande vérifiée pour le moment"}
+                </p>
+              </div>
+
+              <Link
+                href="/chef/factures"
+                className="text-sm font-semibold text-blue-700 hover:underline"
+              >
+                Ouvrir les factures →
+              </Link>
+            </div>
+
+            {tableau.alertes.length > 0 ? (
+              <div className="mt-6">
+                <h3 className="font-bold text-slate-950">
+                  Points nécessitant une vérification
+                </h3>
+
+                <div className="mt-3 space-y-3">
+                  {tableau.alertes.map(
+                    (alerte) => (
+                      <Link
+                        key={`${alerte.type}-${alerte.id}`}
+                        href={alerte.lien}
+                        className="block rounded-2xl border border-red-200 bg-red-50 p-4 transition hover:border-red-300"
+                      >
+                        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-bold text-red-950">
+                                {alerte.titre}
+                              </p>
+                              <span className="rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] font-bold uppercase text-red-700">
+                                {alerte.statut}
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-sm leading-6 text-red-800">
+                              {alerte.message}
+                            </p>
+                          </div>
+
+                          <span className="shrink-0 text-xs font-semibold text-red-700">
+                            Vérifier →
+                          </span>
+                        </div>
+                      </Link>
+                    )
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+                Aucun incident URSSAF ne nécessite une intervention.
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Le suivi n’est pas encore disponible. Vérifiez que les migrations
+            URSSAF et le rapprochement des paiements ont été installés.
+          </div>
+        )}
       </section>
 
       {configuration ? (
@@ -591,8 +869,12 @@ export default function AvanceImmediateParametresPage() {
             3. Il les enregistre dans Arboboard et valide la connexion.
           </li>
           <li>
-            4. Les prochaines étapes permettront d’inscrire les
-            particuliers et d’envoyer les demandes de paiement.
+            4. Arboboard inscrit les particuliers, transmet les demandes
+            de paiement et suit automatiquement les réponses URSSAF.
+          </li>
+          <li>
+            5. Les virements confirmés peuvent être rapprochés avec les
+            factures depuis le bouton Encaisser.
           </li>
         </ol>
       </section>
@@ -630,6 +912,93 @@ function Etat({
           positif
             ? "text-emerald-700"
             : "text-amber-700"
+        }`}
+      >
+        {valeur}
+      </p>
+    </div>
+  );
+}
+
+type VarianteIndicateur =
+  | "succes"
+  | "attente"
+  | "information"
+  | "attention";
+
+function Indicateur({
+  label,
+  valeur,
+  detail,
+  variante,
+  lien,
+}: {
+  label: string;
+  valeur: number;
+  detail: string;
+  variante: VarianteIndicateur;
+  lien: string;
+}) {
+  const classes = {
+    succes:
+      "border-emerald-200 bg-emerald-50 text-emerald-800",
+    attente:
+      "border-amber-200 bg-amber-50 text-amber-800",
+    information:
+      "border-blue-200 bg-blue-50 text-blue-800",
+    attention:
+      "border-red-200 bg-red-50 text-red-800",
+  }[variante];
+
+  return (
+    <Link
+      href={lien}
+      className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm ${classes}`}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide opacity-75">
+        {label}
+      </p>
+      <p className="mt-2 text-3xl font-black">
+        {valeur}
+      </p>
+      <p className="mt-1 text-xs font-semibold opacity-80">
+        {detail}
+      </p>
+    </Link>
+  );
+}
+
+function PetitIndicateur({
+  label,
+  valeur,
+  alerte = false,
+}: {
+  label: string;
+  valeur: number;
+  alerte?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        alerte
+          ? "border-red-200 bg-red-50"
+          : "border-slate-200 bg-slate-50"
+      }`}
+    >
+      <p
+        className={`text-xs font-semibold uppercase tracking-wide ${
+          alerte
+            ? "text-red-600"
+            : "text-slate-500"
+        }`}
+      >
+        {label}
+      </p>
+      <p
+        className={`mt-2 text-2xl font-black ${
+          alerte
+            ? "text-red-800"
+            : "text-slate-900"
         }`}
       >
         {valeur}

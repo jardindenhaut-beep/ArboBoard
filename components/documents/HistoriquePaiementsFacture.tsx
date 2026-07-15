@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Paiement = {
@@ -13,59 +15,113 @@ type Paiement = {
   note: string | null;
   date_paiement: string | null;
   enregistre_par: string | null;
+  source_paiement:
+    | "manuel"
+    | "urssaf"
+    | null;
+  demande_paiement_urssaf_id:
+    | string
+    | null;
+  rapprochement_urssaf_at:
+    | string
+    | null;
   created_at: string | null;
 };
 
 type Props = {
   factureId: string;
   numero?: string | null;
-  onPaiementSupprime?: () => void | Promise<void>;
+  onPaiementSupprime?:
+    () => void | Promise<void>;
 };
 
-function formatMontant(montant: number | null | undefined) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number(montant || 0));
+function formatMontant(
+  montant: number | null | undefined
+) {
+  return new Intl.NumberFormat(
+    "fr-FR",
+    {
+      style: "currency",
+      currency: "EUR",
+    }
+  ).format(Number(montant || 0));
 }
 
-function formatDate(date: string | null | undefined) {
+function formatDate(
+  date: string | null | undefined
+) {
   if (!date) return "—";
 
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(`${date.slice(0, 10)}T00:00:00`));
+    return new Intl.DateTimeFormat(
+      "fr-FR",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }
+    ).format(
+      new Date(
+        `${date.slice(
+          0,
+          10
+        )}T00:00:00`
+      )
+    );
   } catch {
     return "—";
   }
 }
 
-function formatDateHeure(date: string | null | undefined) {
+function formatDateHeure(
+  date: string | null | undefined
+) {
   if (!date) return "—";
 
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(date));
+    return new Intl.DateTimeFormat(
+      "fr-FR",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }
+    ).format(new Date(date));
   } catch {
     return "—";
   }
 }
 
-function libelleModePaiement(mode: string | null | undefined) {
-  if (mode === "virement") return "Virement";
-  if (mode === "cheque") return "Chèque";
-  if (mode === "especes") return "Espèces";
-  if (mode === "carte_bancaire") return "Carte bancaire";
-  if (mode === "prelevement") return "Prélèvement";
-  if (mode === "autre") return "Autre";
+function libelleModePaiement(
+  mode: string | null | undefined
+) {
+  if (
+    mode === "virement_urssaf"
+  ) {
+    return "Virement URSSAF";
+  }
+  if (mode === "virement") {
+    return "Virement";
+  }
+  if (mode === "cheque") {
+    return "Chèque";
+  }
+  if (mode === "especes") {
+    return "Espèces";
+  }
+  if (
+    mode === "carte_bancaire"
+  ) {
+    return "Carte bancaire";
+  }
+  if (mode === "prelevement") {
+    return "Prélèvement";
+  }
+  if (mode === "autre") {
+    return "Autre";
+  }
   return "Non renseigné";
 }
 
@@ -74,13 +130,36 @@ export default function HistoriquePaiementsFacture({
   numero,
   onPaiementSupprime,
 }: Props) {
-  const [modalOuverte, setModalOuverte] = useState(false);
-  const [chargement, setChargement] = useState(false);
-  const [suppressionId, setSuppressionId] = useState<string | null>(null);
+  const [
+    modalOuverte,
+    setModalOuverte,
+  ] = useState(false);
 
-  const [paiements, setPaiements] = useState<Paiement[]>([]);
-  const [messageErreur, setMessageErreur] = useState("");
-  const [messageSucces, setMessageSucces] = useState("");
+  const [
+    chargement,
+    setChargement,
+  ] = useState(false);
+
+  const [
+    suppressionId,
+    setSuppressionId,
+  ] =
+    useState<string | null>(null);
+
+  const [
+    paiements,
+    setPaiements,
+  ] = useState<Paiement[]>([]);
+
+  const [
+    messageErreur,
+    setMessageErreur,
+  ] = useState("");
+
+  const [
+    messageSucces,
+    setMessageSucces,
+  ] = useState("");
 
   async function ouvrirHistorique() {
     setModalOuverte(true);
@@ -88,7 +167,13 @@ export default function HistoriquePaiementsFacture({
   }
 
   function fermerHistorique() {
-    if (chargement || suppressionId) return;
+    if (
+      chargement ||
+      suppressionId
+    ) {
+      return;
+    }
+
     setModalOuverte(false);
   }
 
@@ -99,100 +184,172 @@ export default function HistoriquePaiementsFacture({
       setMessageSucces("");
 
       if (!factureId) {
-        setMessageErreur("Identifiant de facture manquant.");
+        setMessageErreur(
+          "Identifiant de facture manquant."
+        );
         return;
       }
 
-      const { data, error } = await supabase
+      const {
+        data,
+        error,
+      } = await supabase
         .from("factures_paiements")
-        .select("*")
-        .eq("facture_id", factureId)
-        .order("date_paiement", { ascending: false })
-        .order("created_at", { ascending: false });
+        .select(
+          "id, entreprise_id, facture_id, montant, mode_paiement, reference_paiement, note, date_paiement, enregistre_par, source_paiement, demande_paiement_urssaf_id, rapprochement_urssaf_at, created_at"
+        )
+        .eq(
+          "facture_id",
+          factureId
+        )
+        .order(
+          "date_paiement",
+          { ascending: false }
+        )
+        .order("created_at", {
+          ascending: false,
+        });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      setPaiements((data || []) as Paiement[]);
-    } catch (error: any) {
-      console.error("Erreur chargement historique paiements :", error);
+      setPaiements(
+        (data || []) as Paiement[]
+      );
+    } catch (error) {
       setMessageErreur(
-        error?.message || "Impossible de charger l’historique des paiements."
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger l’historique des paiements."
       );
     } finally {
       setChargement(false);
     }
   }
 
-  async function supprimerPaiement(paiement: Paiement) {
-    const confirmation = window.confirm(
-      "Voulez-vous vraiment supprimer ce paiement ? La facture sera recalculée automatiquement."
-    );
+  async function supprimerPaiement(
+    paiement: Paiement
+  ) {
+    const origineUrssaf =
+      paiement.source_paiement ===
+        "urssaf" ||
+      paiement.mode_paiement ===
+        "virement_urssaf";
+
+    const confirmation =
+      window.confirm(
+        origineUrssaf
+          ? "Voulez-vous vraiment supprimer ce rapprochement URSSAF ? La facture sera recalculée et le virement pourra ensuite être rapproché à nouveau."
+          : "Voulez-vous vraiment supprimer ce paiement ? La facture sera recalculée automatiquement."
+      );
 
     if (!confirmation) return;
 
     try {
-      setSuppressionId(paiement.id);
+      setSuppressionId(
+        paiement.id
+      );
       setMessageErreur("");
       setMessageSucces("");
 
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } =
+        await supabase.auth.getSession();
 
-      if (!session?.access_token) {
-        setMessageErreur("Session expirée. Veuillez vous reconnecter.");
+      if (
+        !session?.access_token
+      ) {
+        setMessageErreur(
+          "Session expirée. Veuillez vous reconnecter."
+        );
         return;
       }
 
-      const response = await fetch("/api/factures/supprimer-paiement", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          paiementId: paiement.id,
-          paiement_id: paiement.id,
-          factureId,
-          facture_id: factureId,
-        }),
-      });
+      const response = await fetch(
+        "/api/factures/supprimer-paiement",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            paiementId:
+              paiement.id,
+            paiement_id:
+              paiement.id,
+            factureId,
+            facture_id:
+              factureId,
+          }),
+        }
+      );
 
-      const resultat = await response.json().catch(() => null);
+      const resultat =
+        await response.json()
+          .catch(
+            () => null
+          ) as
+          | {
+              success?: boolean;
+              error?: string;
+              message?: string;
+            }
+          | null;
 
-      if (!response.ok || !resultat?.success) {
-        throw new Error(
-          resultat?.error || "Impossible de supprimer ce paiement."
+      if (
+        !response.ok ||
+        !resultat?.success
+      ) {
+        setMessageErreur(
+          resultat?.error ||
+            "Impossible de supprimer ce paiement."
         );
+        return;
       }
 
-      setMessageSucces(resultat.message || "Paiement supprimé avec succès.");
+      setMessageSucces(
+        resultat.message ||
+          "Paiement supprimé avec succès."
+      );
 
       await chargerPaiements();
 
       if (onPaiementSupprime) {
         await onPaiementSupprime();
       }
-    } catch (error: any) {
-      console.error("Erreur suppression paiement :", error);
+    } catch (error) {
       setMessageErreur(
-        error?.message || "Impossible de supprimer ce paiement."
+        error instanceof Error
+          ? error.message
+          : "Impossible de supprimer ce paiement."
       );
     } finally {
       setSuppressionId(null);
     }
   }
 
-  const totalPaiements = paiements.reduce(
-    (total, paiement) => total + Number(paiement.montant || 0),
-    0
-  );
+  const totalPaiements =
+    paiements.reduce(
+      (total, paiement) =>
+        total +
+        Number(
+          paiement.montant || 0
+        ),
+      0
+    );
 
   return (
     <>
       <button
         type="button"
-        onClick={ouvrirHistorique}
+        onClick={() =>
+          void ouvrirHistorique()
+        }
         className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
       >
         Paiements
@@ -208,14 +365,23 @@ export default function HistoriquePaiementsFacture({
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  {numero ? `Facture ${numero}` : "Facture sans numéro"}
+                  {numero
+                    ? `Facture ${numero}`
+                    : "Facture sans numéro"}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={fermerHistorique}
-                disabled={chargement || !!suppressionId}
+                onClick={
+                  fermerHistorique
+                }
+                disabled={
+                  chargement ||
+                  Boolean(
+                    suppressionId
+                  )
+                }
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Fermer
@@ -241,7 +407,9 @@ export default function HistoriquePaiementsFacture({
                 </p>
 
                 <p className="mt-1 text-2xl font-black text-emerald-700">
-                  {formatMontant(totalPaiements)}
+                  {formatMontant(
+                    totalPaiements
+                  )}
                 </p>
               </div>
 
@@ -254,7 +422,8 @@ export default function HistoriquePaiementsFacture({
                     Récupération de l’historique en cours.
                   </p>
                 </div>
-              ) : paiements.length === 0 ? (
+              ) : paiements.length ===
+                0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl">
                     💶
@@ -270,77 +439,131 @@ export default function HistoriquePaiementsFacture({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {paiements.map((paiement) => {
-                    const suppressionEnCours = suppressionId === paiement.id;
+                  {paiements.map(
+                    (paiement) => {
+                      const suppressionEnCours =
+                        suppressionId ===
+                        paiement.id;
 
-                    return (
-                      <div
-                        key={paiement.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-4"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                                {formatMontant(paiement.montant)}
-                              </span>
+                      const origineUrssaf =
+                        paiement.source_paiement ===
+                          "urssaf" ||
+                        paiement.mode_paiement ===
+                          "virement_urssaf";
 
-                              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700">
-                                {libelleModePaiement(paiement.mode_paiement)}
-                              </span>
+                      return (
+                        <div
+                          key={
+                            paiement.id
+                          }
+                          className={`rounded-2xl border p-4 ${
+                            origineUrssaf
+                              ? "border-blue-200 bg-blue-50/40"
+                              : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                                  {formatMontant(
+                                    paiement.montant
+                                  )}
+                                </span>
+
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700">
+                                  {libelleModePaiement(
+                                    paiement.mode_paiement
+                                  )}
+                                </span>
+
+                                {origineUrssaf ? (
+                                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                                    Origine URSSAF
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <p className="mt-3 text-sm text-slate-600">
+                                Date du paiement :{" "}
+                                <span className="font-semibold text-slate-950">
+                                  {formatDate(
+                                    paiement.date_paiement
+                                  )}
+                                </span>
+                              </p>
+
+                              <p className="mt-1 text-xs text-slate-500">
+                                Enregistré le :{" "}
+                                {formatDateHeure(
+                                  paiement.created_at
+                                )}
+                              </p>
+
+                              {origineUrssaf &&
+                              paiement.rapprochement_urssaf_at ? (
+                                <p className="mt-1 text-xs text-blue-700">
+                                  Rapproché le :{" "}
+                                  {formatDateHeure(
+                                    paiement.rapprochement_urssaf_at
+                                  )}
+                                </p>
+                              ) : null}
                             </div>
 
-                            <p className="mt-3 text-sm text-slate-600">
-                              Date du paiement :{" "}
-                              <span className="font-semibold text-slate-950">
-                                {formatDate(paiement.date_paiement)}
-                              </span>
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              Enregistré le :{" "}
-                              {formatDateHeure(paiement.created_at)}
-                            </p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void supprimerPaiement(
+                                  paiement
+                                )
+                              }
+                              disabled={Boolean(
+                                suppressionId
+                              )}
+                              className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {suppressionEnCours
+                                ? "Suppression..."
+                                : origineUrssaf
+                                  ? "Supprimer le rapprochement"
+                                  : "Supprimer"}
+                            </button>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => void supprimerPaiement(paiement)}
-                            disabled={!!suppressionId}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {suppressionEnCours
-                              ? "Suppression..."
-                              : "Supprimer"}
-                          </button>
+                          {paiement.reference_paiement && (
+                            <div className="mt-3 rounded-xl bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                {origineUrssaf
+                                  ? "Référence de la demande URSSAF"
+                                  : "Référence"}
+                              </p>
+
+                              <p className="mt-1 break-all font-mono text-sm text-slate-700">
+                                {
+                                  paiement.reference_paiement
+                                }
+                              </p>
+                            </div>
+                          )}
+
+                          {paiement.note && (
+                            <div className="mt-3 rounded-xl bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                Note
+                              </p>
+
+                              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+                                {
+                                  paiement.note
+                                }
+                              </p>
+                            </div>
+                          )}
                         </div>
-
-                        {paiement.reference_paiement && (
-                          <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                              Référence
-                            </p>
-
-                            <p className="mt-1 text-sm text-slate-700">
-                              {paiement.reference_paiement}
-                            </p>
-                          </div>
-                        )}
-
-                        {paiement.note && (
-                          <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                              Note
-                            </p>
-
-                            <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                              {paiement.note}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    }
+                  )}
                 </div>
               )}
             </div>
@@ -348,11 +571,20 @@ export default function HistoriquePaiementsFacture({
             <div className="flex justify-end border-t border-slate-200 p-5">
               <button
                 type="button"
-                onClick={chargerPaiements}
-                disabled={chargement || !!suppressionId}
+                onClick={() =>
+                  void chargerPaiements()
+                }
+                disabled={
+                  chargement ||
+                  Boolean(
+                    suppressionId
+                  )
+                }
                 className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {chargement ? "Actualisation..." : "Actualiser"}
+                {chargement
+                  ? "Actualisation..."
+                  : "Actualiser"}
               </button>
             </div>
           </div>

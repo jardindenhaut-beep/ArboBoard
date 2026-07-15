@@ -209,6 +209,36 @@ function siretValide(siret: string) {
   return siret.replace(/\s/g, "").length === 14;
 }
 
+function codePostalValide(codePostal: string) {
+  if (!codePostal.trim()) return true;
+  return /^\d{5}$/.test(codePostal.replace(/\s/g, ""));
+}
+
+function initialesProfil(profil: ProfilUtilisateur | null) {
+  if (!profil) return "A";
+
+  const initiales = [profil.prenom, profil.nom]
+    .filter(Boolean)
+    .map((valeur) =>
+      String(valeur).trim().charAt(0).toUpperCase()
+    )
+    .join("");
+
+  if (initiales) return initiales.slice(0, 2);
+
+  return String(profil.email || "A")
+    .charAt(0)
+    .toUpperCase();
+}
+
+function normaliserEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function normaliserNumeroTva(numeroTva: string) {
+  return numeroTva.replace(/\s/g, "").toUpperCase();
+}
+
 export default function ProfilChefPage() {
   const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
   const [entreprise, setEntreprise] = useState<Entreprise | null>(null);
@@ -457,7 +487,12 @@ export default function ProfilChefPage() {
     }
 
     if (!siretValide(formulaireEntreprise.siret)) {
-      setMessageErreur("Le numéro SIRET doit contenir 14 chiffres.");
+      setMessageErreur("Le numéro SIRET doit contenir exactement 14 chiffres.");
+      return;
+    }
+
+    if (!codePostalValide(formulaireEntreprise.code_postal)) {
+      setMessageErreur("Le code postal doit contenir 5 chiffres.");
       return;
     }
 
@@ -477,7 +512,9 @@ export default function ProfilChefPage() {
 
       const payload = {
         nom_entreprise: nettoyerTexte(formulaireEntreprise.nom_entreprise),
-        email_contact: nettoyerTexte(formulaireEntreprise.email_contact),
+        email_contact: nettoyerTexte(
+          normaliserEmail(formulaireEntreprise.email_contact)
+        ),
         telephone: nettoyerTexte(formulaireEntreprise.telephone),
         adresse: nettoyerTexte(formulaireEntreprise.adresse),
         code_postal: nettoyerTexte(formulaireEntreprise.code_postal),
@@ -485,7 +522,9 @@ export default function ProfilChefPage() {
         siret: nettoyerTexte(
           formulaireEntreprise.siret.replace(/\s/g, "")
         ),
-        numero_tva: nettoyerTexte(formulaireEntreprise.numero_tva),
+        numero_tva: nettoyerTexte(
+          normaliserNumeroTva(formulaireEntreprise.numero_tva)
+        ),
         forme_juridique: nettoyerTexte(formulaireEntreprise.forme_juridique),
         assurance_nom: nettoyerTexte(formulaireEntreprise.assurance_nom),
         assurance_numero_contrat: nettoyerTexte(
@@ -614,18 +653,36 @@ export default function ProfilChefPage() {
     );
   }
 
+  function annulerModificationsProfil() {
+    setFormulaireProfil(profilEnregistre);
+    setMessageErreur("");
+    setMessageSucces(
+      "Les modifications du profil ont été annulées."
+    );
+  }
+
+  function annulerModificationsEntreprise() {
+    setFormulaireEntreprise(entrepriseEnregistree);
+    setMessageErreur("");
+    setMessageSucces(
+      "Les modifications de l’entreprise ont été annulées."
+    );
+  }
+
   if (chargement) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
-            👤
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
           </div>
-          <p className="text-lg font-bold text-slate-950">
+
+          <p className="font-semibold text-slate-950">
             Chargement du profil…
           </p>
+
           <p className="mt-1 text-sm text-slate-500">
-            Récupération de vos informations.
+            Récupération de vos informations personnelles et professionnelles.
           </p>
         </div>
       </div>
@@ -634,34 +691,47 @@ export default function ProfilChefPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Mon compte
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Profil et entreprise
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Gérez vos informations personnelles et les données officielles
-              utilisées pour identifier votre entreprise dans Arboboard.
-            </p>
-          </div>
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-emerald-600" />
 
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/chef/compte"
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              ← Mon compte
-            </Link>
-            <Link
-              href="/chef/parametres"
-              className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              Paramètres documents
-            </Link>
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-lg font-black text-white shadow-sm">
+                {initialesProfil(profil)}
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Mon compte
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Profil et entreprise
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Gérez vos informations personnelles ainsi que les données
+                  officielles utilisées sur les documents Arboboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <Link
+                href="/chef/compte"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                ← Mon compte
+              </Link>
+
+              <Link
+                href="/chef/parametres"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                Paramètres documents
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -681,6 +751,12 @@ export default function ProfilChefPage() {
           className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
         >
           {messageSucces}
+        </div>
+      ) : null}
+
+      {(profilModifie || entrepriseModifiee) ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          Des modifications ne sont pas encore enregistrées.
         </div>
       ) : null}
 
@@ -733,7 +809,16 @@ export default function ProfilChefPage() {
                 aide="L’adresse de connexion ne peut pas être modifiée depuis cette page."
               />
 
-              <div className="flex justify-end">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={annulerModificationsProfil}
+                  disabled={enregistrementProfil || !profilModifie}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Annuler les modifications
+                </button>
+
                 <button
                   type="button"
                   onClick={enregistrerProfil}
@@ -790,6 +875,12 @@ export default function ProfilChefPage() {
                   type="email"
                   autoComplete="email"
                   placeholder="contact@entreprise.fr"
+                  erreur={
+                    formulaireEntreprise.email_contact.trim() !== "" &&
+                    !emailValide(formulaireEntreprise.email_contact)
+                      ? "L’adresse email n’est pas valide."
+                      : undefined
+                  }
                 />
                 <ChampTexte
                   label="Téléphone"
@@ -822,8 +913,14 @@ export default function ProfilChefPage() {
                   }
                   inputMode="numeric"
                   autoComplete="postal-code"
-                  maxLength={10}
+                  maxLength={5}
                   placeholder="03500"
+                  erreur={
+                    formulaireEntreprise.code_postal.trim() !== "" &&
+                    !codePostalValide(formulaireEntreprise.code_postal)
+                      ? "Le code postal doit contenir 5 chiffres."
+                      : undefined
+                  }
                 />
                 <ChampTexte
                   label="Ville"
@@ -860,6 +957,12 @@ export default function ProfilChefPage() {
                   maxLength={17}
                   placeholder="14 chiffres"
                   aide="Les espaces sont supprimés lors de l’enregistrement."
+                  erreur={
+                    formulaireEntreprise.siret.trim() !== "" &&
+                    !siretValide(formulaireEntreprise.siret)
+                      ? "Le SIRET doit contenir exactement 14 chiffres."
+                      : undefined
+                  }
                 />
                 <ChampTexte
                   label="TVA intracommunautaire"
@@ -963,7 +1066,18 @@ export default function ProfilChefPage() {
                 placeholder="Mention complémentaire de l’entreprise…"
               />
 
-              <div className="flex justify-end">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={annulerModificationsEntreprise}
+                  disabled={
+                    enregistrementEntreprise || !entrepriseModifiee
+                  }
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Annuler les modifications
+                </button>
+
                 <button
                   type="button"
                   onClick={enregistrerEntreprise}
@@ -1098,6 +1212,7 @@ function ChampTexte({
   autoComplete,
   inputMode,
   maxLength,
+  erreur,
 }: {
   label: string;
   value: string;
@@ -1110,6 +1225,7 @@ function ChampTexte({
   autoComplete?: string;
   inputMode?: "text" | "search" | "tel" | "url" | "email" | "numeric" | "decimal";
   maxLength?: number;
+  erreur?: string;
 }) {
   return (
     <label className="block">
@@ -1127,8 +1243,20 @@ function ChampTexte({
         inputMode={inputMode}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+        aria-invalid={Boolean(erreur)}
+        className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:ring-4 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 ${
+          erreur
+            ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+            : "border-slate-300 focus:border-emerald-500 focus:ring-emerald-100"
+        }`}
       />
+
+      {erreur ? (
+        <span className="mt-1.5 block text-xs font-medium leading-5 text-red-600">
+          {erreur}
+        </span>
+      ) : null}
+
       {aide ? (
         <span className="mt-1.5 block text-xs leading-5 text-slate-500">
           {aide}

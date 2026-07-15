@@ -54,6 +54,14 @@ const CARTES: CarteCompte[] = [
     action: "Ouvrir les paramètres",
   },
   {
+    titre: "Avance immédiate",
+    description:
+      "Configurez l’API URSSAF, suivez les clients inscrits, les demandes de paiement et les virements.",
+    href: "/chef/parametres/avance-immediate",
+    emoji: "⚡",
+    action: "Gérer l’Avance immédiate",
+  },
+  {
     titre: "Sécurité & conformité",
     description:
       "Centralisez les sauvegardes, le RGPD, les consentements et les documents légaux.",
@@ -63,20 +71,31 @@ const CARTES: CarteCompte[] = [
   },
 ];
 
-function nomComplet(profil: ContexteCompte["profil"] | null) {
-  if (!profil) return "Utilisateur Arboboard";
+function nomComplet(
+  profil: ContexteCompte["profil"] | null
+) {
+  if (!profil) {
+    return "Utilisateur Arboboard";
+  }
 
   return (
-    `${profil.prenom || ""} ${profil.nom || ""}`.trim() ||
+    `${profil.prenom || ""} ${
+      profil.nom || ""
+    }`.trim() ||
     profil.email ||
     "Utilisateur Arboboard"
   );
 }
 
 export default function CompteChefPage() {
-  const [contexte, setContexte] = useState<ContexteCompte | null>(null);
-  const [chargement, setChargement] = useState(true);
-  const [erreur, setErreur] = useState("");
+  const [contexte, setContexte] =
+    useState<ContexteCompte | null>(null);
+
+  const [chargement, setChargement] =
+    useState(true);
+
+  const [erreur, setErreur] =
+    useState("");
 
   useEffect(() => {
     let actif = true;
@@ -86,11 +105,17 @@ export default function CompteChefPage() {
         setChargement(true);
         setErreur("");
 
-        const resultat = await chargerContexteEntreprise();
+        const resultat =
+          await chargerContexteEntreprise();
 
-        if (!actif) return;
+        if (!actif) {
+          return;
+        }
 
-        if (resultat.erreur || !resultat.contexte) {
+        if (
+          resultat.erreur ||
+          !resultat.contexte
+        ) {
           setErreur(
             resultat.erreur ||
               "Impossible de charger les informations du compte."
@@ -98,9 +123,14 @@ export default function CompteChefPage() {
           return;
         }
 
-        setContexte(resultat.contexte as ContexteCompte);
+        setContexte(
+          resultat.contexte as ContexteCompte
+        );
       } catch (error) {
-        console.error("Erreur page compte :", error);
+        console.error(
+          "Erreur page compte :",
+          error
+        );
 
         if (actif) {
           setErreur(
@@ -114,7 +144,7 @@ export default function CompteChefPage() {
       }
     }
 
-    charger();
+    void charger();
 
     return () => {
       actif = false;
@@ -137,16 +167,23 @@ export default function CompteChefPage() {
     return (
       <section className="mx-auto max-w-3xl">
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-800">
-          <h1 className="text-lg font-bold">Compte indisponible</h1>
+          <h1 className="text-lg font-bold">
+            Compte indisponible
+          </h1>
+
           <p className="mt-2 text-sm">
-            {erreur || "Impossible de charger votre compte."}
+            {erreur ||
+              "Impossible de charger votre compte."}
           </p>
         </div>
       </section>
     );
   }
 
-  const abonnementBloque = abonnementEstBloque(contexte.entreprise);
+  const abonnementBloque =
+    abonnementEstBloque(
+      contexte.entreprise
+    );
 
   return (
     <section className="mx-auto max-w-6xl space-y-6">
@@ -156,21 +193,32 @@ export default function CompteChefPage() {
             <p className="text-sm font-semibold text-emerald-700">
               Mon compte
             </p>
+
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              {nomComplet(contexte.profil)}
+              {nomComplet(
+                contexte.profil
+              )}
             </h1>
+
             <p className="mt-2 text-sm text-slate-500">
-              {contexte.profil.email || "Adresse email non renseignée"}
+              {contexte.profil.email ||
+                "Adresse email non renseignée"}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold capitalize text-slate-700">
-              {contexte.profil.role || "chef"}
+              {contexte.profil.role ||
+                "chef"}
             </span>
+
             <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold capitalize text-emerald-700">
-              Plan {contexte.entreprise.plan_abonnement || "essai"}
+              Plan{" "}
+              {contexte.entreprise
+                .plan_abonnement ||
+                "essai"}
             </span>
+
             <span
               className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                 abonnementBloque
@@ -178,7 +226,9 @@ export default function CompteChefPage() {
                   : "bg-blue-50 text-blue-700"
               }`}
             >
-              {contexte.entreprise.statut_abonnement || "essai"}
+              {contexte.entreprise
+                .statut_abonnement ||
+                "essai"}
             </span>
           </div>
         </div>
@@ -187,8 +237,11 @@ export default function CompteChefPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Entreprise
           </p>
+
           <p className="mt-1 font-semibold text-slate-900">
-            {contexte.entreprise.nom_entreprise || "Entreprise"}
+            {contexte.entreprise
+              .nom_entreprise ||
+              "Entreprise"}
           </p>
         </div>
       </header>
@@ -204,13 +257,16 @@ export default function CompteChefPage() {
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                 {carte.emoji}
               </div>
+
               <div className="min-w-0">
                 <h2 className="text-lg font-bold text-slate-950">
                   {carte.titre}
                 </h2>
+
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {carte.description}
                 </p>
+
                 <p className="mt-4 text-sm font-semibold text-emerald-700">
                   {carte.action} →
                 </p>
@@ -227,13 +283,17 @@ export default function CompteChefPage() {
         <p className="text-sm font-semibold text-emerald-700">
           À propos
         </p>
+
         <h2 className="mt-1 text-2xl font-bold text-slate-950">
           Arboboard
         </h2>
+
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Solution de gestion destinée aux paysagistes, élagueurs et
-          entreprises d’espaces verts : clients, devis, factures,
-          interventions, équipes et planning dans un espace unique.
+          Solution de gestion destinée aux
+          paysagistes, élagueurs et entreprises
+          d’espaces verts : clients, devis,
+          factures, interventions, équipes et
+          planning dans un espace unique.
         </p>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -241,22 +301,27 @@ export default function CompteChefPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Version
             </p>
+
             <p className="mt-1 text-sm font-semibold text-slate-900">
               V1 Web
             </p>
           </div>
+
           <div className="rounded-2xl bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Application
             </p>
+
             <p className="mt-1 text-sm font-semibold text-slate-900">
               arboboard.fr
             </p>
           </div>
+
           <div className="rounded-2xl bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Support
             </p>
+
             <p className="mt-1 text-sm font-semibold text-slate-900">
               contact@arboboard.fr
             </p>

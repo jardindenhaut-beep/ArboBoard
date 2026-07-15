@@ -1511,6 +1511,7 @@ Cordialement.`;
                           <Link
                             href={`/chef/factures/${facture.id}/impression`}
                             target="_blank"
+                            rel="noreferrer"
                             className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
                           >
                             Imprimer

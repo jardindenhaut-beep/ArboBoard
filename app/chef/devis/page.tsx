@@ -291,6 +291,41 @@ function adresseChantierTexte(item: Devis) {
     .join(" ");
 }
 
+function iconeStatut(statut?: string | null) {
+  if (statut === "brouillon") return "📝";
+  if (statut === "envoye") return "✉️";
+  if (statut === "accepte") return "✅";
+  if (statut === "facture") return "🧾";
+  if (statut === "refuse") return "⛔";
+  if (statut === "archive") return "🗄️";
+  return "📄";
+}
+
+function barreStatut(statut?: string | null) {
+  if (statut === "brouillon") return "bg-slate-400";
+  if (statut === "envoye") return "bg-blue-500";
+  if (statut === "accepte") return "bg-emerald-600";
+  if (statut === "facture") return "bg-purple-600";
+  if (statut === "refuse") return "bg-red-500";
+  if (statut === "archive") return "bg-zinc-400";
+  return "bg-slate-300";
+}
+
+function dateDepassee(date?: string | null) {
+  if (!date) return false;
+
+  try {
+    const aujourdHui = new Date();
+    aujourdHui.setHours(0, 0, 0, 0);
+
+    const dateValidite = new Date(`${date.slice(0, 10)}T00:00:00`);
+
+    return dateValidite.getTime() < aujourdHui.getTime();
+  } catch {
+    return false;
+  }
+}
+
 export default function PageDevis() {
   const searchParams = useSearchParams();
   const devisSelectionneId = searchParams.get("devisId");
@@ -545,13 +580,16 @@ export default function PageDevis() {
     }
   }
 
-  function fermerModal() {
-    if (chargementAction) return;
-
+  function reinitialiserModal() {
     setModalOuverte(false);
     setDevisEdition(null);
     setForm(formVide);
     setLignes([ligneVide(tvaDefaut)]);
+  }
+
+  function fermerModal() {
+    if (chargementAction) return;
+    reinitialiserModal();
   }
 
   function selectionnerClient(clientId: string) {
@@ -728,7 +766,7 @@ export default function PageDevis() {
         devisEdition ? "Devis modifié avec succès." : "Devis créé avec succès."
       );
 
-      fermerModal();
+      reinitialiserModal();
       await chargerDevis();
     } catch (error: any) {
       console.error("Erreur enregistrement devis :", error);
@@ -817,6 +855,8 @@ export default function PageDevis() {
     setFiltre("tous");
     setRecherche("");
 
+    let surbrillanceTimer: number | null = null;
+
     const timer = window.setTimeout(() => {
       const element = document.getElementById(
         `devis-${devisSelectionneId}`
@@ -840,156 +880,281 @@ export default function PageDevis() {
         "ring-offset-2"
       );
 
-      const surbrillanceTimer = window.setTimeout(() => {
+      surbrillanceTimer = window.setTimeout(() => {
         element.classList.remove(
           "ring-4",
           "ring-emerald-400",
           "ring-offset-2"
         );
       }, 4000);
-
-      return () => {
-        window.clearTimeout(surbrillanceTimer);
-      };
     }, 350);
 
     return () => {
       window.clearTimeout(timer);
+
+      if (surbrillanceTimer !== null) {
+        window.clearTimeout(surbrillanceTimer);
+      }
     };
   }, [devisSelectionneId, chargement, devis]);
 
   const totauxFormulaire = useMemo(() => calculerTotaux(lignes), [lignes]);
 
+  const nombresParFiltre = useMemo(
+    () => ({
+      tous: devis.length,
+      brouillon: devis.filter((item) => item.statut === "brouillon").length,
+      envoye: devis.filter((item) => item.statut === "envoye").length,
+      accepte: devis.filter((item) => item.statut === "accepte").length,
+      facture: devis.filter((item) => item.statut === "facture").length,
+      refuse: devis.filter((item) => item.statut === "refuse").length,
+      archive: devis.filter((item) => item.statut === "archive").length,
+    }),
+    [devis]
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6">
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-              Devis
-            </p>
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-emerald-600" />
 
-            <h1 className="mt-1 text-3xl font-black text-slate-950">
-              Devis clients
-            </h1>
+          <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
+                  📄
+                </div>
 
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Créez, envoyez, imprimez, téléchargez vos devis en PDF et
-              transformez-les en factures.
-            </p>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                    Documents commerciaux
+                  </p>
+
+                  <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Devis clients
+                  </h1>
+
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    Créez, envoyez, imprimez et transformez vos devis en
+                    factures ou en fiches d’intervention.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={ouvrirCreation}
+                disabled={chargementAction}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                <span aria-hidden="true">＋</span>
+                Nouveau devis
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={ouvrirCreation}
-            disabled={chargementAction}
-            className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Nouveau devis
-          </button>
-        </div>
+        </section>
 
         {(messageErreur || messageSucces) && (
           <div className="space-y-3">
             {messageErreur && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              <div
+                role="alert"
+                className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+              >
                 {messageErreur}
               </div>
             )}
 
             {messageSucces && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              <div
+                role="status"
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+              >
                 {messageSucces}
               </div>
             )}
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total devis</p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {statistiques.total}
-            </p>
-          </div>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          {[
+            {
+              filtre: "tous" as FiltreDevis,
+              label: "Total devis",
+              valeur: statistiques.total,
+              icone: "📄",
+              classeValeur: "text-slate-950",
+            },
+            {
+              filtre: "brouillon" as FiltreDevis,
+              label: "Brouillons",
+              valeur: statistiques.brouillons,
+              icone: "📝",
+              classeValeur: "text-slate-950",
+            },
+            {
+              filtre: "envoye" as FiltreDevis,
+              label: "Envoyés",
+              valeur: statistiques.envoyes,
+              icone: "✉️",
+              classeValeur: "text-blue-700",
+            },
+            {
+              filtre: "accepte" as FiltreDevis,
+              label: "Acceptés",
+              valeur: statistiques.acceptes,
+              icone: "✅",
+              classeValeur: "text-emerald-700",
+            },
+            {
+              filtre: "facture" as FiltreDevis,
+              label: "Facturés",
+              valeur: nombresParFiltre.facture,
+              icone: "🧾",
+              classeValeur: "text-purple-700",
+            },
+          ].map((carte) => (
+            <button
+              key={carte.filtre}
+              type="button"
+              onClick={() => {
+                setFiltre(carte.filtre);
+                setRecherche("");
+              }}
+              className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                filtre === carte.filtre
+                  ? "border-emerald-400 ring-2 ring-emerald-100"
+                  : "border-slate-200"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {carte.label}
+                  </p>
+                  <p className={`mt-2 text-2xl font-black ${carte.classeValeur}`}>
+                    {carte.valeur}
+                  </p>
+                </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Brouillons</p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {statistiques.brouillons}
-            </p>
-          </div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-xl">
+                  {carte.icone}
+                </span>
+              </div>
+            </button>
+          ))}
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Envoyés</p>
-            <p className="mt-2 text-2xl font-black text-blue-700">
-              {statistiques.envoyes}
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("accepte");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "accepte"
+                ? "border-emerald-400 ring-2 ring-emerald-100"
+                : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Accepté TTC
+                </p>
+                <p className="mt-2 truncate text-xl font-black text-emerald-700">
+                  {formatMontant(statistiques.totalAccepteTtc)}
+                </p>
+              </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Acceptés</p>
-            <p className="mt-2 text-2xl font-black text-emerald-700">
-              {statistiques.acceptes}
-            </p>
-          </div>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
+                💶
+              </span>
+            </div>
+          </button>
+        </section>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total accepté TTC</p>
-            <p className="mt-2 text-2xl font-black text-emerald-700">
-              {formatMontant(statistiques.totalAccepteTtc)}
-            </p>
-          </div>
-        </div>
+        <section className="sticky top-3 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative w-full xl:max-w-lg">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                🔎
+              </span>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <input
-              type="search"
-              value={recherche}
-              onChange={(event) => setRecherche(event.target.value)}
-              placeholder="Rechercher un devis, un client, un numéro, une adresse chantier..."
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
-            />
+              <input
+                type="search"
+                value={recherche}
+                onChange={(event) => setRecherche(event.target.value)}
+                placeholder="Rechercher un devis, un client, une adresse..."
+                className="w-full rounded-2xl border border-slate-200 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              />
+            </div>
 
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["tous", "Tous"],
-                ["brouillon", "Brouillons"],
-                ["envoye", "Envoyés"],
-                ["accepte", "Acceptés"],
-                ["facture", "Facturés"],
-                ["refuse", "Refusés"],
-                ["archive", "Archives"],
-              ].map(([valeur, label]) => (
-                <button
-                  key={valeur}
-                  type="button"
-                  onClick={() => setFiltre(valeur as FiltreDevis)}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold ${
-                    filtre === valeur
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="overflow-x-auto">
+              <div className="flex min-w-max gap-2">
+                {[
+                  ["tous", "Tous"],
+                  ["brouillon", "Brouillons"],
+                  ["envoye", "Envoyés"],
+                  ["accepte", "Acceptés"],
+                  ["facture", "Facturés"],
+                  ["refuse", "Refusés"],
+                  ["archive", "Archives"],
+                ].map(([valeur, label]) => (
+                  <button
+                    key={valeur}
+                    type="button"
+                    onClick={() => setFiltre(valeur as FiltreDevis)}
+                    className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                      filtre === valeur
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {label}{" "}
+                    <span className="opacity-70">
+                      ({nombresParFiltre[valeur as FiltreDevis]})
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              {devisFiltres.length} devis affiché(s)
+            </span>
+
+            {(recherche || filtre !== "tous") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRecherche("");
+                  setFiltre("tous");
+                }}
+                className="font-semibold text-emerald-700 hover:text-emerald-800"
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+        </section>
 
         {chargement ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+              ⏳
+            </div>
             <p className="font-semibold text-slate-900">
-              Chargement des devis...
+              Chargement des devis…
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Récupération des données en cours.
+              Récupération des documents et des clients.
             </p>
-          </div>
+          </section>
         ) : devisFiltres.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
               📄
             </div>
@@ -999,15 +1164,28 @@ export default function PageDevis() {
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre premier devis ou modifiez les filtres.
+              Créez un devis ou modifiez les critères de recherche.
             </p>
-          </div>
+
+            <button
+              type="button"
+              onClick={ouvrirCreation}
+              className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Créer un devis
+            </button>
+          </section>
         ) : (
-          <div className="space-y-4">
+          <section className="space-y-4">
             {devisFiltres.map((item) => {
               const client = item.client || null;
               const emailClient = client?.email || "";
               const adresseChantier = adresseChantierTexte(item);
+              const validiteDepassee =
+                dateDepassee(item.date_validite) &&
+                item.statut !== "accepte" &&
+                item.statut !== "facture" &&
+                item.statut !== "archive";
 
               const messageEmailParDefaut = `Bonjour,
 
@@ -1016,199 +1194,260 @@ Veuillez trouver ci-joint votre devis ${item.numero || ""} au format PDF.
 Cordialement.`;
 
               return (
-                <div
+                <article
                   id={`devis-${item.id}`}
                   key={item.id}
-                  className={`scroll-mt-24 rounded-3xl border bg-white p-5 shadow-sm transition-all duration-500 ${
+                  className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-500 hover:shadow-md ${
                     devisSelectionneId === item.id
-                      ? "border-emerald-300"
+                      ? "border-emerald-400"
                       : "border-slate-200"
                   }`}
                 >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
-                            item.statut
-                          )}`}
-                        >
-                          {libelleStatut(item.statut)}
-                        </span>
+                  <div className={`h-1.5 ${barreStatut(item.statut)}`} />
 
-                        {devisSelectionneId === item.id && (
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                            Devis lié à la fiche
-                          </span>
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-xl">
+                            {iconeStatut(item.statut)}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
+                                  item.statut
+                                )}`}
+                              >
+                                {libelleStatut(item.statut)}
+                              </span>
+
+                              {devisSelectionneId === item.id && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                                  Devis lié à la fiche
+                                </span>
+                              )}
+
+                              {validiteDepassee && (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                                  Validité dépassée
+                                </span>
+                              )}
+                            </div>
+
+                            <h2 className="mt-3 break-words text-xl font-black text-slate-950">
+                              {item.numero || "Sans numéro"}
+                            </h2>
+
+                            <p className="mt-1 break-words text-sm font-semibold text-slate-700">
+                              {item.objet || "Sans objet"}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              {nomClient(client, item)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {(adresseChantier || item.notes_chantier) && (
+                          <div className="mt-4 grid gap-2 lg:grid-cols-2">
+                            {adresseChantier && (
+                              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+                                <span className="font-bold">📍 Chantier :</span>{" "}
+                                {adresseChantier}
+                              </div>
+                            )}
+
+                            {item.notes_chantier && (
+                              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                                <span className="font-bold">⚠️ Notes :</span>{" "}
+                                {item.notes_chantier}
+                              </div>
+                            )}
+                          </div>
                         )}
+
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-2xl bg-slate-50 p-3">
+                            <p className="text-xs font-medium text-slate-400">
+                              Date du devis
+                            </p>
+                            <p className="mt-1 font-bold text-slate-900">
+                              {formatDate(item.date_devis)}
+                            </p>
+                          </div>
+
+                          <div
+                            className={`rounded-2xl p-3 ${
+                              validiteDepassee
+                                ? "bg-amber-50"
+                                : "bg-slate-50"
+                            }`}
+                          >
+                            <p className="text-xs font-medium text-slate-400">
+                              Date de validité
+                            </p>
+                            <p
+                              className={`mt-1 font-bold ${
+                                validiteDepassee
+                                  ? "text-amber-800"
+                                  : "text-slate-900"
+                              }`}
+                            >
+                              {formatDate(item.date_validite)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-slate-50 p-3">
+                            <p className="text-xs font-medium text-slate-400">
+                              Total HT
+                            </p>
+                            <p className="mt-1 font-bold text-slate-900">
+                              {formatMontant(item.total_ht)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-emerald-50 p-3">
+                            <p className="text-xs font-medium text-emerald-600">
+                              Total TTC
+                            </p>
+                            <p className="mt-1 text-lg font-black text-emerald-800">
+                              {formatMontant(item.total_ttc)}
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
-                      <h2 className="mt-3 text-xl font-black text-slate-950">
-                        {item.numero || "Sans numéro"}
-                      </h2>
+                      <div className="w-full xl:max-w-md">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <BoutonTelechargerDocumentPdf
+                            typeDocument="devis"
+                            documentId={item.id}
+                            numero={item.numero}
+                          />
 
-                      <p className="mt-1 text-sm font-semibold text-slate-700">
-                        {item.objet || "Sans objet"}
-                      </p>
+                          <Link
+                            href={`/chef/devis/${item.id}/impression`}
+                            target="_blank"
+                            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                          >
+                            Imprimer
+                          </Link>
 
-                      <p className="mt-1 text-sm text-slate-500">
-                        Client : {nomClient(client, item)}
-                      </p>
+                          <BoutonEnvoyerDocumentEmail
+                            typeDocument="devis"
+                            documentId={item.id}
+                            numero={item.numero}
+                            defaultEmail={emailClient}
+                            defaultMessage={messageEmailParDefaut}
+                            onEnvoye={chargerDevis}
+                          />
 
-                      {adresseChantier && (
-                        <p className="mt-2 rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                          Chantier : {adresseChantier}
-                        </p>
-                      )}
-
-                      {item.notes_chantier && (
-                        <p className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                          Notes chantier : {item.notes_chantier}
-                        </p>
-                      )}
-
-                      <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Date</p>
-                          <p className="font-bold text-slate-900">
-                            {formatDate(item.date_devis)}
-                          </p>
+                          <HistoriqueEmailsDocument
+                            typeDocument="devis"
+                            documentId={item.id}
+                            numero={item.numero}
+                          />
                         </div>
 
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Validité</p>
-                          <p className="font-bold text-slate-900">
-                            {formatDate(item.date_validite)}
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                            Chantier et documents liés
                           </p>
+
+                          <div className="grid gap-2">
+                            <BoutonCreerFicheInterventionDepuisDevis
+                              devisId={item.id}
+                              statut={item.statut}
+                              factureLiee={item.facture_liee || null}
+                            />
+
+                            <FichesInterventionLieesDevis
+                              entrepriseId={entrepriseId}
+                              devisId={item.id}
+                            />
+
+                            {item.facture_liee && (
+                              <Link
+                                href={`/chef/factures?factureId=${item.facture_liee.id}`}
+                                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-medium text-purple-700 transition hover:bg-purple-50"
+                              >
+                                Voir facture {item.facture_liee.numero || ""}
+                              </Link>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Total TTC</p>
-                          <p className="font-black text-slate-950">
-                            {formatMontant(item.total_ttc)}
-                          </p>
-                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {item.statut === "brouillon" && (
+                            <button
+                              type="button"
+                              onClick={() => void ouvrirEdition(item)}
+                              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                            >
+                              Modifier
+                            </button>
+                          )}
 
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Client</p>
-                          <p className="truncate font-bold text-slate-900">
-                            {nomClient(client, item)}
-                          </p>
+                          {item.statut === "envoye" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void changerStatut(item, "accepte")
+                                }
+                                className="min-h-10 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
+                              >
+                                Accepter
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void changerStatut(item, "refuse")
+                                }
+                                className="min-h-10 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                              >
+                                Refuser
+                              </button>
+                            </>
+                          )}
+
+                          {item.statut === "accepte" && (
+                            <button
+                              type="button"
+                              onClick={() => void transformerEnFacture(item)}
+                              disabled={chargementAction}
+                              className="min-h-10 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+                            >
+                              Transformer en facture
+                            </button>
+                          )}
+
+                          {item.statut !== "archive" && (
+                            <button
+                              type="button"
+                              onClick={() => void changerStatut(item, "archive")}
+                              className="min-h-10 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            >
+                              Archiver
+                            </button>
+                          )}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex max-w-full flex-wrap gap-2 xl:max-w-md xl:justify-end">
-                      <BoutonTelechargerDocumentPdf
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
-                      />
-
-                      <Link
-                        href={`/chef/devis/${item.id}/impression`}
-                        target="_blank"
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        Imprimer
-                      </Link>
-
-                      <BoutonEnvoyerDocumentEmail
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
-                        defaultEmail={emailClient}
-                        defaultMessage={messageEmailParDefaut}
-                        onEnvoye={chargerDevis}
-                      />
-
-                      <HistoriqueEmailsDocument
-                        typeDocument="devis"
-                        documentId={item.id}
-                        numero={item.numero}
-                      />
-
-                      <BoutonCreerFicheInterventionDepuisDevis
-  devisId={item.id}
-  statut={item.statut}
-  factureLiee={item.facture_liee || null}
-/>
-
-<FichesInterventionLieesDevis
-  entrepriseId={entrepriseId}
-  devisId={item.id}
-/>
-                      {item.facture_liee && (
-                        <Link
-                          href="/chef/factures"
-                          className="rounded-xl border border-purple-200 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50"
-                        >
-                          Voir facture {item.facture_liee.numero || ""}
-                        </Link>
-                      )}
-
-                      {item.statut === "brouillon" && (
-                        <button
-                          type="button"
-                          onClick={() => void ouvrirEdition(item)}
-                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                        >
-                          Modifier
-                        </button>
-                      )}
-
-                      {item.statut === "envoye" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => void changerStatut(item, "accepte")}
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                          >
-                            Accepter
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void changerStatut(item, "refuse")}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Refuser
-                          </button>
-                        </>
-                      )}
-
-                      {item.statut === "accepte" && (
-                        <button
-                          type="button"
-                          onClick={() => void transformerEnFacture(item)}
-                          disabled={chargementAction}
-                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Transformer en facture
-                        </button>
-                      )}
-
-                      {item.statut !== "archive" && (
-                        <button
-                          type="button"
-                          onClick={() => void changerStatut(item, "archive")}
-                          className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-                        >
-                          Archiver
-                        </button>
-                      )}
                     </div>
                   </div>
-                </div>
+                </article>
               );
             })}
-          </div>
+          </section>
         )}
 
         {modalOuverte && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/40 px-4 py-6">
-            <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-              <div className="flex items-start justify-between border-b border-slate-200 p-5">
+          <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-slate-950/50 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+            <div className="max-h-[96vh] w-full max-w-5xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
+              <div className="sticky top-0 z-20 flex items-start justify-between border-b border-slate-200 bg-white/95 p-5 backdrop-blur">
                 <div>
                   <h2 className="text-xl font-black text-slate-950">
                     {devisEdition ? "Modifier le devis" : "Nouveau devis"}
@@ -1651,7 +1890,7 @@ Cordialement.`;
                 </div>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+              <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={fermerModal}
@@ -1667,7 +1906,11 @@ Cordialement.`;
                   disabled={chargementAction}
                   className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {chargementAction ? "Enregistrement..." : "Enregistrer"}
+                  {chargementAction
+                    ? "Enregistrement…"
+                    : devisEdition
+                      ? "Enregistrer les modifications"
+                      : "Créer le devis"}
                 </button>
               </div>
             </div>

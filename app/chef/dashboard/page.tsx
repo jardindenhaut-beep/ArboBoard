@@ -70,6 +70,50 @@ type Demande = {
   created_at?: string | null;
 };
 
+type AlerteUrssaf = {
+  id: string;
+  type: "client" | "demande";
+  statut: string;
+  titre: string;
+  message: string;
+  date: string | null;
+  lien: string;
+};
+
+type TableauUrssaf = {
+  clients: {
+    total: number;
+    brouillon: number;
+    pret: number;
+    appareillage_en_cours: number;
+    actif: number;
+    refuse: number;
+    erreur: number;
+  };
+  demandes: {
+    total: number;
+    brouillon: number;
+    prete: number;
+    transmise: number;
+    payee: number;
+    impayee: number;
+    annulee: number;
+    erreur: number;
+  };
+  virements: {
+    rapproches: number;
+    a_rapprocher: number;
+  };
+  derniere_verification: string | null;
+  alertes: AlerteUrssaf[];
+};
+
+type ReponseTableauUrssaf = {
+  succes?: boolean;
+  tableau?: TableauUrssaf;
+  erreur?: string;
+};
+
 function aujourdHuiISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -98,6 +142,48 @@ function formatDate(date: string | null | undefined) {
 function formatHeure(heure: string | null | undefined) {
   if (!heure) return "—";
   return heure.slice(0, 5);
+}
+
+function formatDateHeure(date: string | null | undefined) {
+  if (!date) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(date));
+  } catch {
+    return "—";
+  }
+}
+
+function badgeStatutUrssaf(statut: string | null | undefined) {
+  if (statut === "payee" || statut === "actif") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (
+    statut === "transmise" ||
+    statut === "appareillage_en_cours" ||
+    statut === "pret" ||
+    statut === "prete"
+  ) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (
+    statut === "impayee" ||
+    statut === "annulee" ||
+    statut === "refuse" ||
+    statut === "erreur"
+  ) {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
 function libelleStatutDevis(statut: string | null | undefined) {
@@ -190,6 +276,15 @@ export default function DashboardChefPage() {
   const [fiches, setFiches] = useState<FicheIntervention[]>([]);
   const [demandes, setDemandes] = useState<Demande[]>([]);
 
+  const [tableauUrssaf, setTableauUrssaf] =
+    useState<TableauUrssaf | null>(null);
+
+  const [chargementUrssaf, setChargementUrssaf] =
+    useState(true);
+
+  const [erreurUrssaf, setErreurUrssaf] =
+    useState("");
+
   const [chargement, setChargement] = useState(true);
   const [messageErreur, setMessageErreur] = useState("");
 
@@ -229,6 +324,7 @@ export default function DashboardChefPage() {
         chargerFactures(idEntreprise),
         chargerFiches(idEntreprise),
         chargerDemandes(idEntreprise),
+        chargerTableauUrssaf(),
       ]);
     } catch (error) {
       console.error("Erreur dashboard chef :", error);
@@ -333,6 +429,61 @@ export default function DashboardChefPage() {
     }
 
     setDemandes((data || []) as Demande[]);
+  }
+
+  async function chargerTableauUrssaf() {
+    try {
+      setChargementUrssaf(true);
+      setErreurUrssaf("");
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        setTableauUrssaf(null);
+        setErreurUrssaf(
+          "Session expirée. Reconnectez-vous pour charger le suivi URSSAF."
+        );
+        return;
+      }
+
+      const reponse = await fetch(
+        "/api/integrations/urssaf/tableau-de-bord",
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const resultat =
+        (await reponse.json().catch(() => null)) as
+          | ReponseTableauUrssaf
+          | null;
+
+      if (!reponse.ok || !resultat?.succes || !resultat.tableau) {
+        setTableauUrssaf(null);
+        setErreurUrssaf(
+          resultat?.erreur ||
+            "Impossible de charger le suivi Avance immédiate."
+        );
+        return;
+      }
+
+      setTableauUrssaf(resultat.tableau);
+    } catch (error) {
+      setTableauUrssaf(null);
+      setErreurUrssaf(
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger le suivi Avance immédiate."
+      );
+    } finally {
+      setChargementUrssaf(false);
+    }
   }
 
   const statistiques = useMemo(() => {
@@ -470,6 +621,27 @@ export default function DashboardChefPage() {
       .slice(0, 5);
   }, [factures]);
 
+  const syntheseUrssaf = useMemo(() => {
+    if (!tableauUrssaf) {
+      return {
+        inscriptionsEnAttente: 0,
+        incidents: 0,
+      };
+    }
+
+    return {
+      inscriptionsEnAttente:
+        tableauUrssaf.clients.pret +
+        tableauUrssaf.clients.appareillage_en_cours,
+      incidents:
+        tableauUrssaf.clients.refuse +
+        tableauUrssaf.clients.erreur +
+        tableauUrssaf.demandes.impayee +
+        tableauUrssaf.demandes.annulee +
+        tableauUrssaf.demandes.erreur,
+    };
+  }, [tableauUrssaf]);
+
   if (chargement) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -505,6 +677,13 @@ export default function DashboardChefPage() {
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link
+              href="/chef/parametres/avance-immediate"
+              className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-center text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            >
+              Avance immédiate
+            </Link>
+
+            <Link
               href="/chef/devis"
               className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
@@ -526,6 +705,256 @@ export default function DashboardChefPage() {
           {messageErreur}
         </div>
       )}
+
+      <section className="rounded-3xl border border-blue-200 bg-white shadow-sm">
+        <div className="flex flex-col justify-between gap-4 border-b border-blue-100 p-5 sm:flex-row sm:items-start">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-2xl">⚡</span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                  URSSAF
+                </p>
+                <h2 className="text-xl font-bold text-slate-950">
+                  Avance immédiate
+                </h2>
+              </div>
+            </div>
+
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+              Suivi des inscriptions clients, demandes de paiement,
+              incidents et virements restant à rapprocher.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void chargerTableauUrssaf()}
+              disabled={chargementUrssaf}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {chargementUrssaf
+                ? "Actualisation…"
+                : "Actualiser"}
+            </button>
+
+            <Link
+              href="/chef/parametres/avance-immediate"
+              className="rounded-xl bg-blue-700 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-blue-800"
+            >
+              Ouvrir le suivi
+            </Link>
+          </div>
+        </div>
+
+        {chargementUrssaf ? (
+          <div className="p-5">
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-sm font-semibold text-blue-700">
+              Chargement des données Avance immédiate…
+            </div>
+          </div>
+        ) : erreurUrssaf ? (
+          <div className="p-5">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="font-semibold text-amber-900">
+                Suivi URSSAF momentanément indisponible
+              </p>
+              <p className="mt-1 text-sm leading-6 text-amber-800">
+                {erreurUrssaf}
+              </p>
+            </div>
+          </div>
+        ) : tableauUrssaf ? (
+          <div className="space-y-5 p-5">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Link
+                href="/chef/clients"
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                  Clients actifs
+                </p>
+                <p className="mt-2 text-3xl font-black text-emerald-800">
+                  {tableauUrssaf.clients.actif}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-emerald-700">
+                  {tableauUrssaf.clients.total} dossier(s) au total
+                </p>
+              </Link>
+
+              <Link
+                href="/chef/clients"
+                className="rounded-2xl border border-amber-200 bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                  Inscriptions en attente
+                </p>
+                <p className="mt-2 text-3xl font-black text-amber-800">
+                  {syntheseUrssaf.inscriptionsEnAttente}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-amber-700">
+                  {tableauUrssaf.clients.brouillon} brouillon(s)
+                </p>
+              </Link>
+
+              <Link
+                href="/chef/factures"
+                className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm ${
+                  tableauUrssaf.virements.a_rapprocher > 0
+                    ? "border-blue-200 bg-blue-50"
+                    : "border-emerald-200 bg-emerald-50"
+                }`}
+              >
+                <p
+                  className={`text-xs font-semibold uppercase tracking-wide ${
+                    tableauUrssaf.virements.a_rapprocher > 0
+                      ? "text-blue-600"
+                      : "text-emerald-600"
+                  }`}
+                >
+                  Virements à rapprocher
+                </p>
+                <p
+                  className={`mt-2 text-3xl font-black ${
+                    tableauUrssaf.virements.a_rapprocher > 0
+                      ? "text-blue-800"
+                      : "text-emerald-800"
+                  }`}
+                >
+                  {tableauUrssaf.virements.a_rapprocher}
+                </p>
+                <p
+                  className={`mt-1 text-xs font-semibold ${
+                    tableauUrssaf.virements.a_rapprocher > 0
+                      ? "text-blue-700"
+                      : "text-emerald-700"
+                  }`}
+                >
+                  {tableauUrssaf.virements.rapproches} déjà rapproché(s)
+                </p>
+              </Link>
+
+              <Link
+                href="/chef/parametres/avance-immediate"
+                className={`rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm ${
+                  syntheseUrssaf.incidents > 0
+                    ? "border-red-200 bg-red-50"
+                    : "border-emerald-200 bg-emerald-50"
+                }`}
+              >
+                <p
+                  className={`text-xs font-semibold uppercase tracking-wide ${
+                    syntheseUrssaf.incidents > 0
+                      ? "text-red-600"
+                      : "text-emerald-600"
+                  }`}
+                >
+                  Incidents à traiter
+                </p>
+                <p
+                  className={`mt-2 text-3xl font-black ${
+                    syntheseUrssaf.incidents > 0
+                      ? "text-red-800"
+                      : "text-emerald-800"
+                  }`}
+                >
+                  {syntheseUrssaf.incidents}
+                </p>
+                <p
+                  className={`mt-1 text-xs font-semibold ${
+                    syntheseUrssaf.incidents > 0
+                      ? "text-red-700"
+                      : "text-emerald-700"
+                  }`}
+                >
+                  Impayés, rejets, annulations ou erreurs
+                </p>
+              </Link>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Dernière vérification automatique
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800">
+                  {tableauUrssaf.derniere_verification
+                    ? formatDateHeure(
+                        tableauUrssaf.derniere_verification
+                      )
+                    : "Aucune demande vérifiée pour le moment"}
+                </p>
+              </div>
+
+              <p className="text-xs font-semibold text-slate-500">
+                {tableauUrssaf.demandes.transmise} demande(s) encore transmise(s)
+              </p>
+            </div>
+
+            {tableauUrssaf.alertes.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-bold text-slate-950">
+                    Dernières alertes URSSAF
+                  </h3>
+
+                  <Link
+                    href="/chef/parametres/avance-immediate"
+                    className="text-sm font-semibold text-blue-700 hover:underline"
+                  >
+                    Voir tout
+                  </Link>
+                </div>
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  {tableauUrssaf.alertes.slice(0, 4).map((alerte) => (
+                    <Link
+                      key={`${alerte.type}-${alerte.id}`}
+                      href={alerte.lien}
+                      className="rounded-2xl border border-red-200 bg-red-50 p-4 transition hover:border-red-300"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-red-950">
+                          {alerte.titre}
+                        </p>
+
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase ${badgeStatutUrssaf(
+                            alerte.statut
+                          )}`}
+                        >
+                          {alerte.statut}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-red-800">
+                        {alerte.message}
+                      </p>
+
+                      <p className="mt-2 text-xs font-semibold text-red-600">
+                        {alerte.date
+                          ? formatDateHeure(alerte.date)
+                          : "Date non renseignée"}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+                Aucun incident URSSAF ne nécessite une intervention.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-5">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Aucune donnée Avance immédiate disponible pour le moment.
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -887,6 +1316,27 @@ export default function DashboardChefPage() {
           <p className="mt-1 text-sm text-slate-500">
             Préparer le terrain.
           </p>
+        </Link>
+
+        <Link
+          href="/chef/parametres/avance-immediate"
+          className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm hover:bg-blue-100 md:col-span-2 xl:col-span-4"
+        >
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-2xl">⚡</p>
+              <p className="mt-3 font-bold text-blue-950">
+                Avance immédiate URSSAF
+              </p>
+              <p className="mt-1 text-sm text-blue-700">
+                Inscrire les particuliers, suivre les demandes et rapprocher les virements.
+              </p>
+            </div>
+
+            <span className="text-sm font-bold text-blue-800">
+              Ouvrir le suivi →
+            </span>
+          </div>
         </Link>
       </section>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import BoutonTelechargerPvFinChantierPdf from "@/components/interventions/BoutonTelechargerPvFinChantierPdf";
 import BoutonEnvoyerPvFinChantierEmail from "@/components/interventions/BoutonEnvoyerPvFinChantierEmail";
@@ -201,9 +201,21 @@ function SignaturePad({
         }`}
       />
 
-      <p className="mt-2 text-xs text-slate-400">
-        Signature au doigt sur mobile ou à la souris sur ordinateur.
-      </p>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-400">
+          Signature au doigt sur mobile ou à la souris sur ordinateur.
+        </p>
+
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+            valeur
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {valeur ? "Signature enregistrée" : "Signature manquante"}
+        </span>
+      </div>
     </div>
   );
 }
@@ -222,6 +234,57 @@ function formatDateHeure(date: string | null | undefined) {
   } catch {
     return date;
   }
+}
+
+function normaliserEmail(valeur: string | null | undefined) {
+  return String(valeur || "").trim().toLowerCase();
+}
+
+function emailValide(valeur: string | null | undefined) {
+  const email = normaliserEmail(valeur);
+
+  if (!email) return false;
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function libelleEtatPv({
+  pvExiste,
+  envoye,
+  complet,
+}: {
+  pvExiste: boolean;
+  envoye: boolean;
+  complet: boolean;
+}) {
+  if (envoye) return "Envoyé";
+  if (pvExiste && complet) return "Enregistré";
+  if (pvExiste) return "À compléter";
+  return "Non créé";
+}
+
+function classeEtatPv({
+  pvExiste,
+  envoye,
+  complet,
+}: {
+  pvExiste: boolean;
+  envoye: boolean;
+  complet: boolean;
+}) {
+  if (envoye) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (pvExiste && complet) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (pvExiste) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
 export default function BlocPvFinChantier({
@@ -250,6 +313,8 @@ export default function BlocPvFinChantier({
   const [reconnaissanceEvacuation, setReconnaissanceEvacuation] = useState(false);
   const [signatureClient, setSignatureClient] = useState("");
   const [signatureEntreprise, setSignatureEntreprise] = useState("");
+  const [commentaireClient, setCommentaireClient] = useState("");
+  const [commentaireEntreprise, setCommentaireEntreprise] = useState("");
   const [signataireClientNom, setSignataireClientNom] = useState(
     clientNom || ""
   );
@@ -306,6 +371,8 @@ export default function BlocPvFinChantier({
         setReconnaissanceEvacuation(false);
         setSignatureClient("");
         setSignatureEntreprise("");
+        setCommentaireClient("");
+        setCommentaireEntreprise("");
         setSignataireClientNom(clientNom || "");
         setSignataireEntreprise(signataireEntrepriseNom || "");
         setClientEmailCharge(emailClientSource);
@@ -325,6 +392,8 @@ export default function BlocPvFinChantier({
       setReconnaissanceEvacuation(clientADejaSigne);
       setSignatureClient(pvCharge.signature_client || "");
       setSignatureEntreprise(pvCharge.signature_entreprise || "");
+      setCommentaireClient(pvCharge.commentaire_client || "");
+      setCommentaireEntreprise(pvCharge.commentaire_entreprise || "");
       setSignataireClientNom(pvCharge.signataire_client_nom || clientNom || "");
       setSignataireEntreprise(
         pvCharge.signataire_entreprise_nom || signataireEntrepriseNom || ""
@@ -369,12 +438,66 @@ export default function BlocPvFinChantier({
     }
   }
 
+  const emailClientNormalise = useMemo(
+    () => normaliserEmail(clientEmailCharge),
+    [clientEmailCharge]
+  );
+
+  const emailClientEstValide = useMemo(
+    () => emailValide(emailClientNormalise),
+    [emailClientNormalise]
+  );
+
+  const pvComplet = useMemo(() => {
+    if (!chantierTermine && !avecReserves) return false;
+    if (avecReserves && !reserves.trim()) return false;
+    if (!signataireEntreprise.trim() || !signatureEntreprise) return false;
+
+    if (clientPresent) {
+      if (!signataireClientNom.trim()) return false;
+      if (!reconnaissanceTravaux || !reconnaissanceEvacuation) return false;
+      if (!signatureClient) return false;
+    }
+
+    return true;
+  }, [
+    chantierTermine,
+    avecReserves,
+    reserves,
+    signataireEntreprise,
+    signatureEntreprise,
+    clientPresent,
+    signataireClientNom,
+    reconnaissanceTravaux,
+    reconnaissanceEvacuation,
+    signatureClient,
+  ]);
+
+  const etatPv = libelleEtatPv({
+    pvExiste: Boolean(pv?.id),
+    envoye: Boolean(pv?.envoye_client_at),
+    complet: pvComplet,
+  });
+
+  const classeBadgeEtatPv = classeEtatPv({
+    pvExiste: Boolean(pv?.id),
+    envoye: Boolean(pv?.envoye_client_at),
+    complet: pvComplet,
+  });
+
   async function enregistrerPv() {
     if (!entrepriseId || !ficheId) {
       setMessageErreur("Fiche intervention introuvable.");
       return;
     }
 
+
+    if (clientEmailCharge.trim() && !emailClientEstValide) {
+      setMessageErreur(
+        "L’adresse email du client n’est pas valide. Vérifiez-la ou laissez le champ vide."
+      );
+      return;
+    }
 
     if (!chantierTermine && !avecReserves) {
       setMessageErreur(
@@ -428,10 +551,12 @@ export default function BlocPvFinChantier({
         fiche_id: ficheId,
         client_id: clientId || null,
         client_nom: clientNom || null,
-        client_email: clientEmailCharge.trim().toLowerCase() || null,
+        client_email: emailClientNormalise || null,
         client_present: clientPresent,
         chantier_termine: chantierTermine,
         reserves: avecReserves ? reserves.trim() || null : null,
+        commentaire_client: commentaireClient.trim() || null,
+        commentaire_entreprise: commentaireEntreprise.trim() || null,
         signature_client: clientPresent ? signatureClient || null : null,
         signature_entreprise: signatureEntreprise || null,
         signataire_client_nom:
@@ -539,6 +664,8 @@ export default function BlocPvFinChantier({
       setReconnaissanceEvacuation(false);
       setSignatureClient("");
       setSignatureEntreprise("");
+      setCommentaireClient("");
+      setCommentaireEntreprise("");
       setSignataireClientNom(clientNom || "");
       setSignataireEntreprise(signataireEntrepriseNom || "");
       setMessageSucces("PV supprimé.");
@@ -563,274 +690,500 @@ export default function BlocPvFinChantier({
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-              📝
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+                ✍️
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-bold text-slate-950 sm:text-xl">
+                    PV de fin de chantier
+                  </h2>
+
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${classeBadgeEtatPv}`}
+                  >
+                    {etatPv}
+                  </span>
+                </div>
+
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Réception des travaux, réserves, commentaires et signatures.
+                </p>
+
+                {pv?.updated_at ? (
+                  <p className="mt-2 text-xs font-medium text-slate-400">
+                    Dernier enregistrement : {formatDateHeure(pv.updated_at)}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">
-                PV de fin de chantier
-              </h2>
+            {pv?.envoye_client_at ? (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <span className="font-bold">PV envoyé au client</span>
+                <span>
+                  {" "}
+                  le {formatDateHeure(pv.envoye_client_at)}
+                  {pv.envoye_client_email
+                    ? ` à ${pv.envoye_client_email}`
+                    : ""}
+                  .
+                </span>
+              </div>
+            ) : null}
+          </div>
 
-              <p className="text-sm text-slate-500">
-                Réception des travaux, réserves et signatures.
+          <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:justify-end">
+            {pv?.id ? (
+              <BoutonTelechargerPvFinChantierPdf ficheId={ficheId} />
+            ) : null}
+
+            {pv?.id && afficherEnvoiEmail && emailClientEstValide ? (
+              <BoutonEnvoyerPvFinChantierEmail
+                ficheId={ficheId}
+                pvId={pv.id}
+                emailClient={emailClientNormalise}
+                clientNom={clientNom}
+              />
+            ) : null}
+
+            {pv?.id && afficherEnvoiEmail && !emailClientEstValide ? (
+              <button
+                type="button"
+                disabled
+                title="Renseignez une adresse email valide avant l’envoi."
+                className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-400"
+              >
+                Email requis pour envoyer
+              </button>
+            ) : null}
+
+            {pv?.id && autoriserSuppression ? (
+              <button
+                type="button"
+                onClick={() => void supprimerPv()}
+                disabled={suppression || enregistrement}
+                className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {suppression ? "Suppression…" : "Supprimer le PV"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6 p-5 sm:p-6">
+        {messageErreur ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
+            {messageErreur}
+          </div>
+        ) : null}
+
+        {messageSucces ? (
+          <div
+            role="status"
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+          >
+            {messageSucces}
+          </div>
+        ) : null}
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+                🏗️
+              </span>
+              <div>
+                <h3 className="font-bold text-slate-950">État du chantier</h3>
+                <p className="text-xs text-slate-500">
+                  Indiquez si les travaux sont terminés et si le client est présent.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={chantierTermine}
+                  onChange={(event) => {
+                    const termine = event.target.checked;
+                    setChantierTermine(termine);
+
+                    if (!termine) {
+                      setAvecReserves(true);
+                    }
+                  }}
+                  className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-800">
+                    Chantier terminé
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Décochez uniquement lorsqu’une intervention complémentaire reste nécessaire.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={clientPresent}
+                  onChange={(event) => {
+                    const present = event.target.checked;
+                    setClientPresent(present);
+
+                    if (!present) {
+                      setSignatureClient("");
+                      setSignataireClientNom("");
+                      setReconnaissanceTravaux(false);
+                      setReconnaissanceEvacuation(false);
+                    } else {
+                      setSignataireClientNom(clientNom || "");
+                    }
+                  }}
+                  className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-800">
+                    Client présent sur place
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    La signature client devient obligatoire lorsqu’il est présent.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            {!clientPresent ? (
+              <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-700">
+                Le client est indiqué absent. Le PV pourra être enregistré avec
+                la seule signature de l’entreprise puis envoyé par email.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+                👥
+              </span>
+              <div>
+                <h3 className="font-bold text-slate-950">
+                  Signataires et destinataire
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Vérifiez les noms et l’adresse utilisée pour l’envoi.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <label>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Signataire entreprise *
+                </span>
+                <input
+                  value={signataireEntreprise}
+                  onChange={(event) =>
+                    setSignataireEntreprise(event.target.value)
+                  }
+                  placeholder="Nom du signataire entreprise"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Signataire client {clientPresent ? "*" : ""}
+                </span>
+                <input
+                  value={signataireClientNom}
+                  onChange={(event) =>
+                    setSignataireClientNom(event.target.value)
+                  }
+                  placeholder="Nom du signataire client"
+                  disabled={!clientPresent}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                />
+              </label>
+
+              {afficherEnvoiEmail ? (
+                <label>
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Email client
+                  </span>
+
+                  <input
+                    type="email"
+                    value={clientEmailCharge}
+                    onChange={(event) =>
+                      setClientEmailCharge(event.target.value)
+                    }
+                    placeholder="client@email.fr"
+                    autoComplete="email"
+                    aria-invalid={
+                      clientEmailCharge.trim() !== "" && !emailClientEstValide
+                    }
+                    className={`w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none transition focus:ring-4 ${
+                      clientEmailCharge.trim() !== "" && !emailClientEstValide
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                        : "border-slate-200 focus:border-emerald-500 focus:ring-emerald-100"
+                    }`}
+                  />
+
+                  {clientEmailCharge.trim() === "" ? (
+                    <span className="mt-1 block text-xs text-amber-700">
+                      Aucun email enregistré. Le PV pourra être sauvegardé,
+                      mais pas envoyé par email.
+                    </span>
+                  ) : !emailClientEstValide ? (
+                    <span className="mt-1 block text-xs font-medium text-red-600">
+                      L’adresse saisie n’est pas valide.
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-xs font-medium text-emerald-700">
+                      Adresse email valide.
+                    </span>
+                  )}
+                </label>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+              📋
+            </span>
+            <div>
+              <h3 className="font-bold text-slate-950">
+                Réception du chantier
+              </h3>
+              <p className="text-xs text-slate-500">
+                Sélectionnez une réception sans réserve ou détaillez les réserves.
               </p>
             </div>
           </div>
 
-          {pv?.envoye_client_at && (
-            <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
-              PV envoyé au client le {formatDateHeure(pv.envoye_client_at)}
-              {pv.envoye_client_email ? ` à ${pv.envoye_client_email}` : ""}.
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {pv?.id && (
-            <BoutonTelechargerPvFinChantierPdf ficheId={ficheId} />
-          )}
-
-          {pv?.id && afficherEnvoiEmail && (
-            <BoutonEnvoyerPvFinChantierEmail
-              ficheId={ficheId}
-              pvId={pv.id}
-              emailClient={clientEmailCharge}
-              clientNom={clientNom}
-            />
-          )}
-
-          {pv?.id && autoriserSuppression && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={supprimerPv}
-              disabled={suppression || enregistrement}
-              className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => {
+                setAvecReserves(false);
+                setReserves("");
+              }}
+              disabled={!chantierTermine}
+              aria-pressed={!avecReserves}
+              className={`min-h-14 rounded-2xl border px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                !avecReserves
+                  ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+              }`}
             >
-              {suppression ? "Suppression..." : "Supprimer le PV"}
+              ✓ Sans réserve
             </button>
-          )}
-        </div>
-      </div>
 
-      {messageErreur && (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {messageErreur}
-        </div>
-      )}
-
-      {messageSucces && (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {messageSucces}
-        </div>
-      )}
-
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-bold text-slate-950">État du chantier</p>
-
-          <div className="mt-4 space-y-3">
-            <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                checked={chantierTermine}
-                onChange={(event) => setChantierTermine(event.target.checked)}
-                className="h-4 w-4"
-              />
-              Chantier terminé
-            </label>
-
-            <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                checked={clientPresent}
-                onChange={(event) => {
-                  setClientPresent(event.target.checked);
-
-                  if (!event.target.checked) {
-                    setSignatureClient("");
-                    setSignataireClientNom("");
-                  }
-                }}
-                className="h-4 w-4"
-              />
-              Client présent sur place
-            </label>
+            <button
+              type="button"
+              onClick={() => setAvecReserves(true)}
+              aria-pressed={avecReserves}
+              className={`min-h-14 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+                avecReserves
+                  ? "border-amber-500 bg-amber-500 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              ⚠️ Avec réserves
+            </button>
           </div>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-bold text-slate-950">
-            Signataires / client
-          </p>
+          {avecReserves ? (
+            <label className="mt-4 block">
+              <span className="mb-2 block text-sm font-bold text-slate-800">
+                Description précise des réserves *
+              </span>
+              <textarea
+                value={reserves}
+                onChange={(event) => setReserves(event.target.value)}
+                rows={5}
+                placeholder="Décrivez les travaux restant à effectuer, les défauts constatés et les engagements pris."
+                className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+              />
+              <span className="mt-1 block text-right text-xs text-slate-400">
+                {reserves.trim().length} caractère(s)
+              </span>
+            </label>
+          ) : null}
+        </section>
 
-          <div className="mt-4 space-y-3">
-            <input
-              value={signataireEntreprise}
-              onChange={(event) => setSignataireEntreprise(event.target.value)}
-              placeholder="Nom du signataire entreprise"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+        <section className="grid gap-4 lg:grid-cols-2">
+          <label className="rounded-3xl border border-slate-200 bg-white p-4">
+            <span className="text-sm font-bold text-slate-950">
+              Commentaire de l’entreprise
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">
+              Observations internes ou informations à faire apparaître sur le PV.
+            </span>
+            <textarea
+              value={commentaireEntreprise}
+              onChange={(event) =>
+                setCommentaireEntreprise(event.target.value)
+              }
+              rows={4}
+              placeholder="Ex : travaux réalisés conformément au devis, recommandations d’entretien…"
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             />
+          </label>
 
-            <input
-              value={signataireClientNom}
-              onChange={(event) => setSignataireClientNom(event.target.value)}
-              placeholder="Nom du signataire client"
-              disabled={!clientPresent}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          <label className="rounded-3xl border border-slate-200 bg-white p-4">
+            <span className="text-sm font-bold text-slate-950">
+              Commentaire du client
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">
+              Remarque formulée par le client ou motif de son absence.
+            </span>
+            <textarea
+              value={commentaireClient}
+              onChange={(event) => setCommentaireClient(event.target.value)}
+              rows={4}
+              placeholder={
+                clientPresent
+                  ? "Ex : client satisfait, demande complémentaire…"
+                  : "Ex : client absent lors de la réception, PV envoyé par email…"
+              }
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             />
+          </label>
+        </section>
 
-            {afficherEnvoiEmail && (
+        {clientPresent ? (
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+                ✅
+              </span>
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Email client
-                </label>
-
-                <input
-                  type="email"
-                  value={clientEmailCharge}
-                  onChange={(event) => setClientEmailCharge(event.target.value)}
-                  placeholder="client@email.fr"
-                  autoComplete="email"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                />
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Adresse reprise automatiquement depuis la fiche client.
+                <h3 className="font-bold text-emerald-950">
+                  Bon pour réception des travaux
+                </h3>
+                <p className="text-xs text-emerald-700">
+                  Les deux déclarations doivent être acceptées avant la signature.
                 </p>
               </div>
-            )}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={reconnaissanceTravaux}
+                  onChange={(event) =>
+                    setReconnaissanceTravaux(event.target.checked)
+                  }
+                  className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  Je reconnais que les travaux ont été réalisés conformément au
+                  devis accepté, sous réserve des éventuelles réserves indiquées
+                  dans le présent document.
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={reconnaissanceEvacuation}
+                  onChange={(event) =>
+                    setReconnaissanceEvacuation(event.target.checked)
+                  }
+                  className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  Je reconnais que les déchets ont été évacués ou laissés sur
+                  place conformément aux conditions prévues.
+                </span>
+              </label>
+            </div>
+          </section>
+        ) : null}
+
+        <section>
+          <div className="mb-4">
+            <h3 className="font-bold text-slate-950">Signatures</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              La signature de l’entreprise est toujours obligatoire.
+            </p>
           </div>
-        </div>
-      </div>
 
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-950">
-          Réception du chantier
-        </p>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => {
-              setAvecReserves(false);
-              setReserves("");
-            }}
-            disabled={!chantierTermine}
-            className={`min-h-14 rounded-2xl border px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-              !avecReserves
-                ? "border-emerald-500 bg-emerald-600 text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+          <div
+            className={`grid gap-4 ${
+              clientPresent ? "lg:grid-cols-2" : "max-w-2xl"
             }`}
           >
-            Sans réserve
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAvecReserves(true)}
-            className={`min-h-14 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-              avecReserves
-                ? "border-amber-500 bg-amber-500 text-white"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-          >
-            Avec réserves
-          </button>
-        </div>
-      </div>
-
-      {avecReserves && (
-        <div className="mt-5">
-          <label className="mb-2 block text-sm font-bold text-slate-800">
-            Réserves
-          </label>
-          <textarea
-            value={reserves}
-            onChange={(event) => setReserves(event.target.value)}
-            rows={5}
-            placeholder="Décrivez précisément les réserves formulées par le client."
-            className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
-          />
-        </div>
-      )}
-
-      {clientPresent && (
-        <div className="mt-5 rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-sm font-bold text-emerald-950">
-            Bon pour réception des travaux
-          </p>
-
-          <div className="mt-4 space-y-3">
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
-              <input
-                type="checkbox"
-                checked={reconnaissanceTravaux}
-                onChange={(event) =>
-                  setReconnaissanceTravaux(event.target.checked)
-                }
-                className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            {clientPresent ? (
+              <SignaturePad
+                label="Signature client *"
+                valeur={signatureClient}
+                onChange={setSignatureClient}
               />
-              <span className="text-sm text-slate-700">
-                Je reconnais que les travaux ont été réalisés conformément au devis accepté.
-              </span>
-            </label>
+            ) : null}
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4">
-              <input
-                type="checkbox"
-                checked={reconnaissanceEvacuation}
-                onChange={(event) =>
-                  setReconnaissanceEvacuation(event.target.checked)
-                }
-                className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-              />
-              <span className="text-sm text-slate-700">
-                Je reconnais que les déchets ont été évacués ou laissés sur place conformément aux conditions prévues.
-              </span>
-            </label>
+            <SignaturePad
+              label="Signature entreprise *"
+              valeur={signatureEntreprise}
+              onChange={setSignatureEntreprise}
+            />
           </div>
-        </div>
-      )}
+        </section>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        {clientPresent && (
-          <SignaturePad
-            label="Signature client"
-            valeur={signatureClient}
-            onChange={setSignatureClient}
-          />
-        )}
+        <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-bold text-slate-950">
+                {pvComplet
+                  ? "Le PV contient les informations obligatoires."
+                  : "Le PV doit encore être complété."}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                L’enregistrement est nécessaire avant le téléchargement ou
+                l’envoi au client.
+              </p>
+            </div>
 
-        <SignaturePad
-          label="Signature entreprise"
-          valeur={signatureEntreprise}
-          onChange={setSignatureEntreprise}
-        />
-      </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => void chargerPvEtEmail()}
+                disabled={enregistrement || suppression}
+                className="min-h-12 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annuler les modifications
+              </button>
 
-      <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={chargerPvEtEmail}
-          disabled={enregistrement || suppression}
-          className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Annuler les modifications
-        </button>
-
-        <button
-          type="button"
-          onClick={enregistrerPv}
-          disabled={enregistrement || suppression}
-          className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {enregistrement ? "Enregistrement..." : "Enregistrer le PV"}
-        </button>
+              <button
+                type="button"
+                onClick={() => void enregistrerPv()}
+                disabled={enregistrement || suppression}
+                className="min-h-12 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {enregistrement ? "Enregistrement…" : "Enregistrer le PV"}
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   );

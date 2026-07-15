@@ -122,7 +122,34 @@ function emailValide(email: string) {
 
 function siretValide(siret: string) {
   if (!siret.trim()) return true;
-  return siret.replace(/\s/g, "").length === 14;
+  return /^\d{14}$/.test(siret.replace(/\s/g, ""));
+}
+
+function codePostalValide(codePostal: string) {
+  if (!codePostal.trim()) return true;
+  return /^\d{5}$/.test(codePostal.replace(/\s/g, ""));
+}
+
+function normaliserEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function normaliserNumeroTva(numeroTva: string) {
+  return numeroTva.replace(/\s/g, "").toUpperCase();
+}
+
+function initialesEntreprise(nomEntreprise: string) {
+  const mots = nomEntreprise
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (mots.length === 0) return "A";
+
+  return mots
+    .slice(0, 2)
+    .map((mot) => mot.charAt(0).toUpperCase())
+    .join("");
 }
 
 export default function PageParametresChef() {
@@ -133,6 +160,7 @@ export default function PageParametresChef() {
     useState<EntrepriseParametres>(FORMULAIRE_VIDE);
 
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [enregistrement, setEnregistrement] = useState(false);
   const [uploadLogoEnCours, setUploadLogoEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -142,6 +170,32 @@ export default function PageParametresChef() {
     () => JSON.stringify(form) !== JSON.stringify(formEnregistre),
     [form, formEnregistre]
   );
+
+  const progressionConfiguration = useMemo(() => {
+    const controles = [
+      Boolean(form.nom_entreprise.trim()),
+      Boolean(
+        form.adresse.trim() &&
+          form.code_postal.trim() &&
+          form.ville.trim()
+      ),
+      Boolean(form.email.trim() || form.telephone.trim()),
+      Boolean(form.siret.trim()),
+      Boolean(form.logo_url.trim()),
+      Boolean(form.conditions_generales_devis.trim()),
+      Boolean(form.conditions_generales_factures.trim()),
+    ];
+
+    const termines = controles.filter(Boolean).length;
+
+    return {
+      termines,
+      total: controles.length,
+      pourcentage: Math.round(
+        (termines / controles.length) * 100
+      ),
+    };
+  }, [form]);
 
   useEffect(() => {
     void chargerParametres();
@@ -162,9 +216,16 @@ export default function PageParametresChef() {
     };
   }, [formulaireModifie]);
 
-  async function chargerParametres() {
+  async function chargerParametres(
+    afficherConfirmation = false
+  ) {
     try {
-      setChargement(true);
+      if (afficherConfirmation) {
+        setActualisation(true);
+      } else {
+        setChargement(true);
+      }
+
       setErreur(null);
       setMessage(null);
 
@@ -262,6 +323,10 @@ export default function PageParametresChef() {
 
       setForm(formulaireCharge);
       setFormEnregistre(formulaireCharge);
+
+      if (afficherConfirmation) {
+        setMessage("Les paramètres ont été actualisés.");
+      }
     } catch (error) {
       console.error("Erreur chargement paramètres :", error);
       setErreur(
@@ -272,6 +337,7 @@ export default function PageParametresChef() {
       );
     } finally {
       setChargement(false);
+      setActualisation(false);
     }
   }
 
@@ -300,6 +366,12 @@ export default function PageParametresChef() {
     setMessage(
       "Les réglages standards ont été restaurés. Enregistrez pour les conserver."
     );
+  }
+
+  function annulerModifications() {
+    setForm(formEnregistre);
+    setErreur(null);
+    setMessage("Les modifications ont été annulées.");
   }
 
   async function uploaderLogo(event: ChangeEvent<HTMLInputElement>) {
@@ -434,7 +506,14 @@ export default function PageParametresChef() {
     }
 
     if (!siretValide(form.siret)) {
-      setErreur("Le numéro SIRET doit contenir 14 chiffres.");
+      setErreur(
+        "Le numéro SIRET doit contenir exactement 14 chiffres."
+      );
+      return;
+    }
+
+    if (!codePostalValide(form.code_postal)) {
+      setErreur("Le code postal doit contenir 5 chiffres.");
       return;
     }
 
@@ -472,10 +551,12 @@ export default function PageParametresChef() {
         code_postal: form.code_postal.trim(),
         ville: form.ville.trim(),
         telephone: form.telephone.trim(),
-        email: form.email.trim(),
+        email: normaliserEmail(form.email),
         siret: form.siret.replace(/\s/g, "").trim(),
         numero_tva_intracommunautaire:
-          form.numero_tva_intracommunautaire.trim().toUpperCase(),
+          normaliserNumeroTva(
+            form.numero_tva_intracommunautaire
+          ),
         forme_juridique: form.forme_juridique.trim(),
         logo_url: form.logo_url.trim(),
         assurance_professionnelle:
@@ -590,16 +671,18 @@ export default function PageParametresChef() {
 
   if (chargement) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
-            ⚙️
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
           </div>
-          <p className="text-lg font-bold text-slate-950">
+
+          <p className="font-semibold text-slate-950">
             Chargement des paramètres…
           </p>
+
           <p className="mt-1 text-sm text-slate-500">
-            Récupération des réglages de l’entreprise.
+            Récupération de l’identité, du logo et des réglages documentaires.
           </p>
         </div>
       </div>
@@ -608,34 +691,57 @@ export default function PageParametresChef() {
 
   return (
     <main className="mx-auto max-w-7xl space-y-6">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Configuration
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Paramètres de l’entreprise
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Configurez l’identité visuelle, la numérotation et les
-              informations utilisées sur les devis, factures, avoirs et PDF.
-            </p>
-          </div>
+      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-emerald-600" />
 
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/chef/compte"
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              ← Mon compte
-            </Link>
-            <Link
-              href="/chef/profil"
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Profil entreprise
-            </Link>
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
+                ⚙️
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Configuration
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Paramètres de l’entreprise
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Configurez l’identité visuelle, la numérotation et les
+                  informations utilisées sur les devis, factures, avoirs et PDF.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto">
+              <button
+                type="button"
+                onClick={() => void chargerParametres(true)}
+                disabled={actualisation || enregistrement}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true">↻</span>
+                {actualisation ? "Actualisation…" : "Actualiser"}
+              </button>
+
+              <Link
+                href="/chef/compte"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                ← Mon compte
+              </Link>
+
+              <Link
+                href="/chef/profil"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                Profil entreprise
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -665,11 +771,7 @@ export default function PageParametresChef() {
           </p>
           <button
             type="button"
-            onClick={() => {
-              setForm(formEnregistre);
-              setErreur(null);
-              setMessage(null);
-            }}
+            onClick={annulerModifications}
             className="w-fit text-sm font-semibold text-amber-900 hover:underline"
           >
             Annuler les modifications
@@ -716,6 +818,12 @@ export default function PageParametresChef() {
                 autoComplete="email"
                 value={form.email}
                 onChange={(valeur) => modifierChamp("email", valeur)}
+                erreur={
+                  form.email.trim() !== "" &&
+                  !emailValide(form.email)
+                    ? "L’adresse email n’est pas valide."
+                    : undefined
+                }
               />
               <ChampTexte
                 label="SIRET"
@@ -724,6 +832,12 @@ export default function PageParametresChef() {
                 value={form.siret}
                 onChange={(valeur) => modifierChamp("siret", valeur)}
                 aide="14 chiffres. Les espaces sont supprimés à l’enregistrement."
+                erreur={
+                  form.siret.trim() !== "" &&
+                  !siretValide(form.siret)
+                    ? "Le SIRET doit contenir exactement 14 chiffres."
+                    : undefined
+                }
               />
               <ChampTexte
                 label="TVA intracommunautaire"
@@ -758,10 +872,16 @@ export default function PageParametresChef() {
                   label="Code postal"
                   inputMode="numeric"
                   autoComplete="postal-code"
-                  maxLength={10}
+                  maxLength={5}
                   value={form.code_postal}
                   onChange={(valeur) =>
                     modifierChamp("code_postal", valeur)
+                  }
+                  erreur={
+                    form.code_postal.trim() !== "" &&
+                    !codePostalValide(form.code_postal)
+                      ? "Le code postal doit contenir 5 chiffres."
+                      : undefined
                   }
                 />
                 <ChampTexte
@@ -919,11 +1039,33 @@ export default function PageParametresChef() {
               />
             </div>
 
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              Exemple :{" "}
-              <span className="font-semibold text-slate-900">
-                {normaliserPrefixe(form.prefixe_devis, "DEV")}-2026-0001
-              </span>
+            <div className="mt-4 grid gap-2 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Exemple devis
+                </p>
+                <p className="mt-1 font-bold text-slate-900">
+                  {normaliserPrefixe(form.prefixe_devis, "DEV")}-2026-0001
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Exemple facture
+                </p>
+                <p className="mt-1 font-bold text-slate-900">
+                  {normaliserPrefixe(form.prefixe_facture, "FAC")}-2026-0001
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Exemple avoir
+                </p>
+                <p className="mt-1 font-bold text-slate-900">
+                  {normaliserPrefixe(form.prefixe_avoir, "AV")}-2026-0001
+                </p>
+              </div>
             </div>
           </CarteParametres>
 
@@ -978,9 +1120,31 @@ export default function PageParametresChef() {
 
         <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
           <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">
-              État de la configuration
-            </h2>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-slate-950">
+                  État de la configuration
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  {progressionConfiguration.termines} élément(s) sur{" "}
+                  {progressionConfiguration.total}
+                </p>
+              </div>
+
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                {progressionConfiguration.pourcentage} %
+              </span>
+            </div>
+
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-all"
+                style={{
+                  width: `${progressionConfiguration.pourcentage}%`,
+                }}
+              />
+            </div>
 
             <div className="mt-4 space-y-3">
               <EtatConfiguration
@@ -1015,6 +1179,63 @@ export default function PageParametresChef() {
                 )}
                 label="Conditions des factures"
               />
+            </div>
+          </article>
+
+          <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <h2 className="font-bold text-slate-950">
+                Aperçu d’en-tête
+              </h2>
+            </div>
+
+            <div className="p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-emerald-50 text-sm font-black text-emerald-700">
+                  {form.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={form.logo_url}
+                      alt=""
+                      className="h-full w-full object-contain p-1"
+                    />
+                  ) : (
+                    initialesEntreprise(form.nom_entreprise)
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="break-words font-black text-slate-950">
+                    {form.nom_entreprise || "Nom de l’entreprise"}
+                  </p>
+
+                  <p className="mt-1 break-words text-xs leading-5 text-slate-500">
+                    {[form.adresse, form.code_postal, form.ville]
+                      .filter(Boolean)
+                      .join(", ") || "Adresse non renseignée"}
+                  </p>
+
+                  <p className="mt-1 break-all text-xs text-slate-500">
+                    {form.email || "Email non renseigné"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
+                <p>
+                  TVA par défaut :{" "}
+                  <span className="font-bold text-slate-900">
+                    {form.tva_defaut} %
+                  </span>
+                </p>
+
+                <p className="mt-1">
+                  Délai de paiement :{" "}
+                  <span className="font-bold text-slate-900">
+                    {form.delai_paiement_defaut} jour(s)
+                  </span>
+                </p>
+              </div>
             </div>
           </article>
 
@@ -1111,6 +1332,7 @@ function ChampTexte({
   autoComplete,
   inputMode,
   maxLength,
+  erreur,
 }: {
   label: string;
   value: string;
@@ -1122,6 +1344,7 @@ function ChampTexte({
   autoComplete?: string;
   inputMode?: "text" | "search" | "tel" | "url" | "email" | "numeric" | "decimal";
   maxLength?: number;
+  erreur?: string;
 }) {
   return (
     <label className="block">
@@ -1138,8 +1361,20 @@ function ChampTexte({
         inputMode={inputMode}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+        aria-invalid={Boolean(erreur)}
+        className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
+          erreur
+            ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+            : "border-slate-300 focus:border-emerald-500 focus:ring-emerald-100"
+        }`}
       />
+
+      {erreur ? (
+        <span className="mt-1.5 block text-xs font-medium leading-5 text-red-600">
+          {erreur}
+        </span>
+      ) : null}
+
       {aide ? (
         <span className="mt-1.5 block text-xs leading-5 text-slate-500">
           {aide}
@@ -1213,6 +1448,10 @@ function ChampTextarea({
         onChange={(event) => onChange(event.target.value)}
         className="mt-1.5 w-full resize-y rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
       />
+
+      <span className="mt-1 block text-right text-[11px] text-slate-400">
+        {value.length} caractère{value.length === 1 ? "" : "s"}
+      </span>
     </label>
   );
 }

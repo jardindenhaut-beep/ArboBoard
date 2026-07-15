@@ -1,5 +1,5 @@
 AUDIT GLOBAL ARBOBOARD
-Généré le : 15/07/2026 22:05:53
+Généré le : 15/07/2026 22:13:02
 Racine : C:\Users\Tour\Desktop\arboboard
 
 RÉSUMÉ
@@ -10,8 +10,7 @@ Routes API : 33
 Composants client : 60
 
 État Git :
-?? audit-arboboard.mjs
-?? audit-arboboard.txt
+Working tree clean.
 
 ==============================================================================
 1. Mentions Avance immédiate / URSSAF
@@ -509,7 +508,7 @@ app/chef/planning/page.tsx:1 — 2006 lignes
 app/chef/profil/page.tsx:1 — 1313 lignes
 app/chef/securite/demandes-rgpd-admin/page.tsx:1 — 1132 lignes
 app/chef/securite/documents-juridiques/page.tsx:1 — 1239 lignes
-app/chef/securite/page.tsx:1 — 1220 lignes
+app/chef/securite/page.tsx:1 — 1222 lignes
 app/salarie/interventions/[id]/page.tsx:1 — 1744 lignes
 app/salarie/planning/page.tsx:1 — 1347 lignes
 components/interventions/BlocPvFinChantier.tsx:1 — 1190 lignes
@@ -521,7 +520,6 @@ lib/interventions/genererPdfPvFinChantier.tsx:1 — 1855 lignes
 ROUTES DE PAGES DÉTECTÉES
 ==============================================================================
 / — app/page.tsx
-/api/securite/donnees-personnelles — app/api/securite/donnees-personnelles/page.tsx
 /auth/callback — app/auth/callback/page.tsx
 /auth/reset-password — app/auth/reset-password/page.tsx
 /auth/set-password — app/auth/set-password/page.tsx
@@ -556,6 +554,7 @@ ROUTES DE PAGES DÉTECTÉES
 /chef/securite/consentements — app/chef/securite/consentements/page.tsx
 /chef/securite/demandes-rgpd-admin — app/chef/securite/demandes-rgpd-admin/page.tsx
 /chef/securite/documents-juridiques — app/chef/securite/documents-juridiques/page.tsx
+/chef/securite/donnees-personnelles — app/chef/securite/donnees-personnelles/page.tsx
 /chef/securite/double-authentification — app/chef/securite/double-authentification/page.tsx
 /chef/securite/sauvegardes — app/chef/securite/sauvegardes/page.tsx
 /connexion — app/connexion/page.tsx

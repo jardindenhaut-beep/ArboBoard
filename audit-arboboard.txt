@@ -1,0 +1,611 @@
+AUDIT GLOBAL ARBOBOARD
+Généré le : 15/07/2026 22:05:53
+Racine : C:\Users\Tour\Desktop\arboboard
+
+RÉSUMÉ
+------------------------------------------------------------------------------
+Fichiers analysés : 122
+Pages Next.js : 50
+Routes API : 33
+Composants client : 60
+
+État Git :
+?? audit-arboboard.mjs
+?? audit-arboboard.txt
+
+==============================================================================
+1. Mentions Avance immédiate / URSSAF
+==============================================================================
+app/api/cron/urssaf-synchroniser/route.ts:177 — mention trouvée : URSSAF
+app/api/cron/urssaf-synchroniser/route.ts:227 — mention trouvée : URSSAF
+app/api/cron/urssaf-synchroniser/route.ts:455 — mention trouvée : URSSAF
+app/api/cron/urssaf-synchroniser/route.ts:580 — mention trouvée : URSSAF
+app/api/cron/urssaf-synchroniser/route.ts:583 — mention trouvée : URSSAF
+app/api/cron/urssaf-synchroniser/route.ts:629 — mention trouvée : URSSAF
+app/api/cron/urssaf-synchroniser/route.ts:157 — mention trouvée : Urssaf
+app/api/cron/urssaf-synchroniser/route.ts:158 — mention trouvée : Urssaf
+app/api/cron/urssaf-synchroniser/route.ts:360 — mention trouvée : Urssaf
+app/api/factures/enregistrer-paiement/route.ts:1010 — mention trouvée : Avance immédiate
+app/api/factures/enregistrer-paiement/route.ts:564 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:653 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:685 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:689 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:698 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:701 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:741 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:921 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:941 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:955 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:974 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:993 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:1008 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:1010 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:1110 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:1191 — mention trouvée : URSSAF
+app/api/factures/enregistrer-paiement/route.ts:1192 — mention trouvée : URSSAF
+app/api/integrations/urssaf/attestations-fiscales/route.ts:1369 — mention trouvée : URSSAF
+app/api/integrations/urssaf/clients/[clientId]/route.ts:862 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1051 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1213 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1374 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1384 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1505 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:134 — mention trouvée : avance-immediate
+app/api/integrations/urssaf/clients/[clientId]/route.ts:955 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1042 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1122 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1132 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1194 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1229 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1291 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1398 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1452 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1483 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1493 — mention trouvée : Urssaf
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1557 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:255 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:273 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:284 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:294 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:328 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:385 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:394 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:493 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:506 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:570 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:571 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:592 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:601 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:648 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:657 — mention trouvée : Urssaf
+app/api/integrations/urssaf/configuration/route.ts:666 — mention trouvée : Urssaf
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1782 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/factures/[factureId]/route.ts:863 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:872 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:982 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1019 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1535 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1616 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1626 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1696 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1722 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1736 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1795 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2038 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2065 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2200 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2260 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2317 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2326 — mention trouvée : URSSAF
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2118 — mention trouvée : Urssaf
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2160 — mention trouvée : Urssaf
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2209 — mention trouvée : Urssaf
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2252 — mention trouvée : Urssaf
+app/api/integrations/urssaf/historique/route.ts:799 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/historique/route.ts:789 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:296 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:297 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:317 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:384 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:423 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:474 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:574 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:675 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:685 — mention trouvée : URSSAF
+app/api/integrations/urssaf/synchroniser/route.ts:704 — mention trouvée : URSSAF
+app/api/integrations/urssaf/tableau-de-bord/route.ts:401 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/tableau-de-bord/route.ts:565 — mention trouvée : Avance immédiate
+app/api/integrations/urssaf/tableau-de-bord/route.ts:555 — mention trouvée : URSSAF
+app/chef/clients/page.tsx:672 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:707 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:727 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:789 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:808 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:1997 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:2242 — mention trouvée : Avance immédiate
+app/chef/clients/page.tsx:2327 — mention trouvée : avance-immediate
+app/chef/clients/page.tsx:720 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:1997 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:2023 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:2039 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:2242 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:2265 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:2337 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:2980 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:3051 — mention trouvée : Urssaf
+app/chef/clients/page.tsx:3052 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:691 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:705 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:688 — mention trouvée : avance-immediate
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:761 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:786 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:904 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:906 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/historique/page.tsx:310 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/historique/page.tsx:335 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/historique/page.tsx:539 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/historique/page.tsx:547 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/historique/page.tsx:749 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/historique/page.tsx:762 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/historique/page.tsx:536 — mention trouvée : avance-immediate
+app/chef/parametres/avance-immediate/historique/page.tsx:447 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/historique/page.tsx:543 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/historique/page.tsx:705 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/historique/page.tsx:785 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/historique/page.tsx:1072 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:477 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/page.tsx:560 — mention trouvée : Avance immédiate
+app/chef/parametres/avance-immediate/page.tsx:570 — mention trouvée : avance-immediate
+app/chef/parametres/avance-immediate/page.tsx:577 — mention trouvée : avance-immediate
+app/chef/parametres/avance-immediate/page.tsx:310 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:317 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:325 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:615 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:634 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:780 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:787 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:1001 — mention trouvée : URSSAF
+app/chef/parametres/avance-immediate/page.tsx:232 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:376 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:381 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:386 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:402 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:439 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:444 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:462 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:477 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:483 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:904 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:914 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:924 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:939 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:975 — mention trouvée : Urssaf
+app/chef/parametres/avance-immediate/page.tsx:991 — mention trouvée : Urssaf
+components/documents/BoutonEncaisserFacture.tsx:306 — mention trouvée : Avance immédiate
+components/documents/BoutonEncaisserFacture.tsx:280 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:306 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:384 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:581 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:599 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:640 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:712 — mention trouvée : URSSAF
+components/documents/BoutonEncaisserFacture.tsx:827 — mention trouvée : URSSAF
+components/documents/HistoriquePaiementsFacture.tsx:103 — mention trouvée : URSSAF
+components/documents/HistoriquePaiementsFacture.tsx:243 — mention trouvée : URSSAF
+components/documents/HistoriquePaiementsFacture.tsx:482 — mention trouvée : URSSAF
+components/documents/HistoriquePaiementsFacture.tsx:538 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:567 — mention trouvée : Avance immédiate
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:576 — mention trouvée : Avance immédiate
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:576 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:647 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:702 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:728 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:900 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:1308 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:1411 — mention trouvée : URSSAF
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:1410 — mention trouvée : Urssaf
+lib/server/attestationFiscaleSapPdf.tsx:349 — mention trouvée : Avance immédiate
+lib/server/urssafDemandesPaiement.ts:116 — mention trouvée : Urssaf
+lib/server/urssafDemandesPaiement.ts:124 — mention trouvée : Urssaf
+lib/server/urssafDemandesPaiement.ts:167 — mention trouvée : Urssaf
+lib/server/urssafDemandesPaiement.ts:176 — mention trouvée : Urssaf
+lib/server/urssafDemandesPaiement.ts:271 — mention trouvée : Urssaf
+lib/server/urssafDemandesPaiement.ts:308 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:132 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:140 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:183 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:192 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:241 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:287 — mention trouvée : Urssaf
+lib/server/urssafTp.ts:343 — mention trouvée : Urssaf
+
+==============================================================================
+2. Routes internes statiques introuvables
+==============================================================================
+Aucun résultat.
+
+==============================================================================
+3. Routes API statiques introuvables
+==============================================================================
+Aucun résultat.
+
+==============================================================================
+4. useSearchParams à contrôler
+==============================================================================
+app/chef/clients/page.tsx:373 — useSearchParams détecté ; vérifier la frontière Suspense
+app/chef/devis/page.tsx:330 — useSearchParams détecté ; vérifier la frontière Suspense
+app/chef/factures/page.tsx:359 — useSearchParams détecté ; vérifier la frontière Suspense
+
+==============================================================================
+5. Boutons sans type
+==============================================================================
+app/auth/reset-password/page.tsx:233 — bouton sans attribut type
+app/auth/set-password/page.tsx:146 — bouton sans attribut type
+app/chef/clients/page.tsx:1565 — bouton sans attribut type
+app/chef/clients/page.tsx:1861 — bouton sans attribut type
+app/chef/clients/page.tsx:1869 — bouton sans attribut type
+app/chef/demandes/page.tsx:521 — bouton sans attribut type
+app/chef/demandes/page.tsx:535 — bouton sans attribut type
+app/chef/demandes/page.tsx:549 — bouton sans attribut type
+app/chef/demandes/page.tsx:563 — bouton sans attribut type
+app/chef/devis/[id]/page.tsx:234 — bouton sans attribut type
+app/chef/devis/[id]/page.tsx:268 — bouton sans attribut type
+app/chef/devis/[id]/page.tsx:275 — bouton sans attribut type
+app/chef/factures/[id]/page.tsx:392 — bouton sans attribut type
+app/chef/factures/[id]/page.tsx:432 — bouton sans attribut type
+app/chef/factures/[id]/page.tsx:439 — bouton sans attribut type
+app/chef/interventions/page.tsx:1866 — bouton sans attribut type
+app/chef/interventions/page.tsx:2504 — bouton sans attribut type
+app/chef/interventions/page.tsx:2512 — bouton sans attribut type
+app/chef/salaries/acces/page.tsx:344 — bouton sans attribut type
+app/chef/salaries/acces/page.tsx:407 — bouton sans attribut type
+app/chef/salaries/page.tsx:468 — bouton sans attribut type
+app/chef/salaries/page.tsx:481 — bouton sans attribut type
+app/chef/salaries/page.tsx:572 — bouton sans attribut type
+app/chef/salaries/page.tsx:579 — bouton sans attribut type
+app/chef/salaries/page.tsx:591 — bouton sans attribut type
+app/connexion/salarie/page.tsx:158 — bouton sans attribut type
+app/inscription/page.tsx:251 — bouton sans attribut type
+app/mot-de-passe-oublie/page.tsx:89 — bouton sans attribut type
+app/salarie/demandes/page.tsx:390 — bouton sans attribut type
+app/salarie/demandes/page.tsx:563 — bouton sans attribut type
+app/salarie/demandes/page.tsx:591 — bouton sans attribut type
+app/salarie/demandes/page.tsx:682 — bouton sans attribut type
+app/salarie/demandes/page.tsx:690 — bouton sans attribut type
+app/salarie/layout.tsx:226 — bouton sans attribut type
+app/salarie/layout.tsx:275 — bouton sans attribut type
+app/salarie/layout.tsx:361 — bouton sans attribut type
+app/salarie/layout.tsx:383 — bouton sans attribut type
+app/salarie/profil/page.tsx:332 — bouton sans attribut type
+
+==============================================================================
+6. target="_blank" sans rel
+==============================================================================
+app/chef/devis/page.tsx:1330 — target="_blank" sans rel
+app/chef/factures/page.tsx:1511 — target="_blank" sans rel
+
+==============================================================================
+7. Images sans texte alternatif
+==============================================================================
+Aucun résultat.
+
+==============================================================================
+8. Variables serveur dans des composants client
+==============================================================================
+Aucun résultat.
+
+==============================================================================
+9. HTML potentiellement dangereux
+==============================================================================
+Aucun résultat.
+
+==============================================================================
+10. URL localhost codées en dur
+==============================================================================
+app/api/stripe/checkout/route.ts:17 — URL locale codée en dur
+app/api/stripe/checkout/route.ts:26 — URL locale codée en dur
+
+==============================================================================
+11. TODO / FIXME / HACK
+==============================================================================
+Aucun résultat.
+
+==============================================================================
+12. Traces console et debugger
+==============================================================================
+app/api/cron/urssaf-synchroniser/route.ts:176 — trace console
+app/api/cron/urssaf-synchroniser/route.ts:628 — trace console
+app/api/factures/creer-avoir/route.ts:165 — trace console
+app/api/factures/enregistrer-paiement/route.ts:574 — trace console
+app/api/integrations/urssaf/attestations-fiscales/route.ts:1503 — trace console
+app/api/integrations/urssaf/clients/[clientId]/route.ts:954 — trace console
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1556 — trace console
+app/api/integrations/urssaf/configuration/route.ts:327 — trace console
+app/api/integrations/urssaf/factures/[factureId]/route.ts:981 — trace console
+app/api/integrations/urssaf/factures/[factureId]/route.ts:2325 — trace console
+app/api/integrations/urssaf/synchroniser/route.ts:316 — trace console
+app/api/integrations/urssaf/synchroniser/route.ts:703 — trace console
+app/chef/profil/page.tsx:564 — trace console
+app/chef/securite/double-authentification/page.tsx:221 — trace console
+app/chef/securite/double-authentification/page.tsx:317 — trace console
+app/chef/securite/double-authentification/page.tsx:373 — trace console
+app/connexion/page.tsx:112 — trace console
+components/interventions/BlocPhotosChantier.tsx:230 — trace console
+lib/journalActivite.ts:33 — trace console
+lib/journalActivite.ts:55 — trace console
+lib/journalActivite.ts:64 — trace console
+
+==============================================================================
+13. Contournements du typage
+==============================================================================
+app/api/devis/transformer-en-facture/route.ts:26 — usage explicite de any
+app/api/devis/transformer-en-facture/route.ts:36 — usage explicite de any
+app/api/devis/transformer-en-facture/route.ts:114 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:95 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:95 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:165 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:166 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:167 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:168 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:428 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:616 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:617 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:619 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:706 — usage explicite de any
+app/api/documents/envoyer-email/route.ts:873 — usage explicite de any
+app/api/documents/generer-numero/route.ts:132 — usage explicite de any
+app/api/documents/pdf/route.ts:164 — usage explicite de any
+app/api/documents/pdf/route.ts:165 — usage explicite de any
+app/api/documents/pdf/route.ts:167 — usage explicite de any
+app/api/documents/pdf/route.ts:268 — usage explicite de any
+app/api/documents/pdf/route.ts:294 — usage explicite de any
+app/api/documents/pdf/route.ts:306 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:7 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:20 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:54 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:64 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:65 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:116 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:118 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:119 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:124 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:156 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:158 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:361 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:403 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:419 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:429 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:455 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:467 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:475 — usage explicite de any
+app/api/factures/creer-avoir/route.ts:493 — usage explicite de any
+app/api/factures/depuis-devis/route.ts:54 — usage explicite de any
+app/api/factures/depuis-devis/route.ts:84 — usage explicite de any
+app/api/factures/depuis-devis/route.ts:108 — usage explicite de any
+app/api/factures/depuis-devis/route.ts:386 — usage explicite de any
+app/api/factures/depuis-devis/route.ts:426 — usage explicite de any
+app/api/factures/relancer/route.ts:67 — usage explicite de any
+app/api/factures/relancer/route.ts:67 — usage explicite de any
+app/api/factures/relancer/route.ts:86 — usage explicite de any
+app/api/factures/relancer/route.ts:87 — usage explicite de any
+app/api/factures/relancer/route.ts:88 — usage explicite de any
+app/api/factures/relancer/route.ts:213 — usage explicite de any
+app/api/factures/relancer/route.ts:415 — usage explicite de any
+app/api/factures/relancer/route.ts:520 — usage explicite de any
+app/api/factures/supprimer-paiement/route.ts:40 — usage explicite de any
+app/api/factures/supprimer-paiement/route.ts:61 — usage explicite de any
+app/api/factures/supprimer-paiement/route.ts:252 — usage explicite de any
+app/api/factures/synchroniser-retards/route.ts:113 — usage explicite de any
+app/api/factures/synchroniser-retards/route.ts:136 — usage explicite de any
+app/api/interventions/pv-fin-chantier/envoyer-email/route.ts:1067 — usage explicite de any
+app/api/interventions/pv-fin-chantier/envoyer-email/route.ts:1070 — usage explicite de any
+app/api/interventions/pv-fin-chantier/envoyer-email/route.ts:1073 — usage explicite de any
+app/api/interventions/pv-fin-chantier/envoyer-email/route.ts:1247 — usage explicite de any
+app/api/interventions/pv-fin-chantier/envoyer-email/route.ts:1271 — usage explicite de any
+app/api/interventions/pv-fin-chantier/pdf/route.ts:554 — usage explicite de any
+app/api/interventions/pv-fin-chantier/pdf/route.ts:555 — usage explicite de any
+app/api/interventions/pv-fin-chantier/pdf/route.ts:556 — usage explicite de any
+app/api/interventions/pv-fin-chantier/pdf/route.ts:644 — usage explicite de any
+app/api/interventions/pv-fin-chantier/pdf/route.ts:658 — usage explicite de any
+app/api/stripe/webhook/route.ts:162 — usage explicite de any
+app/chef/clients/page.tsx:630 — usage explicite de any
+app/chef/clients/page.tsx:945 — usage explicite de any
+app/chef/clients/page.tsx:988 — usage explicite de any
+app/chef/clients/page.tsx:1071 — usage explicite de any
+app/chef/demandes/page.tsx:277 — usage explicite de any
+app/chef/demandes/page.tsx:314 — usage explicite de any
+app/chef/devis/page.tsx:446 — usage explicite de any
+app/chef/devis/page.tsx:560 — usage explicite de any
+app/chef/devis/page.tsx:577 — usage explicite de any
+app/chef/devis/page.tsx:619 — usage explicite de any
+app/chef/devis/page.tsx:682 — usage explicite de any
+app/chef/devis/page.tsx:771 — usage explicite de any
+app/chef/devis/page.tsx:796 — usage explicite de any
+app/chef/devis/page.tsx:842 — usage explicite de any
+app/chef/devis/[id]/impression/page.tsx:209 — usage explicite de any
+app/chef/factures/page.tsx:464 — usage explicite de any
+app/chef/factures/page.tsx:615 — usage explicite de any
+app/chef/factures/page.tsx:632 — usage explicite de any
+app/chef/factures/page.tsx:674 — usage explicite de any
+app/chef/factures/page.tsx:739 — usage explicite de any
+app/chef/factures/page.tsx:834 — usage explicite de any
+app/chef/factures/page.tsx:867 — usage explicite de any
+app/chef/factures/page.tsx:905 — usage explicite de any
+app/chef/factures/[id]/impression/page.tsx:254 — usage explicite de any
+app/chef/factures/[id]/page.tsx:345 — usage explicite de any
+app/chef/interventions/page.tsx:1007 — usage explicite de any
+app/chef/interventions/page.tsx:1222 — usage explicite de any
+app/chef/interventions/page.tsx:1254 — usage explicite de any
+app/chef/interventions/[id]/page.tsx:394 — usage explicite de any
+app/chef/interventions/[id]/page.tsx:406 — usage explicite de any
+app/chef/interventions/[id]/page.tsx:517 — usage explicite de any
+app/salarie/demandes/page.tsx:330 — usage explicite de any
+app/salarie/demandes/page.tsx:370 — usage explicite de any
+app/salarie/layout.tsx:13 — usage explicite de any
+app/salarie/layout.tsx:14 — usage explicite de any
+app/salarie/layout.tsx:103 — usage explicite de any
+app/salarie/profil/page.tsx:213 — usage explicite de any
+components/devis/FichesInterventionLieesDevis.tsx:100 — usage explicite de any
+components/documents/BoutonCreerAvoirFacture.tsx:91 — usage explicite de any
+components/documents/BoutonEnvoyerDocumentEmail.tsx:155 — usage explicite de any
+components/documents/BoutonFacturerDevis.tsx:75 — usage explicite de any
+components/documents/BoutonRelancerFacture.tsx:145 — usage explicite de any
+components/documents/BoutonTelechargerDocumentPdf.tsx:168 — usage explicite de any
+components/documents/HistoriqueAvoirsFacture.tsx:79 — usage explicite de any
+components/documents/HistoriqueEmailsDocument.tsx:145 — usage explicite de any
+components/interventions/BlocPhotosChantier.tsx:338 — usage explicite de any
+components/interventions/BlocPhotosChantier.tsx:466 — usage explicite de any
+components/interventions/BlocPhotosChantier.tsx:501 — usage explicite de any
+components/interventions/BlocPhotosChantier.tsx:558 — usage explicite de any
+components/interventions/BlocPvFinChantier.tsx:405 — usage explicite de any
+components/interventions/BlocPvFinChantier.tsx:613 — usage explicite de any
+components/interventions/BlocPvFinChantier.tsx:672 — usage explicite de any
+components/interventions/ResumeRetourTerrainFiche.tsx:171 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:18 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:19 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:20 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:21 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:22 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:65 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:65 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:93 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:163 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:174 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:175 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:183 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:708 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:780 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:856 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:857 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:906 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:943 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:944 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:971 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:1021 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:1077 — usage explicite de any
+lib/documents/genererPdfDocument.tsx:1078 — usage explicite de any
+lib/entreprise.ts:172 — usage explicite de any
+
+==============================================================================
+14. Fichiers de 1000 lignes ou plus
+==============================================================================
+app/api/factures/enregistrer-paiement/route.ts:1 — 1222 lignes
+app/api/integrations/urssaf/attestations-fiscales/route.ts:1 — 1534 lignes
+app/api/integrations/urssaf/clients/[clientId]/route.ts:1 — 1575 lignes
+app/api/integrations/urssaf/factures/[factureId]/route.ts:1 — 2342 lignes
+app/api/interventions/pv-fin-chantier/envoyer-email/route.ts:1 — 1507 lignes
+app/chef/abonnement/page.tsx:1 — 1088 lignes
+app/chef/clients/page.tsx:1 — 3066 lignes
+app/chef/dashboard/page.tsx:1 — 1406 lignes
+app/chef/devis/page.tsx:1 — 1922 lignes
+app/chef/factures/page.tsx:1 — 2159 lignes
+app/chef/interventions/page.tsx:1 — 2528 lignes
+app/chef/interventions/[id]/page.tsx:1 — 1475 lignes
+app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx:1 — 1334 lignes
+app/chef/parametres/avance-immediate/historique/page.tsx:1 — 1131 lignes
+app/chef/parametres/avance-immediate/page.tsx:1 — 1137 lignes
+app/chef/parametres/page.tsx:1 — 1480 lignes
+app/chef/planning/page.tsx:1 — 2006 lignes
+app/chef/profil/page.tsx:1 — 1313 lignes
+app/chef/securite/demandes-rgpd-admin/page.tsx:1 — 1132 lignes
+app/chef/securite/documents-juridiques/page.tsx:1 — 1239 lignes
+app/chef/securite/page.tsx:1 — 1220 lignes
+app/salarie/interventions/[id]/page.tsx:1 — 1744 lignes
+app/salarie/planning/page.tsx:1 — 1347 lignes
+components/interventions/BlocPvFinChantier.tsx:1 — 1190 lignes
+components/urssaf/BoutonDemandePaiementUrssaf.tsx:1 — 1459 lignes
+lib/documents/genererPdfDocument.tsx:1 — 1258 lignes
+lib/interventions/genererPdfPvFinChantier.tsx:1 — 1855 lignes
+
+==============================================================================
+ROUTES DE PAGES DÉTECTÉES
+==============================================================================
+/ — app/page.tsx
+/api/securite/donnees-personnelles — app/api/securite/donnees-personnelles/page.tsx
+/auth/callback — app/auth/callback/page.tsx
+/auth/reset-password — app/auth/reset-password/page.tsx
+/auth/set-password — app/auth/set-password/page.tsx
+/cgu — app/cgu/page.tsx
+/cgv — app/cgv/page.tsx
+/chef — app/chef/page.tsx
+/chef/abonnement — app/chef/abonnement/page.tsx
+/chef/calendrier — app/chef/calendrier/page.tsx
+/chef/chantiers — app/chef/chantiers/page.tsx
+/chef/clients — app/chef/clients/page.tsx
+/chef/compte — app/chef/compte/page.tsx
+/chef/dashboard — app/chef/dashboard/page.tsx
+/chef/demandes — app/chef/demandes/page.tsx
+/chef/devis — app/chef/devis/page.tsx
+/chef/devis/[id] — app/chef/devis/[id]/page.tsx
+/chef/devis/[id]/impression — app/chef/devis/[id]/impression/page.tsx
+/chef/factures — app/chef/factures/page.tsx
+/chef/factures/[id] — app/chef/factures/[id]/page.tsx
+/chef/factures/[id]/impression — app/chef/factures/[id]/impression/page.tsx
+/chef/interventions — app/chef/interventions/page.tsx
+/chef/interventions/[id] — app/chef/interventions/[id]/page.tsx
+/chef/parametres — app/chef/parametres/page.tsx
+/chef/parametres/avance-immediate — app/chef/parametres/avance-immediate/page.tsx
+/chef/parametres/avance-immediate/attestations-fiscales — app/chef/parametres/avance-immediate/attestations-fiscales/page.tsx
+/chef/parametres/avance-immediate/historique — app/chef/parametres/avance-immediate/historique/page.tsx
+/chef/planning — app/chef/planning/page.tsx
+/chef/profil — app/chef/profil/page.tsx
+/chef/salaries — app/chef/salaries/page.tsx
+/chef/salaries/acces — app/chef/salaries/acces/page.tsx
+/chef/securite — app/chef/securite/page.tsx
+/chef/securite/compte — app/chef/securite/compte/page.tsx
+/chef/securite/consentements — app/chef/securite/consentements/page.tsx
+/chef/securite/demandes-rgpd-admin — app/chef/securite/demandes-rgpd-admin/page.tsx
+/chef/securite/documents-juridiques — app/chef/securite/documents-juridiques/page.tsx
+/chef/securite/double-authentification — app/chef/securite/double-authentification/page.tsx
+/chef/securite/sauvegardes — app/chef/securite/sauvegardes/page.tsx
+/connexion — app/connexion/page.tsx
+/connexion/salarie — app/connexion/salarie/page.tsx
+/inscription — app/inscription/page.tsx
+/mentions-legales — app/mentions-legales/page.tsx
+/mot-de-passe-oublie — app/mot-de-passe-oublie/page.tsx
+/politique-confidentialite — app/politique-confidentialite/page.tsx
+/salarie/dashboard — app/salarie/dashboard/page.tsx
+/salarie/demandes — app/salarie/demandes/page.tsx
+/salarie/interventions — app/salarie/interventions/page.tsx
+/salarie/interventions/[id] — app/salarie/interventions/[id]/page.tsx
+/salarie/planning — app/salarie/planning/page.tsx
+/salarie/profil — app/salarie/profil/page.tsx
+
+==============================================================================
+ROUTES API DÉTECTÉES
+==============================================================================
+/api/creer-compte-salarie — app/api/creer-compte-salarie/route.ts
+/api/cron/urssaf-synchroniser — app/api/cron/urssaf-synchroniser/route.ts
+/api/devis/transformer-en-facture — app/api/devis/transformer-en-facture/route.ts
+/api/documents-juridiques-publics — app/api/documents-juridiques-publics/route.ts
+/api/documents/envoyer-email — app/api/documents/envoyer-email/route.ts
+/api/documents/generer-numero — app/api/documents/generer-numero/route.ts
+/api/documents/pdf — app/api/documents/pdf/route.ts
+/api/factures/creer-avoir — app/api/factures/creer-avoir/route.ts
+/api/factures/depuis-devis — app/api/factures/depuis-devis/route.ts
+/api/factures/enregistrer-paiement — app/api/factures/enregistrer-paiement/route.ts
+/api/factures/relancer — app/api/factures/relancer/route.ts
+/api/factures/supprimer-paiement — app/api/factures/supprimer-paiement/route.ts
+/api/factures/synchroniser-retards — app/api/factures/synchroniser-retards/route.ts
+/api/integrations/urssaf/attestations-fiscales — app/api/integrations/urssaf/attestations-fiscales/route.ts
+/api/integrations/urssaf/attestations-fiscales/[attestationId]/pdf — app/api/integrations/urssaf/attestations-fiscales/[attestationId]/pdf/route.ts
+/api/integrations/urssaf/clients/[clientId] — app/api/integrations/urssaf/clients/[clientId]/route.ts
+/api/integrations/urssaf/configuration — app/api/integrations/urssaf/configuration/route.ts
+/api/integrations/urssaf/factures/[factureId] — app/api/integrations/urssaf/factures/[factureId]/route.ts
+/api/integrations/urssaf/historique — app/api/integrations/urssaf/historique/route.ts
+/api/integrations/urssaf/synchroniser — app/api/integrations/urssaf/synchroniser/route.ts
+/api/integrations/urssaf/tableau-de-bord — app/api/integrations/urssaf/tableau-de-bord/route.ts
+/api/interventions/pv-fin-chantier/envoyer-email — app/api/interventions/pv-fin-chantier/envoyer-email/route.ts
+/api/interventions/pv-fin-chantier/pdf — app/api/interventions/pv-fin-chantier/pdf/route.ts
+/api/securite/admin/demandes-rgpd — app/api/securite/admin/demandes-rgpd/route.ts
+/api/securite/consentements — app/api/securite/consentements/route.ts
+/api/securite/demandes-rgpd — app/api/securite/demandes-rgpd/route.ts
+/api/securite/documents-juridiques — app/api/securite/documents-juridiques/route.ts
+/api/securite/export-donnees-personnelles — app/api/securite/export-donnees-personnelles/route.ts
+/api/securite/journal-activite — app/api/securite/journal-activite/route.ts
+/api/securite/sauvegardes — app/api/securite/sauvegardes/route.ts
+/api/stripe/checkout — app/api/stripe/checkout/route.ts
+/api/stripe/portal — app/api/stripe/portal/route.ts
+/api/stripe/webhook — app/api/stripe/webhook/route.ts
+
+FIN DU RAPPORT

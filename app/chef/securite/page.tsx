@@ -116,11 +116,11 @@ const BLOCS: BlocConformite[] = [
     description:
       "Export personnel et suivi des demandes d’exercice de droits.",
     emoji: "🇪🇺",
-    statut: "À contrôler",
+    statut: "Actif",
     details: [
-      "Les routes serveur d’export et de demandes RGPD sont disponibles.",
-      "Aucune page dédiée n’est actuellement exposée dans l’espace chef.",
-      "Le compte développeur peut traiter les demandes reçues depuis l’administration RGPD.",
+      "Téléchargement JSON des données personnelles du compte.",
+      "Demandes d’accès, rectification, effacement, limitation, opposition et portabilité.",
+      "Suivi des échéances, réponses et éventuelles prolongations.",
     ],
   },
   {
@@ -916,10 +916,12 @@ export default function SecuriteChefPage() {
             ) : null}
 
             {bloc.id === "rgpd" ? (
-              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-                L’interface dédiée aux données personnelles n’est pas encore
-                activée dans l’espace chef.
-              </div>
+              <Link
+                href="/chef/securite/donnees-personnelles"
+                className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Gérer mes données et demandes
+              </Link>
             ) : null}
 
             {bloc.id === "consentements" ? (

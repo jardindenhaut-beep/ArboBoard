@@ -101,7 +101,10 @@ function texte(
 function statutLocalDepuisCode(
   code: string
 ): StatutLocal {
-  if (code === "70") {
+  if (
+    code === "70" ||
+    code === "120"
+  ) {
     return "payee";
   }
 
@@ -260,6 +263,7 @@ export async function GET(
       .in("statut_local", [
         "transmise",
         "erreur",
+        "impayee",
       ])
       .order("derniere_verification_at", {
         ascending: true,

@@ -74,6 +74,17 @@ type ReponseTableau = {
   erreur?: string;
 };
 
+type ReponseSynchronisation = {
+  succes?: boolean;
+  avec_erreurs?: boolean;
+  message?: string;
+  erreur?: string;
+  demandes?: number;
+  actualisees?: number;
+  changees?: number;
+  erreurs?: number;
+};
+
 function formaterDate(date: string | null | undefined) {
   if (!date) return "Jamais testée";
 
@@ -147,6 +158,21 @@ export default function AvanceImmediateParametresPage() {
     chargementTableau,
     setChargementTableau,
   ] = useState(true);
+
+  const [
+    synchronisationEnCours,
+    setSynchronisationEnCours,
+  ] = useState(false);
+
+  const [
+    messageSynchronisation,
+    setMessageSynchronisation,
+  ] = useState("");
+
+  const [
+    erreurSynchronisation,
+    setErreurSynchronisation,
+  ] = useState("");
 
   useEffect(() => {
     void chargerConfiguration();
@@ -248,6 +274,58 @@ export default function AvanceImmediateParametresPage() {
       setTableau(null);
     } finally {
       setChargementTableau(false);
+    }
+  }
+
+  async function synchroniserAvecUrssaf() {
+    try {
+      setSynchronisationEnCours(true);
+      setMessageSynchronisation("");
+      setErreurSynchronisation("");
+
+      const jeton = await obtenirJeton();
+
+      const reponse = await fetch(
+        "/api/integrations/urssaf/synchroniser",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${jeton}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const donnees =
+        (await reponse.json().catch(
+          () => null
+        )) as ReponseSynchronisation | null;
+
+      if (
+        !reponse.ok ||
+        !donnees?.succes
+      ) {
+        setErreurSynchronisation(
+          donnees?.erreur ||
+            "Impossible de synchroniser les demandes URSSAF."
+        );
+        return;
+      }
+
+      setMessageSynchronisation(
+        donnees.message ||
+          "Synchronisation URSSAF terminée."
+      );
+
+      await chargerTableauDeBord();
+    } catch (error) {
+      setErreurSynchronisation(
+        error instanceof Error
+          ? error.message
+          : "Impossible de synchroniser les demandes URSSAF."
+      );
+    } finally {
+      setSynchronisationEnCours(false);
     }
   }
 
@@ -487,19 +565,55 @@ export default function AvanceImmediateParametresPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              void chargerTableauDeBord()
-            }
-            disabled={chargementTableau}
-            className="shrink-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {chargementTableau
-              ? "Actualisation…"
-              : "Actualiser le suivi"}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() =>
+                void chargerTableauDeBord()
+              }
+              disabled={
+                chargementTableau ||
+                synchronisationEnCours
+              }
+              className="shrink-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {chargementTableau
+                ? "Actualisation…"
+                : "Rafraîchir l’affichage"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                void synchroniserAvecUrssaf()
+              }
+              disabled={
+                synchronisationEnCours ||
+                chargementTableau ||
+                !configuration ||
+                configuration.statut !==
+                  "connectee"
+              }
+              className="shrink-0 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {synchronisationEnCours
+                ? "Synchronisation…"
+                : "Synchroniser avec l’URSSAF"}
+            </button>
+          </div>
         </div>
+
+        {messageSynchronisation ? (
+          <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+            {messageSynchronisation}
+          </div>
+        ) : null}
+
+        {erreurSynchronisation ? (
+          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {erreurSynchronisation}
+          </div>
+        ) : null}
 
         {chargementTableau ? (
           <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-600">

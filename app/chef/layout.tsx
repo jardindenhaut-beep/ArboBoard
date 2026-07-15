@@ -44,6 +44,26 @@ type LienCompte = {
 
 type NiveauAuthentification = "aal1" | "aal2" | null;
 
+type TableauAlertesUrssaf = {
+  clients?: {
+    refuse?: number;
+    erreur?: number;
+  };
+  demandes?: {
+    impayee?: number;
+    annulee?: number;
+    erreur?: number;
+  };
+  virements?: {
+    a_rapprocher?: number;
+  };
+};
+
+type ReponseAlertesUrssaf = {
+  succes?: boolean;
+  tableau?: TableauAlertesUrssaf;
+};
+
 const TOUS_LES_PLANS = ["essai", "essentiel", "pro", "expert", "dev"];
 const PLANS_EQUIPE = ["essai", "pro", "expert", "dev"];
 
@@ -102,6 +122,12 @@ const MENUS: MenuItem[] = [
     emoji: "🧾",
     plans: TOUS_LES_PLANS,
   },
+  {
+    label: "Avance immédiate",
+    href: "/chef/parametres/avance-immediate",
+    emoji: "⚡",
+    plans: TOUS_LES_PLANS,
+  },
 ];
 
 const LIENS_COMPTE: LienCompte[] = [
@@ -128,6 +154,12 @@ const LIENS_COMPTE: LienCompte[] = [
     description: "Entreprise et documents",
     href: "/chef/parametres",
     emoji: "⚙️",
+  },
+  {
+    label: "Avance immédiate",
+    description: "Connexion API Tiers de prestation Urssaf",
+    href: "/chef/parametres/avance-immediate",
+    emoji: "🇫🇷",
   },
   {
     label: "Sécurité & conformité",
@@ -398,6 +430,16 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     useState<NiveauAuthentification>(null);
   const [mfaRequise, setMfaRequise] = useState(false);
 
+  const [
+    nombreAlertesUrssaf,
+    setNombreAlertesUrssaf,
+  ] = useState(0);
+
+  const [
+    chargementAlertesUrssaf,
+    setChargementAlertesUrssaf,
+  ] = useState(false);
+
   useEffect(() => {
     let actif = true;
 
@@ -518,6 +560,115 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMenuUtilisateurOuvert(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!contexte) {
+      setNombreAlertesUrssaf(0);
+      return;
+    }
+
+    let actif = true;
+
+    async function chargerAlertesUrssaf() {
+      try {
+        setChargementAlertesUrssaf(true);
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (
+          !actif ||
+          !session?.access_token
+        ) {
+          if (actif) {
+            setNombreAlertesUrssaf(0);
+          }
+          return;
+        }
+
+        const reponse = await fetch(
+          "/api/integrations/urssaf/tableau-de-bord",
+          {
+            headers: {
+              Authorization:
+                `Bearer ${session.access_token}`,
+            },
+            cache: "no-store",
+          }
+        );
+
+        const donnees =
+          (await reponse.json().catch(
+            () => null
+          )) as ReponseAlertesUrssaf | null;
+
+        if (
+          !actif ||
+          !reponse.ok ||
+          !donnees?.succes ||
+          !donnees.tableau
+        ) {
+          if (actif) {
+            setNombreAlertesUrssaf(0);
+          }
+          return;
+        }
+
+        const total =
+          Number(
+            donnees.tableau.virements
+              ?.a_rapprocher || 0
+          ) +
+          Number(
+            donnees.tableau.demandes
+              ?.impayee || 0
+          ) +
+          Number(
+            donnees.tableau.demandes
+              ?.annulee || 0
+          ) +
+          Number(
+            donnees.tableau.demandes
+              ?.erreur || 0
+          ) +
+          Number(
+            donnees.tableau.clients
+              ?.refuse || 0
+          ) +
+          Number(
+            donnees.tableau.clients
+              ?.erreur || 0
+          );
+
+        setNombreAlertesUrssaf(
+          Math.max(0, total)
+        );
+      } catch {
+        if (actif) {
+          setNombreAlertesUrssaf(0);
+        }
+      } finally {
+        if (actif) {
+          setChargementAlertesUrssaf(false);
+        }
+      }
+    }
+
+    void chargerAlertesUrssaf();
+
+    const intervalle = window.setInterval(
+      () => {
+        void chargerAlertesUrssaf();
+      },
+      5 * 60 * 1000
+    );
+
+    return () => {
+      actif = false;
+      window.clearInterval(intervalle);
+    };
+  }, [contexte, pathname]);
 
   useEffect(() => {
     function fermerAuClicExterieur(event: MouseEvent) {
@@ -683,7 +834,30 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
                   }`}
                 >
                   <span className="text-base">{menu.emoji}</span>
-                  <span>{menu.label}</span>
+                  <span className="min-w-0 flex-1">
+                    {menu.label}
+                  </span>
+
+                  {menu.href ===
+                    "/chef/parametres/avance-immediate" ? (
+                    chargementAlertesUrssaf ? (
+                      <span
+                        className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-slate-300"
+                        aria-label="Vérification des alertes URSSAF"
+                      />
+                    ) : nombreAlertesUrssaf > 0 ? (
+                      <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">
+                        {nombreAlertesUrssaf > 99
+                          ? "99+"
+                          : nombreAlertesUrssaf}
+                      </span>
+                    ) : (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full bg-emerald-500"
+                        aria-label="Aucune alerte URSSAF"
+                      />
+                    )
+                  ) : null}
                 </Link>
               );
             })}
@@ -756,7 +930,19 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
                       : "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  {menu.emoji} {menu.label}
+                  <span>
+                    {menu.emoji} {menu.label}
+                  </span>
+
+                  {menu.href ===
+                    "/chef/parametres/avance-immediate" &&
+                  nombreAlertesUrssaf > 0 ? (
+                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white">
+                      {nombreAlertesUrssaf > 99
+                        ? "99+"
+                        : nombreAlertesUrssaf}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}

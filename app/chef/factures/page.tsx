@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseClient";
 
@@ -307,7 +308,57 @@ function adresseChantierTexte(facture: Facture) {
     .join(" ");
 }
 
+function iconeStatutFacture(facture: Facture) {
+  if (estAvoirFacture(facture)) return "↩️";
+  if (facture.statut === "brouillon") return "📝";
+  if (facture.statut === "envoyee") return "✉️";
+  if (facture.statut === "payee") return "✅";
+  if (facture.statut === "en_retard") return "⏰";
+  if (facture.statut === "annulee") return "⛔";
+  if (facture.statut === "archive") return "🗄️";
+  return "🧾";
+}
+
+function barreStatutFacture(facture: Facture) {
+  if (estAvoirFacture(facture)) return "bg-purple-600";
+  if (facture.statut === "brouillon") return "bg-slate-400";
+  if (facture.statut === "envoyee") return "bg-blue-500";
+  if (facture.statut === "payee") return "bg-emerald-600";
+  if (facture.statut === "en_retard") return "bg-red-500";
+  if (facture.statut === "annulee") return "bg-purple-500";
+  if (facture.statut === "archive") return "bg-zinc-400";
+  return "bg-slate-300";
+}
+
+function resteAPayerFacture(facture: Facture) {
+  if (estAvoirFacture(facture)) return 0;
+
+  if (
+    facture.reste_a_payer !== null &&
+    facture.reste_a_payer !== undefined
+  ) {
+    return Math.max(0, Number(facture.reste_a_payer || 0));
+  }
+
+  return Math.max(
+    0,
+    Number(facture.total_ttc || 0) - Number(facture.montant_paye || 0)
+  );
+}
+
+function progressionPaiementFacture(facture: Facture) {
+  const totalTtc = Math.max(0, Number(facture.total_ttc || 0));
+  const montantPaye = Math.max(0, Number(facture.montant_paye || 0));
+
+  if (totalTtc <= 0) return facture.statut === "payee" ? 100 : 0;
+
+  return Math.min(100, Math.max(0, (montantPaye / totalTtc) * 100));
+}
+
 export default function PageFactures() {
+  const searchParams = useSearchParams();
+  const factureSelectionneeId = searchParams.get("factureId");
+
   const [entrepriseId, setEntrepriseId] = useState("");
   const [factures, setFactures] = useState<Facture[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -477,7 +528,7 @@ export default function PageFactures() {
         0
       ),
       resteAPayer: facturesClassiques.reduce(
-        (total, facture) => total + Number(facture.reste_a_payer || 0),
+        (total, facture) => total + resteAPayerFacture(facture),
         0
       ),
       totalAvoirsTtc: avoirs.reduce(
@@ -584,13 +635,16 @@ export default function PageFactures() {
     }
   }
 
-  function fermerModal() {
-    if (chargementAction) return;
-
+  function reinitialiserModal() {
     setModalOuverte(false);
     setFactureEdition(null);
     setForm(formVide);
     setLignes([ligneVide(tvaDefaut)]);
+  }
+
+  function fermerModal() {
+    if (chargementAction) return;
+    reinitialiserModal();
   }
 
   function selectionnerClient(clientId: string) {
@@ -775,7 +829,7 @@ export default function PageFactures() {
           : "Facture créée avec succès."
       );
 
-      fermerModal();
+      reinitialiserModal();
       await chargerFactures();
     } catch (error: any) {
       console.error("Erreur enregistrement facture :", error);
@@ -860,147 +914,346 @@ export default function PageFactures() {
 
   const totauxFormulaire = useMemo(() => calculerTotaux(lignes), [lignes]);
 
+  const nombresParFiltre = useMemo(
+    () => ({
+      toutes: factures.length,
+      brouillon: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "brouillon"
+      ).length,
+      envoyee: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "envoyee"
+      ).length,
+      en_retard: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "en_retard"
+      ).length,
+      payee: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "payee"
+      ).length,
+      avoirs: factures.filter(estAvoirFacture).length,
+      archive: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "archive"
+      ).length,
+    }),
+    [factures]
+  );
+
+  useEffect(() => {
+    if (!factureSelectionneeId || chargement) return;
+
+    setFiltre("toutes");
+    setRecherche("");
+
+    let surbrillanceTimer: number | null = null;
+
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(
+        `facture-${factureSelectionneeId}`
+      );
+
+      if (!element) {
+        setMessageErreur(
+          "La facture demandée n’a pas été trouvée dans cette entreprise."
+        );
+        return;
+      }
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      element.classList.add(
+        "ring-4",
+        "ring-purple-300",
+        "ring-offset-2"
+      );
+
+      surbrillanceTimer = window.setTimeout(() => {
+        element.classList.remove(
+          "ring-4",
+          "ring-purple-300",
+          "ring-offset-2"
+        );
+      }, 4000);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+
+      if (surbrillanceTimer !== null) {
+        window.clearTimeout(surbrillanceTimer);
+      }
+    };
+  }, [factureSelectionneeId, chargement, factures]);
+
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6">
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-              Facturation
-            </p>
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-emerald-600" />
 
-            <h1 className="mt-1 text-3xl font-black text-slate-950">
-              Factures & avoirs
-            </h1>
+          <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
+                  🧾
+                </div>
 
-            <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              Gérez vos factures, les paiements, les relances, les avoirs, les
-              emails et les PDF.
-            </p>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                    Facturation
+                  </p>
+
+                  <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Factures et avoirs
+                  </h1>
+
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    Gérez les factures, encaissements, relances, avoirs,
+                    emails et documents PDF depuis un seul espace.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+                <button
+                  type="button"
+                  onClick={() => void synchroniserRetards()}
+                  disabled={chargementAction}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true">↻</span>
+                  Synchroniser les retards
+                </button>
+
+                <button
+                  type="button"
+                  onClick={ouvrirCreation}
+                  disabled={chargementAction}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true">＋</span>
+                  Nouvelle facture
+                </button>
+              </div>
+            </div>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={synchroniserRetards}
-              disabled={chargementAction}
-              className="rounded-2xl border border-orange-200 px-4 py-3 text-sm font-semibold text-orange-700 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Synchroniser retards
-            </button>
-
-            <button
-              type="button"
-              onClick={ouvrirCreation}
-              disabled={chargementAction}
-              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Nouvelle facture
-            </button>
-          </div>
-        </div>
+        </section>
 
         {(messageErreur || messageSucces) && (
           <div className="space-y-3">
             {messageErreur && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              <div
+                role="alert"
+                className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+              >
                 {messageErreur}
               </div>
             )}
 
             {messageSucces && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              <div
+                role="status"
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+              >
                 {messageSucces}
               </div>
             )}
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Factures</p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {statistiques.totalFactures}
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("toutes");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "toutes"
+                ? "border-emerald-400 ring-2 ring-emerald-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Factures
             </p>
-          </div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-2xl font-black text-slate-950">
+                {statistiques.totalFactures}
+              </p>
+              <span className="text-xl">🧾</span>
+            </div>
+          </button>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Avoirs</p>
-            <p className="mt-2 text-2xl font-black text-purple-700">
-              {statistiques.totalAvoirs}
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("avoirs");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "avoirs"
+                ? "border-purple-400 ring-2 ring-purple-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Avoirs
             </p>
-          </div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-2xl font-black text-purple-700">
+                {statistiques.totalAvoirs}
+              </p>
+              <span className="text-xl">↩️</span>
+            </div>
+          </button>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total facturé TTC</p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("toutes");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "toutes"
+                ? "border-emerald-400 ring-2 ring-emerald-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Total facturé TTC
+            </p>
+            <p className="mt-2 truncate text-xl font-black text-slate-950">
               {formatMontant(statistiques.caTtc)}
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Reste à payer</p>
-            <p className="mt-2 text-2xl font-black text-red-600">
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("en_retard");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "en_retard"
+                ? "border-red-400 ring-2 ring-red-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Reste à payer
+            </p>
+            <p className="mt-2 truncate text-xl font-black text-red-600">
               {formatMontant(statistiques.resteAPayer)}
             </p>
-          </div>
+          </button>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Total avoirs TTC</p>
-            <p className="mt-2 text-2xl font-black text-purple-700">
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("avoirs");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "avoirs"
+                ? "border-purple-400 ring-2 ring-purple-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Total avoirs TTC
+            </p>
+            <p className="mt-2 truncate text-xl font-black text-purple-700">
               {formatMontant(statistiques.totalAvoirsTtc)}
             </p>
-          </div>
-        </div>
+          </button>
+        </section>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <input
-              type="search"
-              value={recherche}
-              onChange={(event) => setRecherche(event.target.value)}
-              placeholder="Rechercher une facture, un client, un numéro, une adresse chantier..."
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 lg:max-w-md"
-            />
+        <section className="sticky top-3 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative w-full xl:max-w-lg">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                🔎
+              </span>
 
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["toutes", "Toutes"],
-                ["brouillon", "Brouillons"],
-                ["envoyee", "Envoyées"],
-                ["en_retard", "Retards"],
-                ["payee", "Payées"],
-                ["avoirs", "Avoirs"],
-                ["archive", "Archives"],
-              ].map(([valeur, label]) => (
-                <button
-                  key={valeur}
-                  type="button"
-                  onClick={() => setFiltre(valeur as FiltreFactures)}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold ${
-                    filtre === valeur
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+              <input
+                type="search"
+                value={recherche}
+                onChange={(event) => setRecherche(event.target.value)}
+                placeholder="Rechercher une facture, un client, une adresse..."
+                className="w-full rounded-2xl border border-slate-200 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="flex min-w-max gap-2">
+                {[
+                  ["toutes", "Toutes"],
+                  ["brouillon", "Brouillons"],
+                  ["envoyee", "Envoyées"],
+                  ["en_retard", "Retards"],
+                  ["payee", "Payées"],
+                  ["avoirs", "Avoirs"],
+                  ["archive", "Archives"],
+                ].map(([valeur, label]) => (
+                  <button
+                    key={valeur}
+                    type="button"
+                    onClick={() => setFiltre(valeur as FiltreFactures)}
+                    className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                      filtre === valeur
+                        ? "bg-slate-950 text-white shadow-sm"
+                        : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {label}{" "}
+                    <span className="opacity-70">
+                      ({nombresParFiltre[valeur as FiltreFactures]})
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>{facturesFiltrees.length} document(s) affiché(s)</span>
+
+            {(recherche || filtre !== "toutes") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRecherche("");
+                  setFiltre("toutes");
+                }}
+                className="font-semibold text-emerald-700 hover:text-emerald-800"
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+        </section>
 
         {chargement ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+              ⏳
+            </div>
             <p className="font-semibold text-slate-900">
-              Chargement des factures...
+              Chargement des factures…
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Récupération des données en cours.
+              Récupération des documents, paiements et clients.
             </p>
-          </div>
+          </section>
         ) : facturesFiltrees.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
               🧾
             </div>
@@ -1010,11 +1263,19 @@ export default function PageFactures() {
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre première facture ou modifiez les filtres.
+              Créez une facture ou modifiez les critères de recherche.
             </p>
-          </div>
+
+            <button
+              type="button"
+              onClick={ouvrirCreation}
+              className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              Créer une facture
+            </button>
+          </section>
         ) : (
-          <div className="space-y-4">
+          <section className="space-y-4">
             {facturesFiltrees.map((facture) => {
               const estAvoir = estAvoirFacture(facture);
               const client = facture.client || null;
@@ -1022,7 +1283,12 @@ export default function PageFactures() {
               const estEnvoyeeOuRetard =
                 facture.statut === "envoyee" ||
                 facture.statut === "en_retard";
-              const resteAPayer = Number(facture.reste_a_payer || 0);
+              const resteAPayer = resteAPayerFacture(facture);
+              const montantPaye = Math.max(
+                0,
+                Number(facture.montant_paye || 0)
+              );
+              const progressionPaiement = progressionPaiementFacture(facture);
               const adresseChantier = adresseChantierTexte(facture);
 
               const messageEmailParDefaut = estAvoir
@@ -1040,234 +1306,355 @@ Veuillez trouver ci-joint votre facture ${facture.numero || ""} au format PDF.
 Cordialement.`;
 
               return (
-                <div
+                <article
+                  id={`facture-${facture.id}`}
                   key={facture.id}
-                  className={`rounded-3xl border bg-white p-5 shadow-sm ${
-                    estAvoir ? "border-purple-200" : "border-slate-200"
+                  className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-500 hover:shadow-md ${
+                    factureSelectionneeId === facture.id
+                      ? "border-purple-400"
+                      : estAvoir
+                        ? "border-purple-200"
+                        : "border-slate-200"
                   }`}
                 >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
-                            facture.statut
-                          )}`}
-                        >
-                          {libelleStatut(facture.statut)}
-                        </span>
+                  <div className={`h-1.5 ${barreStatutFacture(facture)}`} />
 
-                        <span
-                          className={`rounded-full border px-3 py-1 text-xs font-bold ${
-                            estAvoir
-                              ? "border-purple-200 bg-purple-50 text-purple-700"
-                              : "border-blue-200 bg-blue-50 text-blue-700"
-                          }`}
-                        >
-                          {estAvoir
-                            ? "Avoir"
-                            : libelleTypeFacture(facture.type_facture)}
-                        </span>
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl ${
+                              estAvoir ? "bg-purple-50" : "bg-slate-50"
+                            }`}
+                          >
+                            {iconeStatutFacture(facture)}
+                          </div>
 
-                        {facture.avoir_annule_facture && (
-                          <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
-                            Facture annulée par avoir
-                          </span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
+                                  facture.statut
+                                )}`}
+                              >
+                                {libelleStatut(facture.statut)}
+                              </span>
+
+                              <span
+                                className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                                  estAvoir
+                                    ? "border-purple-200 bg-purple-50 text-purple-700"
+                                    : "border-blue-200 bg-blue-50 text-blue-700"
+                                }`}
+                              >
+                                {estAvoir
+                                  ? "Avoir"
+                                  : libelleTypeFacture(facture.type_facture)}
+                              </span>
+
+                              {factureSelectionneeId === facture.id && (
+                                <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
+                                  Facture sélectionnée
+                                </span>
+                              )}
+
+                              {facture.avoir_annule_facture && (
+                                <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
+                                  Annulée par avoir
+                                </span>
+                              )}
+                            </div>
+
+                            <h2 className="mt-3 break-words text-xl font-black text-slate-950">
+                              {facture.numero || "Sans numéro"}
+                            </h2>
+
+                            <p className="mt-1 break-words text-sm font-semibold text-slate-700">
+                              {facture.objet || "Sans objet"}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              {nomClient(client, facture)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {(adresseChantier || facture.notes_chantier) && (
+                          <div className="mt-4 grid gap-2 lg:grid-cols-2">
+                            {adresseChantier && (
+                              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+                                <span className="font-bold">📍 Chantier :</span>{" "}
+                                {adresseChantier}
+                              </div>
+                            )}
+
+                            {facture.notes_chantier && (
+                              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                                <span className="font-bold">⚠️ Notes :</span>{" "}
+                                {facture.notes_chantier}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-2xl bg-slate-50 p-3">
+                            <p className="text-xs font-medium text-slate-400">
+                              Date
+                            </p>
+                            <p className="mt-1 font-bold text-slate-900">
+                              {formatDate(facture.date_facture)}
+                            </p>
+                          </div>
+
+                          <div
+                            className={`rounded-2xl p-3 ${
+                              facture.statut === "en_retard"
+                                ? "bg-red-50"
+                                : "bg-slate-50"
+                            }`}
+                          >
+                            <p className="text-xs font-medium text-slate-400">
+                              Échéance
+                            </p>
+                            <p
+                              className={`mt-1 font-bold ${
+                                facture.statut === "en_retard"
+                                  ? "text-red-700"
+                                  : "text-slate-900"
+                              }`}
+                            >
+                              {estAvoir ? "—" : formatDate(facture.date_echeance)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-slate-50 p-3">
+                            <p className="text-xs font-medium text-slate-400">
+                              Total TTC
+                            </p>
+                            <p
+                              className={`mt-1 text-lg font-black ${
+                                estAvoir
+                                  ? "text-purple-700"
+                                  : "text-slate-950"
+                              }`}
+                            >
+                              {formatMontant(facture.total_ttc)}
+                            </p>
+                          </div>
+
+                          <div
+                            className={`rounded-2xl p-3 ${
+                              estAvoir
+                                ? "bg-purple-50"
+                                : resteAPayer > 0
+                                  ? "bg-red-50"
+                                  : "bg-emerald-50"
+                            }`}
+                          >
+                            <p className="text-xs font-medium text-slate-400">
+                              Reste à payer
+                            </p>
+                            <p
+                              className={`mt-1 text-lg font-black ${
+                                estAvoir
+                                  ? "text-purple-700"
+                                  : resteAPayer > 0
+                                    ? "text-red-700"
+                                    : "text-emerald-700"
+                              }`}
+                            >
+                              {estAvoir ? "—" : formatMontant(resteAPayer)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {!estAvoir && (
+                          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <span className="font-semibold text-slate-600">
+                                Paiement : {formatMontant(montantPaye)} encaissé
+                              </span>
+
+                              <span className="font-bold text-slate-900">
+                                {Math.round(progressionPaiement)} %
+                              </span>
+                            </div>
+
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className={`h-full rounded-full ${
+                                  progressionPaiement >= 100
+                                    ? "bg-emerald-600"
+                                    : facture.statut === "en_retard"
+                                      ? "bg-red-500"
+                                      : "bg-blue-500"
+                                }`}
+                                style={{
+                                  width: `${progressionPaiement}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
                         )}
                       </div>
 
-                      <h2 className="mt-3 text-xl font-black text-slate-950">
-                        {facture.numero || "Sans numéro"}
-                      </h2>
+                      <div className="w-full xl:max-w-md">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <BoutonTelechargerDocumentPdf
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={facture.id}
+                            numero={facture.numero}
+                          />
 
-                      <p className="mt-1 text-sm font-semibold text-slate-700">
-                        {facture.objet || "Sans objet"}
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        Client : {nomClient(client, facture)}
-                      </p>
-
-                      {adresseChantier && (
-                        <p className="mt-2 rounded-2xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                          Chantier : {adresseChantier}
-                        </p>
-                      )}
-
-                      {facture.notes_chantier && (
-                        <p className="mt-2 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                          Notes chantier : {facture.notes_chantier}
-                        </p>
-                      )}
-
-                      <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Date</p>
-                          <p className="font-bold text-slate-900">
-                            {formatDate(facture.date_facture)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Échéance</p>
-                          <p className="font-bold text-slate-900">
-                            {estAvoir ? "—" : formatDate(facture.date_echeance)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">Total TTC</p>
-                          <p
-                            className={`font-black ${
-                              estAvoir ? "text-purple-700" : "text-slate-950"
-                            }`}
+                          <Link
+                            href={`/chef/factures/${facture.id}/impression`}
+                            target="_blank"
+                            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
                           >
-                            {formatMontant(facture.total_ttc)}
-                          </p>
+                            Imprimer
+                          </Link>
+
+                          <BoutonEnvoyerDocumentEmail
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={facture.id}
+                            numero={facture.numero}
+                            defaultEmail={emailClient}
+                            defaultMessage={messageEmailParDefaut}
+                            onEnvoye={chargerFactures}
+                          />
+
+                          <HistoriqueEmailsDocument
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={facture.id}
+                            numero={facture.numero}
+                          />
                         </div>
 
-                        <div className="rounded-2xl bg-slate-50 p-3">
-                          <p className="text-xs text-slate-500">
-                            Reste à payer
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                            Documents et services liés
                           </p>
-                          <p className="font-black text-red-600">
-                            {estAvoir
-                              ? "—"
-                              : formatMontant(facture.reste_a_payer)}
-                          </p>
+
+                          <div className="grid gap-2">
+                            {!estAvoir && facture.devis_id && (
+                              <Link
+                                href={`/chef/devis?devisId=${facture.devis_id}`}
+                                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
+                              >
+                                Voir le devis d’origine
+                              </Link>
+                            )}
+
+                            {!estAvoir && (
+                              <BoutonDemandePaiementUrssaf
+                                factureId={facture.id}
+                                numero={facture.numero}
+                                clientType={client?.type_client}
+                                statut={facture.statut}
+                                totalHt={Number(facture.total_ht || 0)}
+                                totalTtc={Number(facture.total_ttc || 0)}
+                                estAvoir={estAvoir}
+                                onMiseAJour={chargerFactures}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {!estAvoir && estEnvoyeeOuRetard && resteAPayer > 0 && (
+                          <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50/50 p-3">
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-orange-600">
+                              Relance client
+                            </p>
+
+                            <BoutonRelancerFacture
+                              factureId={facture.id}
+                              numero={facture.numero}
+                              defaultEmail={emailClient}
+                              resteAPayer={resteAPayer}
+                              dateEcheance={facture.date_echeance}
+                              onRelanceEnvoyee={chargerFactures}
+                            />
+                          </div>
+                        )}
+
+                        {!estAvoir && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                              Paiements et avoirs
+                            </p>
+
+                            <div className="grid gap-2">
+                              <HistoriquePaiementsFacture
+                                factureId={facture.id}
+                                numero={facture.numero}
+                                onPaiementSupprime={chargerFactures}
+                              />
+
+                              {resteAPayer > 0 &&
+                                facture.statut !== "brouillon" && (
+                                  <BoutonEncaisserFacture
+                                    factureId={facture.id}
+                                    numero={facture.numero}
+                                    totalTtc={Number(facture.total_ttc || 0)}
+                                    montantPaye={montantPaye}
+                                    resteAPayer={resteAPayer}
+                                    onPaiementEnregistre={chargerFactures}
+                                  />
+                                )}
+
+                              {facture.statut !== "brouillon" &&
+                                facture.statut !== "archive" && (
+                                  <BoutonCreerAvoirFacture
+                                    factureId={facture.id}
+                                    numero={facture.numero}
+                                    onAvoirCree={chargerFactures}
+                                  />
+                                )}
+
+                              <HistoriqueAvoirsFacture
+                                factureId={facture.id}
+                                numero={facture.numero}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {!estAvoir && facture.statut === "brouillon" && (
+                            <button
+                              type="button"
+                              onClick={() => void ouvrirEdition(facture)}
+                              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                            >
+                              Modifier
+                            </button>
+                          )}
+
+                          {!estAvoir && facture.statut === "payee" && (
+                            <button
+                              type="button"
+                              onClick={() => void archiverFacture(facture)}
+                              className="min-h-10 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                            >
+                              Archiver
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
-
-                    <div className="flex max-w-full flex-wrap gap-2 xl:max-w-md xl:justify-end">
-                      <BoutonTelechargerDocumentPdf
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
-                      />
-
-                      {!estAvoir && (
-                        <BoutonDemandePaiementUrssaf
-                          factureId={facture.id}
-                          numero={facture.numero}
-                          clientType={client?.type_client}
-                          statut={facture.statut}
-                          totalHt={Number(facture.total_ht || 0)}
-                          totalTtc={Number(facture.total_ttc || 0)}
-                          estAvoir={estAvoir}
-                          onMiseAJour={chargerFactures}
-                        />
-                      )}
-
-                      <Link
-                        href={`/chef/factures/${facture.id}/impression`}
-                        target="_blank"
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        Imprimer
-                      </Link>
-
-                      {!estAvoir && facture.devis_id && (
-                        <Link
-                          href="/chef/devis"
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                        >
-                          Voir devis d’origine
-                        </Link>
-                      )}
-
-                      <BoutonEnvoyerDocumentEmail
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
-                        defaultEmail={emailClient}
-                        defaultMessage={messageEmailParDefaut}
-                        onEnvoye={chargerFactures}
-                      />
-
-                      <HistoriqueEmailsDocument
-                        typeDocument={estAvoir ? "avoir" : "facture"}
-                        documentId={facture.id}
-                        numero={facture.numero}
-                      />
-
-                      {!estAvoir && estEnvoyeeOuRetard && resteAPayer > 0 && (
-                        <BoutonRelancerFacture
-                          factureId={facture.id}
-                          numero={facture.numero}
-                          defaultEmail={emailClient}
-                          resteAPayer={resteAPayer}
-                          dateEcheance={facture.date_echeance}
-                          onRelanceEnvoyee={chargerFactures}
-                        />
-                      )}
-
-                      {!estAvoir && (
-                        <>
-                          <HistoriquePaiementsFacture
-                            factureId={facture.id}
-                            numero={facture.numero}
-                            onPaiementSupprime={chargerFactures}
-                          />
-
-                          {resteAPayer > 0 && facture.statut !== "brouillon" && (
-                            <BoutonEncaisserFacture
-                              factureId={facture.id}
-                              numero={facture.numero}
-                              totalTtc={Number(facture.total_ttc || 0)}
-                              montantPaye={Number(facture.montant_paye || 0)}
-                              resteAPayer={resteAPayer}
-                              onPaiementEnregistre={chargerFactures}
-                            />
-                          )}
-
-                          {facture.statut !== "brouillon" &&
-                            facture.statut !== "archive" && (
-                              <BoutonCreerAvoirFacture
-                                factureId={facture.id}
-                                numero={facture.numero}
-                                onAvoirCree={chargerFactures}
-                              />
-                            )}
-
-                          <HistoriqueAvoirsFacture
-                            factureId={facture.id}
-                            numero={facture.numero}
-                          />
-                        </>
-                      )}
-
-                      {!estAvoir && facture.statut === "brouillon" && (
-                        <button
-                          type="button"
-                          onClick={() => void ouvrirEdition(facture)}
-                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                        >
-                          Modifier
-                        </button>
-                      )}
-
-                      {!estAvoir && facture.statut === "payee" && (
-                        <button
-                          type="button"
-                          onClick={() => void archiverFacture(facture)}
-                          className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-                        >
-                          Archiver
-                        </button>
-                      )}
-                    </div>
                   </div>
-                </div>
+                </article>
               );
             })}
-          </div>
+          </section>
         )}
 
         {modalOuverte && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/40 px-4 py-6">
-            <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-              <div className="flex items-start justify-between border-b border-slate-200 p-5">
+          <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-slate-950/50 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+            <div className="max-h-[96vh] w-full max-w-5xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
+              <div className="sticky top-0 z-20 flex items-start justify-between border-b border-slate-200 bg-white/95 p-5 backdrop-blur">
                 <div>
                   <h2 className="text-xl font-black text-slate-950">
                     {factureEdition ? "Modifier la facture" : "Nouvelle facture"}
@@ -1740,7 +2127,7 @@ Cordialement.`;
                 </div>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+              <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={fermerModal}
@@ -1756,7 +2143,11 @@ Cordialement.`;
                   disabled={chargementAction}
                   className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {chargementAction ? "Enregistrement..." : "Enregistrer"}
+                  {chargementAction
+                    ? "Enregistrement…"
+                    : factureEdition
+                      ? "Enregistrer les modifications"
+                      : "Créer la facture"}
                 </button>
               </div>
             </div>

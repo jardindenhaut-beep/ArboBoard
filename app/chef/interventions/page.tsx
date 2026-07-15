@@ -321,6 +321,23 @@ function badgeStatut(statut: string | null | undefined) {
   return "bg-slate-50 text-slate-700 border-slate-200";
 }
 
+function bordureCarteStatut(statut: string | null | undefined) {
+  if (statut === "planifiee") return "border-l-blue-500";
+  if (statut === "en_cours") return "border-l-amber-500";
+  if (statut === "terminee") return "border-l-emerald-500";
+  if (statut === "annulee") return "border-l-red-500";
+  if (statut === "archivee") return "border-l-slate-400";
+  return "border-l-slate-300";
+}
+
+function nombreEtapesValidees(fiche: FicheIntervention) {
+  return [
+    fiche.etape_materiel_statut,
+    fiche.etape_arrivee_statut,
+    fiche.etape_fin_statut,
+  ].filter((statut) => statut === "valide").length;
+}
+
 function libelleEtape(statut: string | null | undefined) {
   if (statut === "valide") return "Validée";
   if (statut === "en_cours") return "En cours";
@@ -1242,10 +1259,6 @@ export default function FichesInterventionPage() {
     }
   }
 
-  async function archiverFiche(fiche: FicheIntervention) {
-    await changerStatutFiche(fiche, "archivee");
-  }
-
   function renduElementsMini(fiche: FicheIntervention) {
     const elements = elementsDeFiche(fiche.id);
 
@@ -1279,39 +1292,70 @@ export default function FichesInterventionPage() {
   }
 
   function renduEtapes(fiche: FicheIntervention) {
+    const etapesValidees = nombreEtapesValidees(fiche);
+    const progression = Math.round((etapesValidees / 3) * 100);
+
+    const etapes = [
+      {
+        numero: "1",
+        titre: "Matériel",
+        statut: fiche.etape_materiel_statut,
+      },
+      {
+        numero: "2",
+        titre: "Arrivée",
+        statut: fiche.etape_arrivee_statut,
+      },
+      {
+        numero: "3",
+        titre: "Fin / PV",
+        statut: fiche.etape_fin_statut,
+      },
+    ];
+
     return (
-      <div className="grid gap-2 md:grid-cols-3">
-        <div
-          className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${classeEtape(
-            fiche.etape_materiel_statut
-          )}`}
-        >
-          <p>1. Matériel</p>
-          <p className="mt-1 font-normal">
-            {libelleEtape(fiche.etape_materiel_statut)}
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Progression terrain
+          </p>
+
+          <p className="text-xs font-semibold text-slate-600">
+            {etapesValidees}/3 étape(s)
           </p>
         </div>
 
         <div
-          className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${classeEtape(
-            fiche.etape_arrivee_statut
-          )}`}
+          className="mb-3 h-1.5 overflow-hidden rounded-full bg-slate-200"
+          aria-label={`Progression de la fiche : ${progression} %`}
         >
-          <p>2. Arrivée</p>
-          <p className="mt-1 font-normal">
-            {libelleEtape(fiche.etape_arrivee_statut)}
-          </p>
+          <div
+            className="h-full rounded-full bg-emerald-500 transition-all"
+            style={{ width: `${progression}%` }}
+          />
         </div>
 
-        <div
-          className={`rounded-2xl border px-3 py-2 text-xs font-semibold ${classeEtape(
-            fiche.etape_fin_statut
-          )}`}
-        >
-          <p>3. Fin / PV</p>
-          <p className="mt-1 font-normal">
-            {libelleEtape(fiche.etape_fin_statut)}
-          </p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {etapes.map((etape) => (
+            <div
+              key={etape.numero}
+              className={`rounded-xl border px-3 py-2 text-xs font-semibold ${classeEtape(
+                etape.statut
+              )}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/80 text-[10px] font-black">
+                  {etape.statut === "valide" ? "✓" : etape.numero}
+                </span>
+
+                <span>{etape.titre}</span>
+              </div>
+
+              <p className="mt-1 pl-7 font-normal">
+                {libelleEtape(etape.statut)}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -1371,27 +1415,40 @@ export default function FichesInterventionPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
+      <section className="overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50 shadow-sm">
+        <div className="flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-4xl">
+            <div className="flex items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
+                📋
+              </span>
 
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            Fiches d’intervention
-          </h1>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                  Organisation des chantiers
+                </p>
 
-          <p className="mt-2 max-w-4xl text-sm text-slate-600">
-            Préparez vos chantiers depuis les devis : travaux, matériel,
-            matériaux, consignes, équipe, horaires, photos, PV de fin de
-            chantier et suivi terrain.
-          </p>
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Fiches d’intervention
+                </h1>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm leading-6 text-slate-600 sm:text-base">
+              Préparez chaque chantier depuis le devis, affectez l’équipe et
+              suivez les trois étapes terrain jusqu’au PV de fin de chantier.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={ouvrirCreation}
+            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-emerald-200"
+          >
+            <span className="text-lg">＋</span>
+            Créer depuis un devis
+          </button>
         </div>
-
-        <button
-          onClick={ouvrirCreation}
-          className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          + Créer depuis un devis
-        </button>
       </section>
 
       {messageErreur && (
@@ -1406,140 +1463,145 @@ export default function FichesInterventionPage() {
         </div>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <button
-          type="button"
-          onClick={() => setFiltreStatut("tous")}
-          aria-pressed={filtreStatut === "tous"}
-          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            filtreStatut === "tous"
-              ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
-              : "border-slate-200 bg-white"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Total
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.total}
-          </p>
-        </button>
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        {[
+          {
+            filtre: "tous" as const,
+            label: "Total",
+            valeur: statistiques.total,
+            icone: "📚",
+            inactif: "border-slate-200 bg-white text-slate-950",
+            actif: "border-emerald-500 bg-emerald-50 text-emerald-950 ring-4 ring-emerald-100",
+          },
+          {
+            filtre: "brouillon" as const,
+            label: "Brouillons",
+            valeur: statistiques.brouillons,
+            icone: "📝",
+            inactif: "border-slate-200 bg-white text-slate-950",
+            actif: "border-slate-500 bg-slate-100 text-slate-950 ring-4 ring-slate-100",
+          },
+          {
+            filtre: "planifiee" as const,
+            label: "Planifiées",
+            valeur: statistiques.planifiees,
+            icone: "📅",
+            inactif: "border-blue-100 bg-blue-50 text-blue-950",
+            actif: "border-blue-500 bg-blue-100 text-blue-950 ring-4 ring-blue-100",
+          },
+          {
+            filtre: "en_cours" as const,
+            label: "En cours",
+            valeur: statistiques.enCours,
+            icone: "🚧",
+            inactif: "border-amber-100 bg-amber-50 text-amber-950",
+            actif: "border-amber-500 bg-amber-100 text-amber-950 ring-4 ring-amber-100",
+          },
+          {
+            filtre: "terminee" as const,
+            label: "Terminées",
+            valeur: statistiques.terminees,
+            icone: "✅",
+            inactif: "border-emerald-100 bg-emerald-50 text-emerald-950",
+            actif: "border-emerald-500 bg-emerald-100 text-emerald-950 ring-4 ring-emerald-100",
+          },
+          {
+            filtre: "archivee" as const,
+            label: "Archivées",
+            valeur: statistiques.archivees,
+            icone: "🗃️",
+            inactif: "border-slate-200 bg-slate-100 text-slate-800",
+            actif: "border-slate-500 bg-slate-200 text-slate-900 ring-4 ring-slate-100",
+          },
+        ].map((carte) => {
+          const active = filtreStatut === carte.filtre;
 
-        <button
-          type="button"
-          onClick={() => setFiltreStatut("brouillon")}
-          aria-pressed={filtreStatut === "brouillon"}
-          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            filtreStatut === "brouillon"
-              ? "border-slate-500 bg-slate-100 ring-4 ring-slate-100"
-              : "border-slate-200 bg-white"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Brouillons
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.brouillons}
-          </p>
-        </button>
+          return (
+            <button
+              key={carte.filtre}
+              type="button"
+              onClick={() => setFiltreStatut(carte.filtre)}
+              aria-pressed={active}
+              className={`group rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-3xl ${
+                active ? carte.actif : carte.inactif
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wide opacity-65 sm:text-xs">
+                    {carte.label}
+                  </p>
 
-        <button
-          type="button"
-          onClick={() => setFiltreStatut("planifiee")}
-          aria-pressed={filtreStatut === "planifiee"}
-          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            filtreStatut === "planifiee"
-              ? "border-blue-500 bg-blue-100 ring-4 ring-blue-100"
-              : "border-blue-100 bg-blue-50"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-blue-500">
-            Planifiées
-          </p>
-          <p className="mt-2 text-3xl font-bold text-blue-900">
-            {statistiques.planifiees}
-          </p>
-        </button>
+                  <p className="mt-2 text-2xl font-black sm:text-3xl">
+                    {carte.valeur}
+                  </p>
+                </div>
 
-        <button
-          type="button"
-          onClick={() => setFiltreStatut("en_cours")}
-          aria-pressed={filtreStatut === "en_cours"}
-          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            filtreStatut === "en_cours"
-              ? "border-amber-500 bg-amber-100 ring-4 ring-amber-100"
-              : "border-amber-100 bg-amber-50"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-amber-500">
-            En cours
-          </p>
-          <p className="mt-2 text-3xl font-bold text-amber-900">
-            {statistiques.enCours}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltreStatut("terminee")}
-          aria-pressed={filtreStatut === "terminee"}
-          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            filtreStatut === "terminee"
-              ? "border-emerald-500 bg-emerald-100 ring-4 ring-emerald-100"
-              : "border-emerald-100 bg-emerald-50"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-emerald-500">
-            Terminées
-          </p>
-          <p className="mt-2 text-3xl font-bold text-emerald-900">
-            {statistiques.terminees}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltreStatut("archivee")}
-          aria-pressed={filtreStatut === "archivee"}
-          className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            filtreStatut === "archivee"
-              ? "border-slate-500 bg-slate-200 ring-4 ring-slate-100"
-              : "border-slate-200 bg-slate-100"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            Archivées
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-800">
-            {statistiques.archivees}
-          </p>
-        </button>
+                <span className="text-xl transition group-hover:scale-110">
+                  {carte.icone}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_240px]">
-          <input
-            value={recherche}
-            onChange={(event) => setRecherche(event.target.value)}
-            placeholder="Rechercher par client, devis, ville, salarié, matériel, travaux..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          />
+        <div className="border-b border-slate-200 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <div className="relative min-w-0 flex-1">
+              <span
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              >
+                🔎
+              </span>
 
-          <select
-            value={filtreStatut}
-            onChange={(event) =>
-              setFiltreStatut(event.target.value as "tous" | StatutFiche)
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="tous">Tous les statuts</option>
-            <option value="brouillon">Brouillons</option>
-            <option value="planifiee">Planifiées</option>
-            <option value="en_cours">En cours</option>
-            <option value="terminee">Terminées</option>
-            <option value="annulee">Annulées</option>
-            <option value="archivee">Archivées</option>
-          </select>
+              <input
+                value={recherche}
+                onChange={(event) => setRecherche(event.target.value)}
+                aria-label="Rechercher une fiche d’intervention"
+                placeholder="Client, devis, ville, salarié, matériel, travaux…"
+                className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              />
+            </div>
+
+            <select
+              value={filtreStatut}
+              onChange={(event) =>
+                setFiltreStatut(event.target.value as "tous" | StatutFiche)
+              }
+              aria-label="Filtrer les fiches par statut"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 xl:w-60"
+            >
+              <option value="tous">Tous les statuts actifs</option>
+              <option value="brouillon">Brouillons</option>
+              <option value="planifiee">Planifiées</option>
+              <option value="en_cours">En cours</option>
+              <option value="terminee">Terminées</option>
+              <option value="annulee">Annulées</option>
+              <option value="archivee">Archivées</option>
+            </select>
+
+            <div className="flex items-center justify-between gap-3 xl:justify-end">
+              <span className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                {fichesFiltrees.length} résultat(s)
+              </span>
+
+              {(recherche || filtreStatut !== "tous") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecherche("");
+                    setFiltreStatut("tous");
+                  }}
+                  className="whitespace-nowrap rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {chargement ? (
@@ -1567,15 +1629,31 @@ export default function FichesInterventionPage() {
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Créez une fiche depuis un devis pour préparer un chantier.
+              {recherche || filtreStatut !== "tous"
+                ? "Aucune fiche ne correspond aux filtres sélectionnés."
+                : "Créez une fiche depuis un devis pour préparer un chantier."}
             </p>
 
-            <button
-              onClick={ouvrirCreation}
-              className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Créer depuis un devis
-            </button>
+            {recherche || filtreStatut !== "tous" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setRecherche("");
+                  setFiltreStatut("tous");
+                }}
+                className="mt-5 rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Effacer les filtres
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={ouvrirCreation}
+                className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Créer depuis un devis
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 p-4 xl:grid-cols-2">
@@ -1590,7 +1668,9 @@ export default function FichesInterventionPage() {
               return (
                 <article
                   key={fiche.id}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
+                  className={`overflow-hidden rounded-3xl border border-l-4 border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md sm:p-5 ${bordureCarteStatut(
+                    fiche.statut
+                  )}`}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
@@ -1604,7 +1684,8 @@ export default function FichesInterventionPage() {
                             {titreFiche(fiche)}
                           </h2>
 
-                          <p className="text-xs font-medium text-slate-500">
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">
+                            {fiche.numero ? `${fiche.numero} · ` : ""}
                             {fiche.type_intervention || "Intervention"}
                             {devisLie?.numero
                               ? ` · Devis ${devisLie.numero}`
@@ -1671,9 +1752,22 @@ export default function FichesInterventionPage() {
                         Équipe
                       </p>
 
-                      <p className="mt-1 text-sm font-bold text-slate-900">
+                      <p
+                        className="mt-1 line-clamp-2 text-sm font-bold text-slate-900"
+                        title={
+                          equipe.length > 0
+                            ? equipe
+                                .map((membre) => membre.salarie_nom)
+                                .filter(Boolean)
+                                .join(", ")
+                            : fiche.salarie_nom || "Non affecté"
+                        }
+                      >
                         {equipe.length > 0
-                          ? `${equipe.length} salarié(s)`
+                          ? equipe
+                              .map((membre) => membre.salarie_nom)
+                              .filter(Boolean)
+                              .join(", ") || `${equipe.length} salarié(s)`
                           : fiche.salarie_nom || "Non affecté"}
                       </p>
                     </div>
@@ -1698,11 +1792,11 @@ export default function FichesInterventionPage() {
                     {renduElementsMini(fiche)}
                   </div>
 
-                  <div className="mt-5 flex flex-wrap justify-end gap-2">
+                  <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                     {devisLie && (
                       <Link
                         href={`/chef/devis?devisId=${devisLie.id}`}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                       >
                         Voir devis
                       </Link>
@@ -1710,7 +1804,7 @@ export default function FichesInterventionPage() {
 
                     <Link
                       href={`/chef/interventions/${fiche.id}`}
-                      className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                      className="inline-flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
                     >
                       Ouvrir fiche
                     </Link>
@@ -1721,9 +1815,9 @@ export default function FichesInterventionPage() {
                         onClick={() =>
                           changerStatutFiche(fiche, "en_cours")
                         }
-                        className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
                       >
-                        En cours
+                        Passer en cours
                       </button>
                     )}
 
@@ -1733,19 +1827,9 @@ export default function FichesInterventionPage() {
                         onClick={() =>
                           changerStatutFiche(fiche, "terminee")
                         }
-                        className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
                       >
-                        Terminer
-                      </button>
-                    )}
-
-                    {fiche.statut === "terminee" && (
-                      <button
-                        type="button"
-                        onClick={() => archiverFiche(fiche)}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      >
-                        Archiver
+                        Terminer la fiche
                       </button>
                     )}
                   </div>
@@ -1757,11 +1841,19 @@ export default function FichesInterventionPage() {
       </section>
 
       {modalCreationOuverte && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="max-h-[94vh] w-full max-w-7xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-2 py-3 backdrop-blur-sm sm:px-4 sm:py-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titre-modal-creation-fiche"
+            className="flex max-h-[96vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5">
               <div>
-                <h2 className="text-xl font-bold text-slate-950">
+                <h2
+                  id="titre-modal-creation-fiche"
+                  className="text-xl font-bold text-slate-950"
+                >
                   Créer une fiche depuis un devis
                 </h2>
 
@@ -1773,15 +1865,16 @@ export default function FichesInterventionPage() {
 
               <button
                 onClick={fermerCreation}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                aria-label="Fermer la fenêtre de création"
+                className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
               >
                 Fermer
               </button>
             </div>
 
-            <div className="grid gap-5 p-5 xl:grid-cols-[1fr_380px]">
+            <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto bg-slate-50 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_400px]">
               <div className="space-y-5">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                       📄
@@ -1831,7 +1924,7 @@ export default function FichesInterventionPage() {
                   )}
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-xl">
                       🌳
@@ -1891,7 +1984,7 @@ export default function FichesInterventionPage() {
                   </div>
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-xl">
                       🧾
@@ -2040,7 +2133,7 @@ export default function FichesInterventionPage() {
                   </div>
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-50 text-xl">
                       👥
@@ -2092,7 +2185,7 @@ export default function FichesInterventionPage() {
                   )}
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-xl">
                       📝
@@ -2121,8 +2214,8 @@ export default function FichesInterventionPage() {
                 </section>
               </div>
 
-              <aside className="space-y-5">
-                <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <aside className="space-y-5 xl:sticky xl:top-0 xl:self-start">
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-sm font-bold text-slate-950">
                     Résumé de création
                   </p>
@@ -2285,7 +2378,7 @@ export default function FichesInterventionPage() {
                   return (
                     <section
                       key={bloc.categorie}
-                      className="rounded-3xl border border-slate-200 bg-white p-5"
+                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -2402,7 +2495,12 @@ export default function FichesInterventionPage() {
               </aside>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+            <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <p className="text-xs text-slate-500">
+                Les champs devis, type, titre, date et horaires sont obligatoires.
+              </p>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 onClick={fermerCreation}
                 disabled={enregistrement}
@@ -2420,6 +2518,7 @@ export default function FichesInterventionPage() {
                   ? "Création..."
                   : "Créer la fiche et planifier"}
               </button>
+              </div>
             </div>
           </div>
         </div>

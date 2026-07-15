@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 const TYPES_DEMANDE = [
@@ -27,6 +33,9 @@ type TypeDemande =
 
 type StatutDemande =
   (typeof STATUTS_DEMANDE)[number];
+
+type FiltreStatut = "tous" | StatutDemande;
+type FiltreType = "tous" | TypeDemande;
 
 type DemandeAdmin = {
   id: string;
@@ -153,6 +162,56 @@ function creerFormulaire(
   };
 }
 
+function normaliserTexte(valeur: unknown) {
+  return String(valeur || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function estStatutFerme(statut: StatutDemande) {
+  return [
+    "terminee",
+    "refusee",
+    "annulee",
+  ].includes(statut);
+}
+
+function echeanceEffective(demande: DemandeAdmin) {
+  return (
+    demande.prolongee_jusqu_au ||
+    demande.echeance_reponse
+  );
+}
+
+function joursAvantEcheance(demande: DemandeAdmin) {
+  const echeance = new Date(
+    echeanceEffective(demande)
+  ).getTime();
+
+  if (!Number.isFinite(echeance)) return null;
+
+  return Math.ceil(
+    (echeance - Date.now()) /
+      (1000 * 60 * 60 * 24)
+  );
+}
+
+function formulaireIdentique(
+  demande: DemandeAdmin,
+  formulaire: FormulaireTraitement
+) {
+  return (
+    formulaire.statut === demande.statut &&
+    formulaire.reponse_interne.trim() ===
+      (demande.reponse_interne || "").trim() &&
+    !formulaire.prolonger &&
+    formulaire.motif_prolongation.trim() ===
+      (demande.motif_prolongation || "").trim()
+  );
+}
+
 export default function AdministrationDemandesRgpdPage() {
   const [demandes, setDemandes] = useState<
     DemandeAdmin[]
@@ -161,49 +220,84 @@ export default function AdministrationDemandesRgpdPage() {
     Record<string, FormulaireTraitement>
   >({});
   const [filtreStatut, setFiltreStatut] =
-    useState("tous");
+    useState<FiltreStatut>("tous");
   const [filtreType, setFiltreType] =
-    useState("tous");
+    useState<FiltreType>("tous");
+  const [recherche, setRecherche] = useState("");
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [enregistrementId, setEnregistrementId] =
     useState<string | null>(null);
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
+  const premierChargement = useRef(true);
+
+  const demandesAffichees = useMemo(() => {
+    const rechercheNormalisee =
+      normaliserTexte(recherche);
+
+    return [...demandes]
+      .filter((demande) => {
+        if (!rechercheNormalisee) return true;
+
+        const contenu = normaliserTexte(
+          [
+            nomUtilisateur(demande),
+            demande.utilisateur.email,
+            demande.entreprise.nom_entreprise,
+            demande.commentaire_utilisateur,
+            demande.reponse_interne,
+            libelleType(demande.type_demande),
+            libelleStatut(demande.statut),
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
+
+        return contenu.includes(
+          rechercheNormalisee
+        );
+      })
+      .sort((a, b) => {
+        const aFermee = estStatutFerme(a.statut);
+        const bFermee = estStatutFerme(b.statut);
+
+        if (aFermee !== bFermee) {
+          return aFermee ? 1 : -1;
+        }
+
+        return (
+          new Date(echeanceEffective(a)).getTime() -
+          new Date(echeanceEffective(b)).getTime()
+        );
+      });
+  }, [demandes, recherche]);
 
   const statistiques = useMemo(() => {
+    const ouvertes = demandes.filter(
+      (demande) => !estStatutFerme(demande.statut)
+    );
+
     return {
       total: demandes.length,
-      ouvertes: demandes.filter((demande) =>
-        [
-          "recue",
-          "verification_identite",
-          "en_cours",
-        ].includes(demande.statut)
-      ).length,
+      ouvertes: ouvertes.length,
       terminees: demandes.filter(
         (demande) => demande.statut === "terminee"
       ).length,
-      enRetard: demandes.filter((demande) => {
-        if (
-          ["terminee", "refusee", "annulee"].includes(
-            demande.statut
-          )
-        ) {
-          return false;
-        }
-
-        const echeance =
-          demande.prolongee_jusqu_au ||
-          demande.echeance_reponse;
-
-        return new Date(echeance).getTime() < Date.now();
+      enRetard: ouvertes.filter((demande) => {
+        const jours = joursAvantEcheance(demande);
+        return jours !== null && jours < 0;
+      }).length,
+      urgentes: ouvertes.filter((demande) => {
+        const jours = joursAvantEcheance(demande);
+        return (
+          jours !== null &&
+          jours >= 0 &&
+          jours <= 7
+        );
       }).length,
     };
   }, [demandes]);
-
-  useEffect(() => {
-    void chargerDemandes();
-  }, [filtreStatut, filtreType]);
 
   async function obtenirJeton() {
     const {
@@ -220,10 +314,16 @@ export default function AdministrationDemandesRgpdPage() {
     return session.access_token;
   }
 
-  async function chargerDemandes() {
-    try {
-      setChargement(true);
-      setErreur("");
+  const chargerDemandes = useCallback(
+    async (chargementInitial = false) => {
+      try {
+        if (chargementInitial) {
+          setChargement(true);
+        } else {
+          setActualisation(true);
+        }
+
+        setErreur("");
 
       const jeton = await obtenirJeton();
       const parametres = new URLSearchParams({
@@ -274,15 +374,36 @@ export default function AdministrationDemandesRgpdPage() {
           ? error.message
           : "Impossible de charger les demandes."
       );
-    } finally {
-      setChargement(false);
-    }
+      } finally {
+        setChargement(false);
+        setActualisation(false);
+      }
+    },
+    [filtreStatut, filtreType]
+  );
+
+  useEffect(() => {
+    const initial = premierChargement.current;
+    premierChargement.current = false;
+
+    void chargerDemandes(initial);
+  }, [chargerDemandes]);
+
+  async function actualiserDemandes() {
+    setMessage("");
+    await chargerDemandes(false);
+    setMessage(
+      "La liste des demandes RGPD a été actualisée."
+    );
   }
 
   function modifierFormulaire(
     demandeId: string,
     modification: Partial<FormulaireTraitement>
   ) {
+    setErreur("");
+    setMessage("");
+
     setFormulaires((anciens) => ({
       ...anciens,
       [demandeId]: {
@@ -290,6 +411,20 @@ export default function AdministrationDemandesRgpdPage() {
         ...modification,
       },
     }));
+  }
+
+  function reinitialiserTraitement(
+    demande: DemandeAdmin
+  ) {
+    setFormulaires((anciens) => ({
+      ...anciens,
+      [demande.id]: creerFormulaire(demande),
+    }));
+
+    setErreur("");
+    setMessage(
+      "Les modifications de cette demande ont été annulées."
+    );
   }
 
   async function enregistrerTraitement(
@@ -305,6 +440,25 @@ export default function AdministrationDemandesRgpdPage() {
     ) {
       setErreur(
         "Renseignez le motif de la prolongation."
+      );
+      return;
+    }
+
+    if (
+      ["terminee", "refusee"].includes(
+        formulaire.statut
+      ) &&
+      !formulaire.reponse_interne.trim()
+    ) {
+      setErreur(
+        "Une réponse visible par l’utilisateur est requise pour terminer ou refuser une demande."
+      );
+      return;
+    }
+
+    if (formulaireIdentique(demande, formulaire)) {
+      setErreur(
+        "Aucune modification n’a été apportée à cette demande."
       );
       return;
     }
@@ -328,10 +482,10 @@ export default function AdministrationDemandesRgpdPage() {
             demande_id: demande.id,
             statut: formulaire.statut,
             reponse_interne:
-              formulaire.reponse_interne,
+              formulaire.reponse_interne.trim(),
             prolonger: formulaire.prolonger,
             motif_prolongation:
-              formulaire.motif_prolongation,
+              formulaire.motif_prolongation.trim(),
           }),
         }
       );
@@ -349,7 +503,7 @@ export default function AdministrationDemandesRgpdPage() {
       setMessage(
         "La demande a été mise à jour."
       );
-      await chargerDemandes();
+      await chargerDemandes(false);
     } catch (error) {
       console.error(
         "Erreur traitement demande RGPD :",
@@ -368,28 +522,57 @@ export default function AdministrationDemandesRgpdPage() {
 
   return (
     <main className="mx-auto max-w-7xl space-y-6">
-      <header className="rounded-3xl border border-violet-200 bg-violet-50 p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-violet-700">
-              Administration Arboboard
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-violet-950">
-              Demandes RGPD
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-violet-800">
-              Consultez les demandes reçues, prenez-les en charge,
-              communiquez une réponse et clôturez leur traitement.
-              Cette page est réservée au compte développeur.
-            </p>
-          </div>
+      <header className="overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-violet-600" />
 
-          <Link
-            href="/chef/securite"
-            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-violet-300 bg-white px-4 py-2.5 text-sm font-semibold text-violet-800 transition hover:bg-violet-100"
-          >
-            ← Sécurité
-          </Link>
+        <div className="bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-2xl text-white shadow-sm">
+                🇪🇺
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
+                  Administration Arboboard
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Demandes RGPD
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Consultez les demandes reçues, prenez-les en charge,
+                  communiquez une réponse et clôturez leur traitement.
+                  Cette page est réservée au compte développeur.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <button
+                type="button"
+                onClick={() => void actualiserDemandes()}
+                disabled={
+                  actualisation ||
+                  enregistrementId !== null
+                }
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true">↻</span>
+                {actualisation
+                  ? "Actualisation…"
+                  : "Actualiser"}
+              </button>
+
+              <Link
+                href="/chef/securite"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                ← Sécurité
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -411,35 +594,53 @@ export default function AdministrationDemandesRgpdPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Statistique
           label="Demandes affichées"
           valeur={statistiques.total}
+          description="Résultats renvoyés par l’API"
         />
+
         <Statistique
           label="Demandes ouvertes"
           valeur={statistiques.ouvertes}
+          description="Traitements à poursuivre"
         />
+
         <Statistique
           label="Terminées"
           valeur={statistiques.terminees}
+          description="Demandes clôturées"
+          positif={statistiques.terminees > 0}
         />
+
+        <Statistique
+          label="À échéance sous 7 jours"
+          valeur={statistiques.urgentes}
+          description="Demandes à prioriser"
+          attention={statistiques.urgentes > 0}
+        />
+
         <Statistique
           label="Échéances dépassées"
           valeur={statistiques.enRetard}
+          description="Demandes en retard"
           alerte={statistiques.enRetard > 0}
         />
       </section>
 
-      <section className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
-        <label>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <label>
           <span className="text-sm font-medium text-slate-700">
             Statut
           </span>
           <select
             value={filtreStatut}
             onChange={(event) =>
-              setFiltreStatut(event.target.value)
+              setFiltreStatut(
+                event.target.value as FiltreStatut
+              )
             }
             className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
           >
@@ -461,7 +662,9 @@ export default function AdministrationDemandesRgpdPage() {
           <select
             value={filtreType}
             onChange={(event) =>
-              setFiltreType(event.target.value)
+              setFiltreType(
+                event.target.value as FiltreType
+              )
             }
             className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
           >
@@ -474,44 +677,107 @@ export default function AdministrationDemandesRgpdPage() {
               </option>
             ))}
           </select>
-        </label>
+          </label>
+
+          <label>
+            <span className="text-sm font-medium text-slate-700">
+              Recherche
+            </span>
+
+            <input
+              type="search"
+              value={recherche}
+              onChange={(event) =>
+                setRecherche(event.target.value)
+              }
+              placeholder="Utilisateur, email, entreprise, commentaire…"
+              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            {demandesAffichees.length} demande(s) affichée(s)
+            sur {demandes.length}.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFiltreStatut("tous");
+              setFiltreType("tous");
+              setRecherche("");
+              setMessage("");
+              setErreur("");
+            }}
+            disabled={
+              filtreStatut === "tous" &&
+              filtreType === "tous" &&
+              !recherche.trim()
+            }
+            className="w-fit text-sm font-semibold text-violet-700 hover:text-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Réinitialiser les filtres
+          </button>
+        </div>
       </section>
 
       {chargement ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
-          Chargement des demandes…
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-xl">
+            ⏳
+          </div>
+
+          <p className="text-sm font-semibold text-slate-700">
+            Chargement des demandes…
+          </p>
         </div>
-      ) : demandes.length === 0 ? (
+      ) : demandesAffichees.length === 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
           <div className="text-4xl">📭</div>
           <p className="mt-3 font-bold text-slate-950">
-            Aucune demande pour ces filtres
+            Aucune demande pour ces critères
           </p>
         </div>
       ) : (
         <section className="space-y-5">
-          {demandes.map((demande) => {
+          {demandesAffichees.map((demande) => {
             const formulaire =
               formulaires[demande.id] ||
               creerFormulaire(demande);
 
-            const echeanceEffective =
-              demande.prolongee_jusqu_au ||
-              demande.echeance_reponse;
-
+            const dateEcheance =
+              echeanceEffective(demande);
+            const joursRestants =
+              joursAvantEcheance(demande);
+            const fermee =
+              estStatutFerme(demande.statut);
             const enRetard =
-              ![
-                "terminee",
-                "refusee",
-                "annulee",
-              ].includes(demande.statut) &&
-              new Date(echeanceEffective).getTime() <
-                Date.now();
+              !fermee &&
+              joursRestants !== null &&
+              joursRestants < 0;
+            const urgente =
+              !fermee &&
+              joursRestants !== null &&
+              joursRestants >= 0 &&
+              joursRestants <= 7;
+            const formulaireModifie =
+              !formulaireIdentique(
+                demande,
+                formulaire
+              );
 
             return (
               <article
                 key={demande.id}
-                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+                className={`rounded-3xl border p-5 shadow-sm sm:p-6 ${
+                  enRetard
+                    ? "border-red-200 bg-red-50/20"
+                    : urgente
+                      ? "border-amber-200 bg-amber-50/20"
+                      : "border-slate-200 bg-white"
+                }`}
               >
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
@@ -535,6 +801,19 @@ export default function AdministrationDemandesRgpdPage() {
                       {enRetard ? (
                         <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700">
                           Échéance dépassée
+                        </span>
+                      ) : null}
+
+                      {urgente ? (
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                          Échéance sous {joursRestants} jour
+                          {joursRestants === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+
+                      {demande.prolongee_jusqu_au ? (
+                        <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700">
+                          Prolongée
                         </span>
                       ) : null}
                     </div>
@@ -565,12 +844,36 @@ export default function AdministrationDemandesRgpdPage() {
                         className={
                           enRetard
                             ? "text-red-700"
-                            : "text-slate-700"
+                            : urgente
+                              ? "text-amber-700"
+                              : "text-slate-700"
                         }
                       >
-                        {formatDate(echeanceEffective)}
+                        {formatDate(dateEcheance)}
                       </strong>
                     </p>
+
+                    {demande.prise_en_charge_at ? (
+                      <p>
+                        Prise en charge :{" "}
+                        <strong className="text-slate-700">
+                          {formatDate(
+                            demande.prise_en_charge_at
+                          )}
+                        </strong>
+                      </p>
+                    ) : null}
+
+                    {demande.terminee_at ? (
+                      <p>
+                        Clôturée :{" "}
+                        <strong className="text-emerald-700">
+                          {formatDate(
+                            demande.terminee_at
+                          )}
+                        </strong>
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -649,6 +952,11 @@ export default function AdministrationDemandesRgpdPage() {
                       placeholder="Réponse, demande de précision, décision ou informations transmises…"
                       className="mt-1.5 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-100"
                     />
+
+                    <span className="mt-1 block text-right text-[11px] text-slate-400">
+                      {formulaire.reponse_interne.length}
+                      /10000 caractères
+                    </span>
                   </label>
                 </div>
 
@@ -689,26 +997,33 @@ export default function AdministrationDemandesRgpdPage() {
                     </label>
 
                     {formulaire.prolonger ? (
-                      <textarea
-                        value={
-                          formulaire.motif_prolongation
-                        }
-                        onChange={(event) =>
-                          modifierFormulaire(
-                            demande.id,
-                            {
-                              motif_prolongation:
-                                event.target.value.slice(
-                                  0,
-                                  2000
-                                ),
-                            }
-                          )
-                        }
-                        rows={3}
-                        placeholder="Motif précis de la prolongation…"
-                        className="mt-4 w-full rounded-xl border border-amber-300 bg-white px-4 py-3 text-sm outline-none focus:border-amber-600 focus:ring-4 focus:ring-amber-100"
-                      />
+                      <>
+                        <textarea
+                          value={
+                            formulaire.motif_prolongation
+                          }
+                          onChange={(event) =>
+                            modifierFormulaire(
+                              demande.id,
+                              {
+                                motif_prolongation:
+                                  event.target.value.slice(
+                                    0,
+                                    2000
+                                  ),
+                              }
+                            )
+                          }
+                          rows={3}
+                          placeholder="Motif précis de la prolongation…"
+                          className="mt-4 w-full rounded-xl border border-amber-300 bg-white px-4 py-3 text-sm outline-none focus:border-amber-600 focus:ring-4 focus:ring-amber-100"
+                        />
+
+                        <p className="mt-1 text-right text-[11px] text-amber-700">
+                          {formulaire.motif_prolongation.length}
+                          /2000 caractères
+                        </p>
+                      </>
                     ) : null}
                   </div>
                 ) : null}
@@ -722,26 +1037,49 @@ export default function AdministrationDemandesRgpdPage() {
                   </div>
                 ) : null}
 
-                <div className="mt-6 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void enregistrerTraitement(
-                        demande
-                      )
-                    }
-                    disabled={
-                      enregistrementId === demande.id ||
-                      demande.statut === "annulee"
-                    }
-                    className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {enregistrementId === demande.id
-                      ? "Enregistrement…"
-                      : demande.statut === "annulee"
-                        ? "Demande annulée"
-                        : "Enregistrer le traitement"}
-                  </button>
+                <div className="mt-6 flex flex-col gap-3">
+                  {formulaireModifie ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                      Des modifications ne sont pas encore enregistrées.
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        reinitialiserTraitement(demande)
+                      }
+                      disabled={
+                        enregistrementId === demande.id ||
+                        !formulaireModifie
+                      }
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Annuler les modifications
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void enregistrerTraitement(
+                          demande
+                        )
+                      }
+                      disabled={
+                        enregistrementId === demande.id ||
+                        demande.statut === "annulee" ||
+                        !formulaireModifie
+                      }
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {enregistrementId === demande.id
+                        ? "Enregistrement…"
+                        : demande.statut === "annulee"
+                          ? "Demande annulée"
+                          : "Enregistrer le traitement"}
+                    </button>
+                  </div>
                 </div>
               </article>
             );
@@ -755,11 +1093,17 @@ export default function AdministrationDemandesRgpdPage() {
 function Statistique({
   label,
   valeur,
+  description,
   alerte = false,
+  attention = false,
+  positif = false,
 }: {
   label: string;
   valeur: number;
+  description: string;
   alerte?: boolean;
+  attention?: boolean;
+  positif?: boolean;
 }) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -770,10 +1114,18 @@ function Statistique({
         className={`mt-2 text-3xl font-bold ${
           alerte
             ? "text-red-700"
-            : "text-slate-950"
+            : attention
+              ? "text-amber-700"
+              : positif
+                ? "text-emerald-700"
+                : "text-slate-950"
         }`}
       >
         {valeur}
+      </p>
+
+      <p className="mt-1 text-xs leading-5 text-slate-500">
+        {description}
       </p>
     </div>
   );

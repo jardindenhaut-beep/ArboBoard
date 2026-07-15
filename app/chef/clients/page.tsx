@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -313,7 +314,65 @@ function classesStatutUrssaf(
   return "bg-amber-100 text-amber-700";
 }
 
+function iconeTypeClient(type: string | null | undefined) {
+  if (type === "entreprise") return "🏢";
+  if (type === "collectivite") return "🏛️";
+  return "👤";
+}
+
+function initialesClient(client: Client) {
+  const valeur =
+    client.type_client === "particulier"
+      ? `${client.prenom || ""} ${client.nom || ""}`
+      : client.entreprise ||
+        `${client.prenom || ""} ${client.nom || ""}`;
+
+  const morceaux = String(valeur || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (morceaux.length === 0) return "CL";
+
+  return morceaux
+    .map((mot) => mot.charAt(0).toUpperCase())
+    .join("");
+}
+
+function emailValide(email: string) {
+  const valeur = email.trim();
+
+  if (!valeur) return true;
+  if (valeur.length > 254) return false;
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valeur);
+}
+
+function telephoneLien(telephone: string | null | undefined) {
+  return String(telephone || "").replace(/[^+\d]/g, "");
+}
+
+function resteAPayerFactureClient(facture: FactureClient) {
+  if (estAvoirFacture(facture)) return 0;
+
+  if (
+    facture.reste_a_payer !== null &&
+    facture.reste_a_payer !== undefined
+  ) {
+    return Math.max(0, Number(facture.reste_a_payer || 0));
+  }
+
+  return Math.max(
+    0,
+    Number(facture.total_ttc || 0) - Number(facture.montant_paye || 0)
+  );
+}
+
 export default function ClientsPage() {
+  const searchParams = useSearchParams();
+  const clientSelectionneId = searchParams.get("clientId");
+
   const [entrepriseId, setEntrepriseId] = useState<string>("");
   const [clients, setClients] = useState<Client[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -484,7 +543,7 @@ export default function ClientsPage() {
     );
 
     const resteAPayer = facturesClassiques.reduce(
-      (total, facture) => total + Number(facture.reste_a_payer || 0),
+      (total, facture) => total + resteAPayerFactureClient(facture),
       0
     );
 
@@ -766,12 +825,15 @@ export default function ClientsPage() {
     setMessageUrssaf("");
   }
 
-  function fermerModal() {
-    if (enregistrement) return;
-
+  function reinitialiserModalClient() {
     setModalOuverte(false);
     setClientEdition(null);
     setFormulaire(FORMULAIRE_VIDE);
+  }
+
+  function fermerModal() {
+    if (enregistrement) return;
+    reinitialiserModalClient();
   }
 
   function fermerFicheClient() {
@@ -831,6 +893,11 @@ export default function ClientsPage() {
       return;
     }
 
+    if (!emailValide(formulaire.email)) {
+      setMessageErreur("L’adresse email du client n’est pas valide.");
+      return;
+    }
+
     try {
       setEnregistrement(true);
       setMessageErreur("");
@@ -842,7 +909,7 @@ export default function ClientsPage() {
         nom: nettoyerTexte(formulaire.nom),
         prenom: nettoyerTexte(formulaire.prenom),
         entreprise: nettoyerTexte(formulaire.entreprise),
-        email: nettoyerTexte(formulaire.email),
+        email: nettoyerTexte(formulaire.email.toLowerCase()),
         telephone: nettoyerTexte(formulaire.telephone),
         adresse: nettoyerTexte(formulaire.adresse),
         code_postal: nettoyerTexte(formulaire.code_postal),
@@ -874,7 +941,7 @@ export default function ClientsPage() {
       }
 
       await chargerClients(entrepriseId);
-      fermerModal();
+      reinitialiserModalClient();
     } catch (error: any) {
       console.error("Erreur enregistrement client :", error);
       setMessageErreur(
@@ -926,6 +993,56 @@ export default function ClientsPage() {
     }
   }
 
+  useEffect(() => {
+    if (!clientSelectionneId || chargement) return;
+
+    setFiltreType("tous");
+    setFiltreStatut("tous");
+    setRecherche("");
+
+    let surbrillanceTimer: number | null = null;
+
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(
+        `client-${clientSelectionneId}`
+      );
+
+      if (!element) {
+        setMessageErreur(
+          "Le client demandé n’a pas été trouvé dans cette entreprise."
+        );
+        return;
+      }
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      element.classList.add(
+        "ring-4",
+        "ring-emerald-300",
+        "ring-offset-2"
+      );
+
+      surbrillanceTimer = window.setTimeout(() => {
+        element.classList.remove(
+          "ring-4",
+          "ring-emerald-300",
+          "ring-offset-2"
+        );
+      }, 4000);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+
+      if (surbrillanceTimer !== null) {
+        window.clearTimeout(surbrillanceTimer);
+      }
+    };
+  }, [clientSelectionneId, chargement, clients]);
+
   async function supprimerClient(client: Client) {
     if (!entrepriseId) return;
 
@@ -961,315 +1078,480 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Clients</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Gérez vos particuliers, entreprises et collectivités. Chaque client
-            est lié uniquement à votre entreprise.
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-emerald-600" />
 
-        <button
-          onClick={ouvrirCreation}
-          className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-        >
-          + Ajouter un client
-        </button>
-      </section>
+          <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
+                  👥
+                </div>
 
-      {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {messageErreur}
-        </div>
-      )}
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                    Relation client
+                  </p>
 
-      {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {messageSucces}
-        </div>
-      )}
+                  <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Clients
+                  </h1>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Total
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.total}
-          </p>
-        </div>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    Gérez les particuliers, entreprises et collectivités avec
+                    leurs coordonnées, adresses chantier et documents liés.
+                  </p>
+                </div>
+              </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Actifs
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.actifs}
-          </p>
-        </div>
+              <button
+                type="button"
+                onClick={ouvrirCreation}
+                disabled={enregistrement}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                <span aria-hidden="true">＋</span>
+                Ajouter un client
+              </button>
+            </div>
+          </div>
+        </section>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Particuliers
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.particuliers}
-          </p>
-        </div>
+        {(messageErreur || messageSucces) && (
+          <div className="space-y-3">
+            {messageErreur && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+              >
+                {messageErreur}
+              </div>
+            )}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Entreprises
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.entreprises}
-          </p>
-        </div>
+            {messageSucces && (
+              <div
+                role="status"
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+              >
+                {messageSucces}
+              </div>
+            )}
+          </div>
+        )}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Collectivités
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.collectivites}
-          </p>
-        </div>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          {[
+            {
+              label: "Total",
+              valeur: statistiques.total,
+              icone: "👥",
+              type: "tous",
+              statut: "tous",
+            },
+            {
+              label: "Actifs",
+              valeur: statistiques.actifs,
+              icone: "✅",
+              type: "tous",
+              statut: "actif",
+            },
+            {
+              label: "Particuliers",
+              valeur: statistiques.particuliers,
+              icone: "👤",
+              type: "particulier",
+              statut: "actif",
+            },
+            {
+              label: "Entreprises",
+              valeur: statistiques.entreprises,
+              icone: "🏢",
+              type: "entreprise",
+              statut: "actif",
+            },
+            {
+              label: "Collectivités",
+              valeur: statistiques.collectivites,
+              icone: "🏛️",
+              type: "collectivite",
+              statut: "actif",
+            },
+            {
+              label: "Archives",
+              valeur: statistiques.archives,
+              icone: "🗄️",
+              type: "tous",
+              statut: "archive",
+            },
+          ].map((carte) => {
+            const active =
+              filtreType === carte.type &&
+              filtreStatut === carte.statut;
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Archives
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.archives}
-          </p>
-        </div>
-      </section>
+            return (
+              <button
+                key={carte.label}
+                type="button"
+                onClick={() => {
+                  setFiltreType(carte.type as "tous" | TypeClient);
+                  setFiltreStatut(
+                    carte.statut as "actif" | "archive" | "tous"
+                  );
+                  setRecherche("");
+                }}
+                className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                  active
+                    ? "border-emerald-400 ring-2 ring-emerald-100"
+                    : "border-slate-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {carte.label}
+                    </p>
 
-      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_220px_220px]">
-          <input
-            value={recherche}
-            onChange={(event) => setRecherche(event.target.value)}
-            placeholder="Rechercher par nom, téléphone, email, ville, note, chantier..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          />
+                    <p className="mt-2 text-2xl font-black text-slate-950">
+                      {carte.valeur}
+                    </p>
+                  </div>
 
-          <select
-            value={filtreType}
-            onChange={(event) =>
-              setFiltreType(event.target.value as "tous" | TypeClient)
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="tous">Tous les types</option>
-            <option value="particulier">Particuliers</option>
-            <option value="entreprise">Entreprises</option>
-            <option value="collectivite">Collectivités</option>
-          </select>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-xl">
+                    {carte.icone}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </section>
 
-          <select
-            value={filtreStatut}
-            onChange={(event) =>
-              setFiltreStatut(
-                event.target.value as "actif" | "archive" | "tous"
-              )
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="actif">Clients actifs</option>
-            <option value="archive">Clients archivés</option>
-            <option value="tous">Tous les statuts</option>
-          </select>
-        </div>
+        <section className="sticky top-3 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                🔎
+              </span>
+
+              <input
+                type="search"
+                value={recherche}
+                onChange={(event) => setRecherche(event.target.value)}
+                placeholder="Nom, téléphone, email, ville, chantier…"
+                className="w-full rounded-2xl border border-slate-200 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              />
+            </div>
+
+            <select
+              value={filtreType}
+              onChange={(event) =>
+                setFiltreType(event.target.value as "tous" | TypeClient)
+              }
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            >
+              <option value="tous">Tous les types</option>
+              <option value="particulier">Particuliers</option>
+              <option value="entreprise">Entreprises</option>
+              <option value="collectivite">Collectivités</option>
+            </select>
+
+            <select
+              value={filtreStatut}
+              onChange={(event) =>
+                setFiltreStatut(
+                  event.target.value as "actif" | "archive" | "tous"
+                )
+              }
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            >
+              <option value="actif">Clients actifs</option>
+              <option value="archive">Clients archivés</option>
+              <option value="tous">Tous les statuts</option>
+            </select>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>{clientsFiltres.length} client(s) affiché(s)</span>
+
+            {(recherche ||
+              filtreType !== "tous" ||
+              filtreStatut !== "actif") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRecherche("");
+                  setFiltreType("tous");
+                  setFiltreStatut("actif");
+                }}
+                className="font-semibold text-emerald-700 hover:text-emerald-800"
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+        </section>
 
         {chargement ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-              🌳
+          <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+              ⏳
             </div>
+
             <p className="font-semibold text-slate-900">
-              Chargement des clients...
+              Chargement des clients…
             </p>
+
             <p className="mt-1 text-sm text-slate-500">
-              Récupération des données depuis Supabase.
+              Récupération des coordonnées et informations chantier.
             </p>
-          </div>
+          </section>
         ) : clientsFiltres.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+          <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
               👥
             </div>
-            <p className="font-semibold text-slate-900">Aucun client trouvé</p>
+
+            <p className="text-lg font-bold text-slate-950">
+              Aucun client trouvé
+            </p>
+
             <p className="mt-1 text-sm text-slate-500">
-              Créez votre premier client ou modifiez les filtres de recherche.
+              Créez un client ou modifiez les critères de recherche.
             </p>
 
             <button
+              type="button"
               onClick={ouvrirCreation}
               className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
               Ajouter un client
             </button>
-          </div>
+          </section>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Client</th>
-                  <th className="px-4 py-3 font-semibold">Type</th>
-                  <th className="px-4 py-3 font-semibold">Contact</th>
-                  <th className="px-4 py-3 font-semibold">Adresse</th>
-                  <th className="px-4 py-3 font-semibold">Statut</th>
-                  <th className="px-4 py-3 font-semibold">Créé le</th>
-                  <th className="px-4 py-3 text-right font-semibold">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+          <section className="grid gap-4 xl:grid-cols-2">
+            {clientsFiltres.map((client) => {
+              const archive = client.statut === "archive";
+              const telephone = telephoneLien(client.telephone);
+              const adresseClient = adresseClientComplete(client);
+              const adresseChantier = adresseChantierComplete(client);
 
-              <tbody className="divide-y divide-slate-100">
-                {clientsFiltres.map((client) => (
-                  <tr key={client.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-4 align-top">
-                      <p className="font-semibold text-slate-950">
-                        {nomClient(client)}
-                      </p>
+              return (
+                <article
+                  id={`client-${client.id}`}
+                  key={client.id}
+                  className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-500 hover:shadow-md ${
+                    clientSelectionneId === client.id
+                      ? "border-emerald-400"
+                      : archive
+                        ? "border-zinc-200 opacity-80"
+                        : "border-slate-200"
+                  }`}
+                >
+                  <div
+                    className={`h-1.5 ${
+                      archive
+                        ? "bg-zinc-400"
+                        : client.type_client === "entreprise"
+                          ? "bg-blue-500"
+                          : client.type_client === "collectivite"
+                            ? "bg-violet-500"
+                            : "bg-emerald-600"
+                    }`}
+                  />
 
-                      {client.type_client !== "particulier" &&
-                        (client.prenom || client.nom) && (
-                          <p className="mt-1 text-xs text-slate-500">
-                            Contact :{" "}
-                            {`${client.prenom || ""} ${
-                              client.nom || ""
-                            }`.trim()}
-                          </p>
-                        )}
-
-                      {client.notes && (
-                        <p className="mt-2 line-clamp-2 max-w-xs text-xs text-slate-500">
-                          {client.notes}
-                        </p>
-                      )}
-
-                      {client.notes_chantier && (
-                        <p className="mt-2 line-clamp-2 max-w-xs text-xs text-emerald-700">
-                          Chantier : {client.notes_chantier}
-                        </p>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 align-top">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeTypeClient(
-                          client.type_client
-                        )}`}
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black ${
+                          archive
+                            ? "bg-zinc-100 text-zinc-600"
+                            : client.type_client === "entreprise"
+                              ? "bg-blue-50 text-blue-700"
+                              : client.type_client === "collectivite"
+                                ? "bg-violet-50 text-violet-700"
+                                : "bg-emerald-50 text-emerald-700"
+                        }`}
                       >
-                        {libelleTypeClient(client.type_client)}
-                      </span>
-                    </td>
+                        {initialesClient(client)}
+                      </div>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-1 text-sm text-slate-700">
-                        <p>{client.telephone || "—"}</p>
-                        <p className="text-xs text-slate-500">
-                          {client.email || "—"}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badgeTypeClient(
+                              client.type_client
+                            )}`}
+                          >
+                            {iconeTypeClient(client.type_client)}{" "}
+                            {libelleTypeClient(client.type_client)}
+                          </span>
+
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                              archive
+                                ? "bg-zinc-100 text-zinc-600"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {archive ? "Archivé" : "Actif"}
+                          </span>
+
+                          {clientSelectionneId === client.id && (
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                              Client sélectionné
+                            </span>
+                          )}
+                        </div>
+
+                        <h2 className="mt-3 break-words text-lg font-black text-slate-950">
+                          {nomClient(client)}
+                        </h2>
+
+                        {client.type_client !== "particulier" &&
+                          (client.prenom || client.nom) && (
+                            <p className="mt-1 text-sm text-slate-500">
+                              Contact :{" "}
+                              {`${client.prenom || ""} ${
+                                client.nom || ""
+                              }`.trim()}
+                            </p>
+                          )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Coordonnées
+                        </p>
+
+                        <div className="mt-2 space-y-1 text-sm">
+                          {client.telephone ? (
+                            <a
+                              href={telephone ? `tel:${telephone}` : undefined}
+                              className="block font-semibold text-slate-800 hover:text-emerald-700"
+                            >
+                              📞 {client.telephone}
+                            </a>
+                          ) : (
+                            <p className="text-slate-400">Téléphone non renseigné</p>
+                          )}
+
+                          {client.email ? (
+                            <a
+                              href={`mailto:${client.email}`}
+                              className="block break-all text-slate-600 hover:text-emerald-700"
+                            >
+                              ✉️ {client.email}
+                            </a>
+                          ) : (
+                            <p className="text-slate-400">Email non renseigné</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Adresse client
+                        </p>
+
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                          {adresseClient || "Non renseignée"}
                         </p>
                       </div>
-                    </td>
+                    </div>
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="max-w-xs text-sm text-slate-700">
-                        <p>{client.adresse || "—"}</p>
-                        <p className="text-xs text-slate-500">
-                          {[client.code_postal, client.ville]
-                            .filter(Boolean)
-                            .join(" ") || "—"}
-                        </p>
+                    {(adresseChantier || client.notes_chantier) && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {adresseChantier && (
+                          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                              Adresse chantier
+                            </p>
 
-                        {(client.adresse_chantier ||
-                          client.code_postal_chantier ||
-                          client.ville_chantier) && (
-                          <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                            <p className="font-semibold">Chantier</p>
-                            <p>{client.adresse_chantier || "—"}</p>
-                            <p>
-                              {[
-                                client.code_postal_chantier,
-                                client.ville_chantier,
-                              ]
-                                .filter(Boolean)
-                                .join(" ") || "—"}
+                            <p className="mt-2 whitespace-pre-wrap text-sm text-emerald-900">
+                              {adresseChantier}
+                            </p>
+                          </div>
+                        )}
+
+                        {client.notes_chantier && (
+                          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                              Notes chantier
+                            </p>
+
+                            <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-amber-900">
+                              {client.notes_chantier}
                             </p>
                           </div>
                         )}
                       </div>
-                    </td>
+                    )}
 
-                    <td className="px-4 py-4 align-top">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                          client.statut === "archive"
-                            ? "bg-slate-100 text-slate-600"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        {client.statut === "archive" ? "Archivé" : "Actif"}
-                      </span>
-                    </td>
+                    {client.notes && (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Notes internes
+                        </p>
 
-                    <td className="px-4 py-4 align-top text-sm text-slate-600">
-                      {formatDate(client.created_at)}
-                    </td>
+                        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-slate-600">
+                          {client.notes}
+                        </p>
+                      </div>
+                    )}
 
-                    <td className="px-4 py-4 align-top">
-                      <div className="flex justify-end gap-2">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                      <p className="text-xs text-slate-400">
+                        Créé le {formatDate(client.created_at)}
+                      </p>
+
+                      <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-4">
                         <button
+                          type="button"
                           onClick={() => void ouvrirFicheClient(client)}
-                          className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          className="min-h-10 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
                         >
-                          Voir fiche
+                          Voir la fiche
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => ouvrirEdition(client)}
-                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                          className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                         >
                           Modifier
                         </button>
 
                         <button
-                          onClick={() => archiverOuRestaurerClient(client)}
-                          className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                          type="button"
+                          onClick={() => void archiverOuRestaurerClient(client)}
+                          className="min-h-10 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
                         >
-                          {client.statut === "archive"
-                            ? "Réactiver"
-                            : "Archiver"}
+                          {archive ? "Réactiver" : "Archiver"}
                         </button>
 
                         <button
-                          onClick={() => supprimerClient(client)}
-                          className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          type="button"
+                          onClick={() => void supprimerClient(client)}
+                          className="min-h-10 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50"
                         >
                           Supprimer
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
         )}
-      </section>
 
       {modalOuverte && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="max-h-[96vh] w-full max-w-5xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
+            <div className="sticky top-0 z-20 flex items-start justify-between border-b border-slate-200 bg-white/95 p-5 backdrop-blur">
               <div>
                 <h2 className="text-xl font-bold text-slate-950">
                   {clientEdition ? "Modifier le client" : "Ajouter un client"}
@@ -1395,13 +1677,31 @@ export default function ClientsPage() {
                       Email
                     </label>
                     <input
+                      type="email"
                       value={formulaire.email}
                       onChange={(event) =>
                         modifierChamp("email", event.target.value)
                       }
                       placeholder="client@email.fr"
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                      autoComplete="email"
+                      aria-invalid={
+                        formulaire.email.trim() !== "" &&
+                        !emailValide(formulaire.email)
+                      }
+                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none focus:ring-4 ${
+                        formulaire.email.trim() !== "" &&
+                        !emailValide(formulaire.email)
+                          ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+                          : "border-slate-200 focus:border-emerald-500 focus:ring-emerald-100"
+                      }`}
                     />
+
+                    {formulaire.email.trim() !== "" &&
+                      !emailValide(formulaire.email) && (
+                        <p className="mt-1 text-xs font-medium text-red-600">
+                          Cette adresse email n’est pas valide.
+                        </p>
+                      )}
                   </div>
                 </div>
               </section>
@@ -1557,7 +1857,7 @@ export default function ClientsPage() {
               </section>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
+            <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur sm:flex-row sm:justify-end">
               <button
                 onClick={fermerModal}
                 disabled={enregistrement}
@@ -1572,7 +1872,7 @@ export default function ClientsPage() {
                 className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {enregistrement
-                  ? "Enregistrement..."
+                  ? "Enregistrement…"
                   : clientEdition
                   ? "Modifier le client"
                   : "Créer le client"}
@@ -1583,28 +1883,44 @@ export default function ClientsPage() {
       )}
 
       {ficheClientOuverte && clientSelectionne && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="max-h-[96vh] w-full max-w-6xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
+            <div className="sticky top-0 z-20 flex flex-col gap-4 border-b border-slate-200 bg-white/95 p-5 backdrop-blur sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-emerald-700">
+                <p className="text-sm font-semibold text-emerald-700">
                   Fiche client
                 </p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-950">
+
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
                   {nomClient(clientSelectionne)}
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-500">
-                  Historique devis, factures, coordonnées, adresses et notes
-                  chantier.
+                  Coordonnées, adresses, notes et historique commercial.
                 </p>
               </div>
 
-              <button
-                onClick={fermerFicheClient}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Fermer
-              </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const client = clientSelectionne;
+                    fermerFicheClient();
+                    ouvrirEdition(client);
+                  }}
+                  className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                >
+                  Modifier
+                </button>
+
+                <button
+                  type="button"
+                  onClick={fermerFicheClient}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                >
+                  Fermer
+                </button>
+              </div>
             </div>
 
             <div className="space-y-6 p-5">
@@ -1735,7 +2051,7 @@ export default function ClientsPage() {
                     </p>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-5">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
                     <div className="rounded-2xl border border-slate-200 bg-white p-4">
                       <p className="text-xs uppercase tracking-wide text-slate-400">
                         Devis
@@ -1769,6 +2085,15 @@ export default function ClientsPage() {
                       </p>
                       <p className="mt-2 text-2xl font-bold text-slate-950">
                         {formatMontant(statsFicheClient.totalFactureTtc)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-xs uppercase tracking-wide text-emerald-600">
+                        Total encaissé
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-emerald-700">
+                        {formatMontant(statsFicheClient.totalPaye)}
                       </p>
                     </div>
 
@@ -1818,7 +2143,7 @@ export default function ClientsPage() {
                                   </p>
 
                                   <Link
-                                    href="/chef/devis"
+                                    href={`/chef/devis?devisId=${devis.id}`}
                                     className="mt-2 inline-flex rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                                   >
                                     Ouvrir devis
@@ -1880,13 +2205,13 @@ export default function ClientsPage() {
                                       <p className="text-xs text-red-600">
                                         Reste :{" "}
                                         {formatMontant(
-                                          facture.reste_a_payer
+                                          resteAPayerFactureClient(facture)
                                         )}
                                       </p>
                                     )}
 
                                     <Link
-                                      href="/chef/factures"
+                                      href={`/chef/factures?factureId=${facture.id}`}
                                       className="mt-2 inline-flex rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                                     >
                                       Ouvrir facture
@@ -1909,8 +2234,8 @@ export default function ClientsPage() {
 
       {modalUrssafOuverte &&
       clientSelectionne && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4 py-6">
-          <div className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/50 px-0 py-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="max-h-[96vh] w-full max-w-6xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-h-[94vh] sm:rounded-3xl">
             <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white p-5">
               <div>
                 <p className="text-sm font-semibold text-blue-700">
@@ -2735,6 +3060,7 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

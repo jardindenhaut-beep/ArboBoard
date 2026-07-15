@@ -573,6 +573,13 @@ export default function AvanceImmediateParametresPage() {
               Historique complet
             </Link>
 
+            <Link
+              href="/chef/parametres/avance-immediate/attestations-fiscales"
+              className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-center text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+            >
+              Attestations fiscales
+            </Link>
+
             <button
               type="button"
               onClick={() =>

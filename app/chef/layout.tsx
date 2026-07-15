@@ -28,11 +28,14 @@ type ContexteEntreprise = {
   entreprise: NonNullable<ContexteEntrepriseBrut["entreprise"]>;
 };
 
+type GroupeMenu = "Pilotage" | "Commercial" | "Équipe";
+
 type MenuItem = {
   label: string;
   href: string;
   emoji: string;
   plans: string[];
+  groupe: GroupeMenu;
 };
 
 type LienCompte = {
@@ -44,89 +47,72 @@ type LienCompte = {
 
 type NiveauAuthentification = "aal1" | "aal2" | null;
 
-type TableauAlertesUrssaf = {
-  clients?: {
-    refuse?: number;
-    erreur?: number;
-  };
-  demandes?: {
-    impayee?: number;
-    annulee?: number;
-    erreur?: number;
-  };
-  virements?: {
-    a_rapprocher?: number;
-  };
-};
-
-type ReponseAlertesUrssaf = {
-  succes?: boolean;
-  tableau?: TableauAlertesUrssaf;
-};
-
 const TOUS_LES_PLANS = ["essai", "essentiel", "pro", "expert", "dev"];
 const PLANS_EQUIPE = ["essai", "pro", "expert", "dev"];
 
 const MENUS: MenuItem[] = [
   {
     label: "Dashboard",
-    href: "/chef/dashboard",
+    href: "/chef",
     emoji: "🏠",
     plans: TOUS_LES_PLANS,
-  },
-  {
-    label: "Clients",
-    href: "/chef/clients",
-    emoji: "👥",
-    plans: TOUS_LES_PLANS,
-  },
-  {
-    label: "Salariés",
-    href: "/chef/salaries",
-    emoji: "👷",
-    plans: PLANS_EQUIPE,
-  },
-  {
-    label: "Accès salariés",
-    href: "/chef/salaries/acces",
-    emoji: "🔐",
-    plans: PLANS_EQUIPE,
+    groupe: "Pilotage",
   },
   {
     label: "Planning",
     href: "/chef/planning",
     emoji: "📅",
     plans: PLANS_EQUIPE,
-  },
-  {
-    label: "Demandes",
-    href: "/chef/demandes",
-    emoji: "📩",
-    plans: PLANS_EQUIPE,
+    groupe: "Pilotage",
   },
   {
     label: "Fiches d’intervention",
     href: "/chef/interventions",
     emoji: "🌳",
     plans: PLANS_EQUIPE,
+    groupe: "Pilotage",
+  },
+  {
+    label: "Clients",
+    href: "/chef/clients",
+    emoji: "👥",
+    plans: TOUS_LES_PLANS,
+    groupe: "Commercial",
   },
   {
     label: "Devis",
     href: "/chef/devis",
     emoji: "📝",
     plans: TOUS_LES_PLANS,
+    groupe: "Commercial",
   },
   {
     label: "Factures",
     href: "/chef/factures",
     emoji: "🧾",
     plans: TOUS_LES_PLANS,
+    groupe: "Commercial",
   },
   {
-    label: "Avance immédiate",
-    href: "/chef/parametres/avance-immediate",
-    emoji: "⚡",
-    plans: TOUS_LES_PLANS,
+    label: "Salariés",
+    href: "/chef/salaries",
+    emoji: "👷",
+    plans: PLANS_EQUIPE,
+    groupe: "Équipe",
+  },
+  {
+    label: "Accès salariés",
+    href: "/chef/salaries/acces",
+    emoji: "🔐",
+    plans: PLANS_EQUIPE,
+    groupe: "Équipe",
+  },
+  {
+    label: "Demandes",
+    href: "/chef/demandes",
+    emoji: "📩",
+    plans: PLANS_EQUIPE,
+    groupe: "Équipe",
   },
 ];
 
@@ -154,12 +140,6 @@ const LIENS_COMPTE: LienCompte[] = [
     description: "Entreprise et documents",
     href: "/chef/parametres",
     emoji: "⚙️",
-  },
-  {
-    label: "Avance immédiate",
-    description: "Connexion API Tiers de prestation Urssaf",
-    href: "/chef/parametres/avance-immediate",
-    emoji: "🇫🇷",
   },
   {
     label: "Sécurité & conformité",
@@ -196,6 +176,18 @@ function roleChefAutorise(role: string | null | undefined) {
     "dirigeant",
     "patron",
   ].includes(normaliserRole(role));
+}
+
+function lienMenuActif(pathname: string, href: string) {
+  if (href === "/chef") {
+    return pathname === "/chef" || pathname === "/chef/dashboard";
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function libelleGroupeMenu(groupe: GroupeMenu) {
+  return groupe;
 }
 
 function routeAutoriseePourPlan(pathname: string, plan: string) {
@@ -430,16 +422,6 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     useState<NiveauAuthentification>(null);
   const [mfaRequise, setMfaRequise] = useState(false);
 
-  const [
-    nombreAlertesUrssaf,
-    setNombreAlertesUrssaf,
-  ] = useState(0);
-
-  const [
-    chargementAlertesUrssaf,
-    setChargementAlertesUrssaf,
-  ] = useState(false);
-
   useEffect(() => {
     let actif = true;
 
@@ -562,115 +544,6 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
-    if (!contexte) {
-      setNombreAlertesUrssaf(0);
-      return;
-    }
-
-    let actif = true;
-
-    async function chargerAlertesUrssaf() {
-      try {
-        setChargementAlertesUrssaf(true);
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (
-          !actif ||
-          !session?.access_token
-        ) {
-          if (actif) {
-            setNombreAlertesUrssaf(0);
-          }
-          return;
-        }
-
-        const reponse = await fetch(
-          "/api/integrations/urssaf/tableau-de-bord",
-          {
-            headers: {
-              Authorization:
-                `Bearer ${session.access_token}`,
-            },
-            cache: "no-store",
-          }
-        );
-
-        const donnees =
-          (await reponse.json().catch(
-            () => null
-          )) as ReponseAlertesUrssaf | null;
-
-        if (
-          !actif ||
-          !reponse.ok ||
-          !donnees?.succes ||
-          !donnees.tableau
-        ) {
-          if (actif) {
-            setNombreAlertesUrssaf(0);
-          }
-          return;
-        }
-
-        const total =
-          Number(
-            donnees.tableau.virements
-              ?.a_rapprocher || 0
-          ) +
-          Number(
-            donnees.tableau.demandes
-              ?.impayee || 0
-          ) +
-          Number(
-            donnees.tableau.demandes
-              ?.annulee || 0
-          ) +
-          Number(
-            donnees.tableau.demandes
-              ?.erreur || 0
-          ) +
-          Number(
-            donnees.tableau.clients
-              ?.refuse || 0
-          ) +
-          Number(
-            donnees.tableau.clients
-              ?.erreur || 0
-          );
-
-        setNombreAlertesUrssaf(
-          Math.max(0, total)
-        );
-      } catch {
-        if (actif) {
-          setNombreAlertesUrssaf(0);
-        }
-      } finally {
-        if (actif) {
-          setChargementAlertesUrssaf(false);
-        }
-      }
-    }
-
-    void chargerAlertesUrssaf();
-
-    const intervalle = window.setInterval(
-      () => {
-        void chargerAlertesUrssaf();
-      },
-      5 * 60 * 1000
-    );
-
-    return () => {
-      actif = false;
-      window.clearInterval(intervalle);
-    };
-  }, [contexte, pathname]);
-
-  useEffect(() => {
     function fermerAuClicExterieur(event: MouseEvent) {
       const cible = event.target as Node;
 
@@ -711,10 +584,43 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
     return MENUS.filter((menu) => menu.plans.includes(planActuel));
   }, [planActuel]);
 
+  const groupesMenusDisponibles = useMemo(() => {
+    const groupes: GroupeMenu[] = [
+      "Pilotage",
+      "Commercial",
+      "Équipe",
+    ];
+
+    return groupes
+      .map((groupe) => ({
+        groupe,
+        menus: menusDisponibles.filter(
+          (menu) => menu.groupe === groupe
+        ),
+      }))
+      .filter((section) => section.menus.length > 0);
+  }, [menusDisponibles]);
+
+  const pageGereSonEspacement = useMemo(() => {
+    return (
+      pathname === "/chef" ||
+      pathname === "/chef/dashboard" ||
+      pathname.startsWith("/chef/clients") ||
+      pathname.startsWith("/chef/devis") ||
+      pathname.startsWith("/chef/factures") ||
+      pathname.startsWith("/chef/planning") ||
+      pathname.startsWith("/chef/interventions")
+    );
+  }, [pathname]);
+
   async function deconnexion() {
     setMenuUtilisateurOuvert(false);
-    await supabase.auth.signOut();
-    router.replace("/connexion");
+
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      router.replace("/connexion");
+    }
   }
 
   if (chargement) {
@@ -768,13 +674,13 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <aside className="fixed left-0 top-0 hidden h-screen w-72 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="border-b border-slate-200 p-5">
+      <aside className="fixed left-0 top-0 hidden h-screen w-72 flex-col border-r border-slate-200 bg-white shadow-sm lg:flex">
+        <div className="border-b border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-white p-5">
           <Link
-            href="/chef/dashboard"
+            href="/chef"
             className="flex items-center gap-3"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
               🌳
             </div>
             <div>
@@ -816,51 +722,58 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-1">
-            {menusDisponibles.map((menu) => {
-              const actif =
-                pathname === menu.href ||
-                pathname.startsWith(`${menu.href}/`);
+        <nav className="flex-1 overflow-y-auto px-4 py-5">
+          <div className="space-y-6">
+            {groupesMenusDisponibles.map((section) => (
+              <section key={section.groupe}>
+                <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                  {libelleGroupeMenu(section.groupe)}
+                </p>
 
-              return (
-                <Link
-                  key={menu.href}
-                  href={menu.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                    actif
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
-                  }`}
-                >
-                  <span className="text-base">{menu.emoji}</span>
-                  <span className="min-w-0 flex-1">
-                    {menu.label}
-                  </span>
+                <div className="space-y-1">
+                  {section.menus.map((menu) => {
+                    const actif = lienMenuActif(
+                      pathname,
+                      menu.href
+                    );
 
-                  {menu.href ===
-                    "/chef/parametres/avance-immediate" ? (
-                    chargementAlertesUrssaf ? (
-                      <span
-                        className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-slate-300"
-                        aria-label="Vérification des alertes URSSAF"
-                      />
-                    ) : nombreAlertesUrssaf > 0 ? (
-                      <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-black text-white">
-                        {nombreAlertesUrssaf > 99
-                          ? "99+"
-                          : nombreAlertesUrssaf}
-                      </span>
-                    ) : (
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-emerald-500"
-                        aria-label="Aucune alerte URSSAF"
-                      />
-                    )
-                  ) : null}
-                </Link>
-              );
-            })}
+                    return (
+                      <Link
+                        key={menu.href}
+                        href={menu.href}
+                        aria-current={actif ? "page" : undefined}
+                        className={`group flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition ${
+                          actif
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-base transition ${
+                            actif
+                              ? "bg-white/15"
+                              : "bg-slate-50 group-hover:bg-white"
+                          }`}
+                        >
+                          {menu.emoji}
+                        </span>
+
+                        <span className="min-w-0 flex-1 truncate">
+                          {menu.label}
+                        </span>
+
+                        {actif ? (
+                          <span
+                            aria-hidden="true"
+                            className="h-2 w-2 shrink-0 rounded-full bg-white"
+                          />
+                        ) : null}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         </nav>
 
@@ -885,7 +798,7 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
             <Link
-              href="/chef/dashboard"
+              href="/chef"
               className="flex items-center gap-2"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-xl">
@@ -902,51 +815,49 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
             <div ref={menuUtilisateurMobileRef}>
               <MenuUtilisateur
                 profil={profil}
-              entreprise={entreprise}
-              ouvert={menuUtilisateurOuvert}
-              onBasculer={() =>
-                setMenuUtilisateurOuvert((valeur) => !valeur)
-              }
-              onFermer={() => setMenuUtilisateurOuvert(false)}
-              onDeconnexion={deconnexion}
+                entreprise={entreprise}
+                ouvert={menuUtilisateurOuvert}
+                onBasculer={() =>
+                  setMenuUtilisateurOuvert(
+                    (valeur) => !valeur
+                  )
+                }
+                onFermer={() =>
+                  setMenuUtilisateurOuvert(false)
+                }
+                onDeconnexion={deconnexion}
                 mobile
               />
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+          <nav
+            aria-label="Navigation principale"
+            className="flex gap-2 overflow-x-auto px-4 pb-3"
+          >
             {menusDisponibles.map((menu) => {
-              const actif =
-                pathname === menu.href ||
-                pathname.startsWith(`${menu.href}/`);
+              const actif = lienMenuActif(
+                pathname,
+                menu.href
+              );
 
               return (
                 <Link
                   key={menu.href}
                   href={menu.href}
-                  className={`whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium ${
+                  aria-current={actif ? "page" : undefined}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition ${
                     actif
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-100 text-slate-700"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-700"
                   }`}
                 >
-                  <span>
-                    {menu.emoji} {menu.label}
-                  </span>
-
-                  {menu.href ===
-                    "/chef/parametres/avance-immediate" &&
-                  nombreAlertesUrssaf > 0 ? (
-                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white">
-                      {nombreAlertesUrssaf > 99
-                        ? "99+"
-                        : nombreAlertesUrssaf}
-                    </span>
-                  ) : null}
+                  <span>{menu.emoji}</span>
+                  <span>{menu.label}</span>
                 </Link>
               );
             })}
-          </div>
+          </nav>
         </header>
 
         {abonnementBloque ? (
@@ -957,7 +868,15 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           </div>
         ) : null}
 
-        <main className="p-4 lg:p-8">{children}</main>
+        <main
+          className={
+            pageGereSonEspacement
+              ? "min-w-0"
+              : "min-w-0 p-4 lg:p-8"
+          }
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

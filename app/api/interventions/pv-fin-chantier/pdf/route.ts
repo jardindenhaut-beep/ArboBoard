@@ -10,10 +10,12 @@ import {
   type PhotoPv,
   type PvFinChantierPdf,
   type SalariePv,
-} from "../../../../../lib/interventions/genererPdfPvFinChantier";
+} from "@/lib/interventions/genererPdfPvFinChantier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const NOMBRE_MAX_PHOTOS_A_SIGNER = 12;
 
 type SupabaseAdminClient = any;
 
@@ -29,6 +31,7 @@ type SalarieUtilisateur = {
 
 type FicheAcces = FichePvPdf & {
   salarie_id?: string | null;
+  pv_fin_chantier_id?: string | null;
 };
 
 type PhotoBase = PhotoPv & {
@@ -39,6 +42,7 @@ type PhotoBase = PhotoPv & {
 function reponseErreur(message: string, statut = 400) {
   return Response.json(
     {
+      succes: false,
       error: message,
       erreur: message,
     },
@@ -46,6 +50,7 @@ function reponseErreur(message: string, statut = 400) {
       status: statut,
       headers: {
         "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     }
   );
@@ -72,8 +77,6 @@ function normaliserRole(role: string | null | undefined) {
 }
 
 function roleDirection(role: string | null | undefined) {
-  const roleNormalise = normaliserRole(role);
-
   return [
     "admin",
     "administrateur",
@@ -81,7 +84,7 @@ function roleDirection(role: string | null | undefined) {
     "gerant",
     "dirigeant",
     "patron",
-  ].includes(roleNormalise);
+  ].includes(normaliserRole(role));
 }
 
 function estUrlExterne(valeur: string | null | undefined) {
@@ -92,6 +95,16 @@ function nettoyerCheminStorage(valeur: string | null | undefined) {
   return String(valeur || "")
     .trim()
     .replace(/^\/+/, "");
+}
+
+function extraireJeton(request: Request) {
+  const authorization = request.headers.get("authorization") || "";
+
+  if (!authorization.toLowerCase().startsWith("bearer ")) {
+    return "";
+  }
+
+  return authorization.slice(7).trim();
 }
 
 async function lireCorpsJson(request: Request) {
@@ -113,6 +126,11 @@ async function trouverSalarieConnecte({
   userId: string;
   email: string | null | undefined;
 }): Promise<SalarieUtilisateur | null> {
+  /*
+   * Certaines anciennes bases peuvent ne pas encore posséder user_id
+   * ou profil_id. Une erreur sur cette première recherche ne doit donc
+   * pas empêcher la tentative de correspondance par email.
+   */
   const { data: salarieParIdentifiantsData, error: erreurIdentifiants } =
     await supabaseAdmin
       .from("salaries")
@@ -129,7 +147,9 @@ async function trouverSalarieConnecte({
     return salarieParIdentifiants;
   }
 
-  if (!email) {
+  const emailNettoye = String(email || "").trim();
+
+  if (!emailNettoye) {
     return null;
   }
 
@@ -138,7 +158,7 @@ async function trouverSalarieConnecte({
       .from("salaries")
       .select("id")
       .eq("entreprise_id", entrepriseId)
-      .ilike("email", email)
+      .ilike("email", emailNettoye)
       .limit(1)
       .maybeSingle();
 
@@ -246,7 +266,9 @@ async function ajouterUrlSigneePhoto({
     };
   }
 
-  const chemin = nettoyerCheminStorage(photo.storage_path || valeurUrl);
+  const chemin = nettoyerCheminStorage(
+    photo.storage_path || valeurUrl
+  );
 
   if (!chemin) {
     return {
@@ -278,6 +300,73 @@ async function ajouterUrlSigneePhoto({
   };
 }
 
+async function preparerPhotos({
+  supabaseAdmin,
+  photos,
+}: {
+  supabaseAdmin: SupabaseAdminClient;
+  photos: PhotoBase[];
+}) {
+  return Promise.all(
+    photos.map((photo, index) => {
+      if (index >= NOMBRE_MAX_PHOTOS_A_SIGNER) {
+        return Promise.resolve({
+          ...photo,
+          signed_url: null,
+        });
+      }
+
+      return ajouterUrlSigneePhoto({
+        supabaseAdmin,
+        photo,
+      });
+    })
+  );
+}
+
+function bufferEstPdf(buffer: Buffer) {
+  if (!buffer || buffer.length < 5) {
+    return false;
+  }
+
+  return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+}
+
+async function chargerPv({
+  supabaseAdmin,
+  entrepriseId,
+  ficheId,
+  pvIdDemande,
+  pvIdFiche,
+}: {
+  supabaseAdmin: SupabaseAdminClient;
+  entrepriseId: string;
+  ficheId: string;
+  pvIdDemande: string;
+  pvIdFiche: string | null | undefined;
+}) {
+  const pvIdCible = pvIdDemande || String(pvIdFiche || "").trim();
+
+  if (pvIdCible) {
+    return supabaseAdmin
+      .from("pv_fin_chantier")
+      .select("*")
+      .eq("entreprise_id", entrepriseId)
+      .eq("fiche_id", ficheId)
+      .eq("id", pvIdCible)
+      .maybeSingle();
+  }
+
+  return supabaseAdmin
+    .from("pv_fin_chantier")
+    .select("*")
+    .eq("entreprise_id", entrepriseId)
+    .eq("fiche_id", ficheId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+}
+
 export async function POST(request: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -291,30 +380,37 @@ export async function POST(request: Request) {
       );
     }
 
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.toLowerCase().startsWith("bearer ")
-      ? authHeader.slice(7).trim()
-      : "";
+    const token = extraireJeton(request);
 
     if (!token) {
-      return reponseErreur("Utilisateur non authentifié.", 401);
+      return reponseErreur(
+        "Utilisateur non authentifié. Veuillez vous reconnecter.",
+        401
+      );
     }
 
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
+    const supabaseAuth = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      }
+    );
 
     const {
       data: { user },
-      error: erreurUser,
+      error: erreurUtilisateur,
     } = await supabaseAuth.auth.getUser(token);
 
-    if (erreurUser || !user) {
-      return reponseErreur("Session utilisateur invalide.", 401);
+    if (erreurUtilisateur || !user) {
+      return reponseErreur(
+        "Session utilisateur invalide. Veuillez vous reconnecter.",
+        401
+      );
     }
 
     const corps = await lireCorpsJson(request);
@@ -324,11 +420,29 @@ export async function POST(request: Request) {
     }
 
     const ficheId =
-      typeof corps.ficheId === "string" ? corps.ficheId.trim() : "";
+      typeof corps.ficheId === "string"
+        ? corps.ficheId.trim()
+        : typeof corps.fiche_id === "string"
+          ? corps.fiche_id.trim()
+          : "";
+
+    const pvIdDemande =
+      typeof corps.pvId === "string"
+        ? corps.pvId.trim()
+        : typeof corps.pv_id === "string"
+          ? corps.pv_id.trim()
+          : "";
 
     if (!ficheId || ficheId.length > 200) {
       return reponseErreur(
         "Identifiant de fiche manquant ou invalide.",
+        400
+      );
+    }
+
+    if (pvIdDemande.length > 200) {
+      return reponseErreur(
+        "Identifiant de PV invalide.",
         400
       );
     }
@@ -356,10 +470,13 @@ export async function POST(request: Request) {
       (profilData || null) as ProfilUtilisateur | null;
 
     if (erreurProfil || !profil?.entreprise_id) {
-      return reponseErreur("Profil utilisateur introuvable.", 403);
+      return reponseErreur(
+        "Profil utilisateur introuvable. Impossible de vérifier vos droits.",
+        403
+      );
     }
 
-    const entrepriseId = profil.entreprise_id;
+    const entrepriseId = String(profil.entreprise_id);
 
     const { data: ficheDataBrute, error: erreurFiche } =
       await supabaseAdmin
@@ -383,7 +500,7 @@ export async function POST(request: Request) {
 
     if (!ficheData) {
       return reponseErreur(
-        "Fiche d’intervention introuvable.",
+        "Fiche d’intervention introuvable ou non rattachée à votre entreprise.",
         404
       );
     }
@@ -406,15 +523,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: pvDataBrute, error: erreurPv } =
-      await supabaseAdmin
-        .from("pv_fin_chantier")
-        .select("*")
-        .eq("entreprise_id", entrepriseId)
-        .eq("fiche_id", ficheId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    const { data: pvDataBrute, error: erreurPv } = await chargerPv({
+      supabaseAdmin,
+      entrepriseId,
+      ficheId,
+      pvIdDemande,
+      pvIdFiche: ficheData.pv_fin_chantier_id,
+    });
 
     const pvData =
       (pvDataBrute || null) as PvFinChantierPdf | null;
@@ -430,40 +545,54 @@ export async function POST(request: Request) {
 
     if (!pvData) {
       return reponseErreur(
-        "PV de fin de chantier introuvable.",
+        "PV de fin de chantier introuvable. Enregistrez le PV avant de le télécharger.",
         404
       );
     }
 
-    const [
-      parametresEntrepriseBruts,
-      elementsResult,
-      photosResult,
-      equipeResult,
-    ] = await Promise.all([
-      chargerParametresEntrepriseDocument(entrepriseId),
+    let parametresEntrepriseBruts: ParametresEntreprisePv | null = null;
+    let elementsResult: any;
+    let photosResult: any;
+    let equipeResult: any;
 
-      supabaseAdmin
-        .from("fiches_intervention_elements")
-        .select("*")
-        .eq("entreprise_id", entrepriseId)
-        .eq("fiche_id", ficheId)
-        .order("ordre", { ascending: true }),
+    try {
+      [
+        parametresEntrepriseBruts,
+        elementsResult,
+        photosResult,
+        equipeResult,
+      ] = await Promise.all([
+        chargerParametresEntrepriseDocument(entrepriseId),
 
-      supabaseAdmin
-        .from("fiches_intervention_photos")
-        .select("*")
-        .eq("entreprise_id", entrepriseId)
-        .eq("fiche_id", ficheId)
-        .order("created_at", { ascending: true }),
+        supabaseAdmin
+          .from("fiches_intervention_elements")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .eq("fiche_id", ficheId)
+          .order("ordre", { ascending: true }),
 
-      supabaseAdmin
-        .from("fiches_intervention_salaries")
-        .select("*")
-        .eq("entreprise_id", entrepriseId)
-        .eq("fiche_id", ficheId)
-        .order("created_at", { ascending: true }),
-    ]);
+        supabaseAdmin
+          .from("fiches_intervention_photos")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .eq("fiche_id", ficheId)
+          .order("created_at", { ascending: true }),
+
+        supabaseAdmin
+          .from("fiches_intervention_salaries")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .eq("fiche_id", ficheId)
+          .order("created_at", { ascending: true }),
+      ]);
+    } catch (error) {
+      console.error("Erreur préparation données PDF PV :", error);
+
+      return reponseErreur(
+        "Impossible de préparer les données du procès-verbal.",
+        500
+      );
+    }
 
     if (elementsResult.error) {
       console.error(
@@ -472,8 +601,7 @@ export async function POST(request: Request) {
       );
 
       return reponseErreur(
-        elementsResult.error.message ||
-          "Impossible de charger les éléments de la fiche.",
+        "Impossible de charger les travaux et le matériel de la fiche.",
         500
       );
     }
@@ -485,8 +613,7 @@ export async function POST(request: Request) {
       );
 
       return reponseErreur(
-        photosResult.error.message ||
-          "Impossible de charger les photos.",
+        "Impossible de charger les photos du chantier.",
         500
       );
     }
@@ -498,47 +625,61 @@ export async function POST(request: Request) {
       );
 
       return reponseErreur(
-        equipeResult.error.message ||
-          "Impossible de charger l’équipe.",
+        "Impossible de charger l’équipe affectée au chantier.",
         500
       );
     }
 
     const entreprise = await rendreLogoAccessible({
       supabaseAdmin,
-      entreprise:
-        (parametresEntrepriseBruts as ParametresEntreprisePv | null) ||
-        null,
+      entreprise: parametresEntrepriseBruts || null,
     });
 
-    const photosAvecUrls = await Promise.all(
-      ((photosResult.data || []) as PhotoBase[]).map((photo) =>
-        ajouterUrlSigneePhoto({
-          supabaseAdmin,
-          photo,
-        })
-      )
-    );
-
-    const propsDocument = {
-      entreprise,
-      fiche: ficheData as FichePvPdf,
-      pv: pvData,
-      elements: (elementsResult.data || []) as ElementFichePv[],
-      photos: photosAvecUrls as PhotoPv[],
-      equipe: (equipeResult.data || []) as SalariePv[],
-    };
+    const photosAvecUrls = await preparerPhotos({
+      supabaseAdmin,
+      photos: (photosResult.data || []) as PhotoBase[],
+    });
 
     const documentPdf = React.createElement(
       PvFinChantierDocument as React.ComponentType<any>,
-      propsDocument
+      {
+        entreprise,
+        fiche: ficheData as FichePvPdf,
+        pv: pvData,
+        elements: (elementsResult.data || []) as ElementFichePv[],
+        photos: photosAvecUrls as PhotoPv[],
+        equipe: (equipeResult.data || []) as SalariePv[],
+      }
     );
 
-    const buffer = await renderToBuffer(documentPdf as any);
+    let bufferRendu: Buffer;
 
-    if (!buffer || buffer.length === 0) {
+    try {
+      const resultatRendu = await renderToBuffer(documentPdf as any);
+      bufferRendu = Buffer.from(resultatRendu);
+    } catch (error) {
+      console.error("Erreur rendu React PDF du PV :", error);
+
+      return reponseErreur(
+        "Le procès-verbal n’a pas pu être mis en page.",
+        500
+      );
+    }
+
+    if (!bufferRendu.length) {
       return reponseErreur(
         "Le fichier PDF généré est vide.",
+        500
+      );
+    }
+
+    if (!bufferEstPdf(bufferRendu)) {
+      console.error(
+        "Le contenu généré ne possède pas la signature d’un fichier PDF."
+      );
+
+      return reponseErreur(
+        "Le document généré n’est pas un PDF valide.",
         500
       );
     }
@@ -547,18 +688,22 @@ export async function POST(request: Request) {
       `pv-fin-chantier-${ficheData.numero || ficheData.id}`
     );
 
-    const nomEncode = encodeURIComponent(`${nomBase}.pdf`);
+    const nomFichier = `${nomBase}.pdf`;
+    const nomEncode = encodeURIComponent(nomFichier);
 
-    return new Response(new Uint8Array(buffer), {
+    return new Response(new Uint8Array(bufferRendu), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition":
-          `attachment; filename="${nomBase}.pdf"; ` +
+          `attachment; filename="${nomFichier}"; ` +
           `filename*=UTF-8''${nomEncode}`,
-        "Content-Length": String(buffer.length),
+        "Content-Length": String(bufferRendu.length),
         "Cache-Control": "private, no-store, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
         "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox",
       },
     });
   } catch (error: unknown) {
@@ -568,9 +713,7 @@ export async function POST(request: Request) {
     );
 
     return reponseErreur(
-      error instanceof Error
-        ? error.message
-        : "Impossible de générer le PDF du PV.",
+      "Impossible de générer le PDF du PV de fin de chantier.",
       500
     );
   }

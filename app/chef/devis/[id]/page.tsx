@@ -231,7 +231,7 @@ export default function DetailDevisPage() {
             {message || "Devis introuvable."}
           </p>
 
-          <button
+          <button type="button"
             onClick={() => router.push("/chef/devis")}
             className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700"
           >
@@ -265,14 +265,14 @@ export default function DetailDevisPage() {
       `}</style>
 
       <div className="no-print mx-auto mb-6 flex max-w-5xl flex-wrap gap-3">
-        <button
+        <button type="button"
           onClick={() => router.push("/chef/devis")}
           className="rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-800 hover:bg-slate-300"
         >
           Retour aux devis
         </button>
 
-        <button
+        <button type="button"
           onClick={imprimerPDF}
           className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700"
         >

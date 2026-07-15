@@ -465,7 +465,7 @@ export default function SalariesChefPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button
+              <button type="button"
                 onClick={enregistrerSalarie}
                 disabled={sauvegarde}
                 className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
@@ -478,7 +478,7 @@ export default function SalariesChefPage() {
               </button>
 
               {idEdition && (
-                <button
+                <button type="button"
                   onClick={annulerEdition}
                   className="rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-800 hover:bg-slate-300"
                 >
@@ -569,14 +569,14 @@ export default function SalariesChefPage() {
                   )}
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
+                    <button type="button"
                       onClick={() => lancerEdition(salarie)}
                       className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
                     >
                       Modifier
                     </button>
 
-                    <button
+                    <button type="button"
                       onClick={() =>
                         changerStatut(
                           salarie.id,
@@ -588,7 +588,7 @@ export default function SalariesChefPage() {
                       {salarie.statut === "Actif" ? "Désactiver" : "Réactiver"}
                     </button>
 
-                    <button
+                    <button type="button"
                       onClick={() => supprimerSalarie(salarie.id)}
                       className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
                     >

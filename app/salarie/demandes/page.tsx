@@ -387,7 +387,7 @@ export default function DemandesSalariePage() {
           </p>
         </div>
 
-        <button
+        <button type="button"
           onClick={ouvrirCreation}
           className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
         >
@@ -560,7 +560,7 @@ export default function DemandesSalariePage() {
 
                   <div className="flex shrink-0 flex-col gap-2">
                     {demande.statut === "en_attente" && (
-                      <button
+                      <button type="button"
                         onClick={() => annulerDemande(demande)}
                         className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
                       >
@@ -588,7 +588,7 @@ export default function DemandesSalariePage() {
                 </p>
               </div>
 
-              <button
+              <button type="button"
                 onClick={fermerModal}
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
               >
@@ -679,7 +679,7 @@ export default function DemandesSalariePage() {
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
-              <button
+              <button type="button"
                 onClick={fermerModal}
                 disabled={enregistrement}
                 className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
@@ -687,7 +687,7 @@ export default function DemandesSalariePage() {
                 Annuler
               </button>
 
-              <button
+              <button type="button"
                 onClick={creerDemande}
                 disabled={enregistrement}
                 className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"

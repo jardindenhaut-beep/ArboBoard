@@ -223,7 +223,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
             Accès impossible
           </h1>
           <p className="text-sm text-slate-600 mt-2">{messageErreur}</p>
-          <button
+          <button type="button"
             onClick={() => router.replace("/connexion/salarie")}
             className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-5 py-2.5 text-sm font-medium hover:bg-slate-700"
           >
@@ -272,7 +272,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
             l’abonnement ou changer d’offre.
           </p>
 
-          <button
+          <button type="button"
             onClick={deconnexion}
             className="mt-5 inline-flex items-center justify-center rounded-xl bg-slate-900 text-white px-5 py-2.5 text-sm font-medium hover:bg-slate-700"
           >
@@ -358,7 +358,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
             <p className="truncate text-xs text-slate-500">{profil.email}</p>
           </div>
 
-          <button
+          <button type="button"
             onClick={deconnexion}
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
@@ -380,7 +380,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
               </div>
             </Link>
 
-            <button
+            <button type="button"
               onClick={deconnexion}
               className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium"
             >

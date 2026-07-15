@@ -518,7 +518,7 @@ export default function DemandesChefPage() {
                     />
 
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
+                      <button type="button"
                         onClick={() =>
                           mettreAJourDemande(
                             demande,
@@ -532,7 +532,7 @@ export default function DemandesChefPage() {
                         Accepter
                       </button>
 
-                      <button
+                      <button type="button"
                         onClick={() =>
                           mettreAJourDemande(
                             demande,
@@ -546,7 +546,7 @@ export default function DemandesChefPage() {
                         Refuser
                       </button>
 
-                      <button
+                      <button type="button"
                         onClick={() =>
                           mettreAJourDemande(
                             demande,
@@ -560,7 +560,7 @@ export default function DemandesChefPage() {
                         Traiter
                       </button>
 
-                      <button
+                      <button type="button"
                         onClick={() => supprimerDemande(demande)}
                         disabled={actionEnCours}
                         className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"

@@ -1863,7 +1863,7 @@ export default function FichesInterventionPage() {
                 </p>
               </div>
 
-              <button
+              <button type="button"
                 onClick={fermerCreation}
                 aria-label="Fermer la fenêtre de création"
                 className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
@@ -2501,7 +2501,7 @@ export default function FichesInterventionPage() {
               </p>
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
+              <button type="button"
                 onClick={fermerCreation}
                 disabled={enregistrement}
                 className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -2509,7 +2509,7 @@ export default function FichesInterventionPage() {
                 Annuler
               </button>
 
-              <button
+              <button type="button"
                 onClick={enregistrerFiche}
                 disabled={enregistrement}
                 className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"

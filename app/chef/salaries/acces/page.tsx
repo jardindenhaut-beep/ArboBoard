@@ -341,7 +341,7 @@ export default function AccesSalariesPage() {
               </div>
             </div>
 
-            <button
+            <button type="button"
               onClick={envoyerInvitationSalarie}
               disabled={creation}
               className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
@@ -404,7 +404,7 @@ export default function AccesSalariesPage() {
                       </p>
                     </div>
 
-                    <button
+                    <button type="button"
                       onClick={() => choisirSalarie(salarie.id)}
                       className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
                     >

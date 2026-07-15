@@ -248,7 +248,7 @@ export default function InscriptionPage() {
               </div>
             </div>
 
-            <button
+            <button type="button"
               onClick={creerCompte}
               disabled={chargement}
               className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"

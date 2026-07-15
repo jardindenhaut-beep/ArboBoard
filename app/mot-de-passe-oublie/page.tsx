@@ -86,7 +86,7 @@ export default function MotDePasseOubliePage() {
               />
             </div>
 
-            <button
+            <button type="button"
               onClick={envoyerLien}
               disabled={chargement}
               className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"

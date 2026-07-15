@@ -389,7 +389,7 @@ export default function ImpressionFacturePage() {
             {messageErreur || "Facture introuvable."}
           </p>
 
-          <button
+          <button type="button"
             onClick={() => router.push("/chef/factures")}
             className="mt-5 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700"
           >
@@ -429,14 +429,14 @@ export default function ImpressionFacturePage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6 print:bg-white print:p-0">
       <div className="mx-auto mb-6 flex max-w-5xl items-center justify-between print:hidden">
-        <button
+        <button type="button"
           onClick={() => router.push("/chef/factures")}
           className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
         >
           ← Retour aux factures
         </button>
 
-        <button
+        <button type="button"
           onClick={() => window.print()}
           className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
         >

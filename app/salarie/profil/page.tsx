@@ -329,7 +329,7 @@ export default function ProfilSalariePage() {
               </p>
             </div>
 
-            <button
+            <button type="button"
               onClick={enregistrerProfil}
               disabled={enregistrement}
               className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"

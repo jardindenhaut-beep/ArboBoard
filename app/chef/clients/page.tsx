@@ -1562,7 +1562,7 @@ export default function ClientsPage() {
                 </p>
               </div>
 
-              <button
+              <button type="button"
                 onClick={fermerModal}
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
               >
@@ -1858,7 +1858,7 @@ export default function ClientsPage() {
             </div>
 
             <div className="sticky bottom-0 z-20 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur sm:flex-row sm:justify-end">
-              <button
+              <button type="button"
                 onClick={fermerModal}
                 disabled={enregistrement}
                 className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1866,7 +1866,7 @@ export default function ClientsPage() {
                 Annuler
               </button>
 
-              <button
+              <button type="button"
                 onClick={enregistrerClient}
                 disabled={enregistrement}
                 className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"

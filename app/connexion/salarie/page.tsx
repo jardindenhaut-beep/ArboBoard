@@ -155,7 +155,7 @@ export default function ConnexionSalariePage() {
               Mot de passe oublié ?
             </Link>
 
-            <button
+            <button type="button"
               onClick={seConnecter}
               disabled={chargement}
               className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"

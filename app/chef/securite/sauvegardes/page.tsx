@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type SauvegardeEntreprise = {
@@ -46,42 +51,105 @@ function formatTaille(octets: number) {
   }).format(valeur)} ${unites[index]}`;
 }
 
+function extraireNomFichier(
+  disposition: string | null
+) {
+  if (!disposition) return null;
+
+  const utf8 = disposition.match(
+    /filename\*=UTF-8''([^;]+)/i
+  );
+
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(
+        utf8[1].replace(/^["']|["']$/g, "")
+      );
+    } catch {
+      return utf8[1].replace(/^["']|["']$/g, "");
+    }
+  }
+
+  const classique = disposition.match(
+    /filename="?([^";]+)"?/i
+  );
+
+  return classique?.[1]?.trim() || null;
+}
+
+function statutLisible(
+  statut: SauvegardeEntreprise["statut"]
+) {
+  return statut === "terminee"
+    ? "Terminé"
+    : "Échec";
+}
+
 export default function SauvegardesChefPage() {
   const [sauvegardes, setSauvegardes] = useState<
     SauvegardeEntreprise[]
   >([]);
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [generation, setGeneration] = useState(false);
+  const [filtreStatut, setFiltreStatut] =
+    useState<"tous" | "terminee" | "echec">("tous");
+  const [empreinteCopiee, setEmpreinteCopiee] =
+    useState<string | null>(null);
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
 
-  const derniereReussie = useMemo(
+  const sauvegardesTriees = useMemo(
     () =>
-      sauvegardes.find(
-        (sauvegarde) =>
-          sauvegarde.statut === "terminee"
-      ) || null,
+      [...sauvegardes].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      ),
     [sauvegardes]
   );
 
-  const statistiques = useMemo(
-    () => ({
-      total: sauvegardes.length,
-      reussies: sauvegardes.filter(
+  const sauvegardesAffichees = useMemo(
+    () =>
+      filtreStatut === "tous"
+        ? sauvegardesTriees
+        : sauvegardesTriees.filter(
+            (sauvegarde) =>
+              sauvegarde.statut === filtreStatut
+          ),
+    [filtreStatut, sauvegardesTriees]
+  );
+
+  const derniereReussie = useMemo(
+    () =>
+      sauvegardesTriees.find(
         (sauvegarde) =>
           sauvegarde.statut === "terminee"
-      ).length,
+      ) || null,
+    [sauvegardesTriees]
+  );
+
+  const statistiques = useMemo(() => {
+    const reussies = sauvegardes.filter(
+      (sauvegarde) =>
+        sauvegarde.statut === "terminee"
+    );
+
+    return {
+      total: sauvegardes.length,
+      reussies: reussies.length,
       echecs: sauvegardes.filter(
         (sauvegarde) =>
           sauvegarde.statut === "echec"
       ).length,
-    }),
-    [sauvegardes]
-  );
-
-  useEffect(() => {
-    void chargerSauvegardes();
-  }, []);
+      tailleCumulee: reussies.reduce(
+        (total, sauvegarde) =>
+          total +
+          Math.max(0, Number(sauvegarde.taille_octets || 0)),
+        0
+      ),
+    };
+  }, [sauvegardes]);
 
   async function obtenirJeton() {
     const {
@@ -98,10 +166,16 @@ export default function SauvegardesChefPage() {
     return session.access_token;
   }
 
-  async function chargerSauvegardes() {
-    try {
-      setChargement(true);
-      setErreur("");
+  const chargerSauvegardes = useCallback(
+    async (chargementInitial = false) => {
+      try {
+        if (chargementInitial) {
+          setChargement(true);
+        } else {
+          setActualisation(true);
+        }
+
+        setErreur("");
 
       const jeton = await obtenirJeton();
 
@@ -137,9 +211,24 @@ export default function SauvegardesChefPage() {
           ? error.message
           : "Impossible de charger l’historique."
       );
-    } finally {
-      setChargement(false);
-    }
+      } finally {
+        setChargement(false);
+        setActualisation(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    void chargerSauvegardes(true);
+  }, [chargerSauvegardes]);
+
+  async function actualiserHistorique() {
+    setMessage("");
+    await chargerSauvegardes(false);
+    setMessage(
+      "L’historique des sauvegardes a été actualisé."
+    );
   }
 
   async function genererSauvegarde() {
@@ -174,14 +263,18 @@ export default function SauvegardesChefPage() {
       }
 
       const blob = await reponse.blob();
+
+      if (blob.size <= 0) {
+        throw new Error(
+          "Le serveur a renvoyé un fichier vide."
+        );
+      }
+
       const disposition =
         reponse.headers.get("content-disposition");
 
-      const correspondance =
-        disposition?.match(/filename="([^"]+)"/);
-
       const nomFichier =
-        correspondance?.[1] ||
+        extraireNomFichier(disposition) ||
         "arboboard-sauvegarde-entreprise.json";
 
       const url = URL.createObjectURL(blob);
@@ -192,13 +285,16 @@ export default function SauvegardesChefPage() {
       document.body.appendChild(lien);
       lien.click();
       lien.remove();
-      URL.revokeObjectURL(url);
+
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
 
       setMessage(
         "La sauvegarde JSON a été générée et téléchargée."
       );
 
-      await chargerSauvegardes();
+      await chargerSauvegardes(false);
     } catch (error) {
       console.error(
         "Erreur génération sauvegarde :",
@@ -211,61 +307,122 @@ export default function SauvegardesChefPage() {
           : "Impossible de générer la sauvegarde."
       );
 
-      await chargerSauvegardes();
+      await chargerSauvegardes(false);
     } finally {
       setGeneration(false);
     }
   }
 
+  async function copierEmpreinte(
+    sauvegarde: SauvegardeEntreprise
+  ) {
+    if (!sauvegarde.empreinte_sha256) return;
+
+    try {
+      await navigator.clipboard.writeText(
+        sauvegarde.empreinte_sha256
+      );
+
+      setEmpreinteCopiee(sauvegarde.id);
+      setErreur("");
+      setMessage(
+        "L’empreinte SHA-256 a été copiée."
+      );
+
+      window.setTimeout(() => {
+        setEmpreinteCopiee((valeur) =>
+          valeur === sauvegarde.id ? null : valeur
+        );
+      }, 2500);
+    } catch (error) {
+      console.error(
+        "Erreur copie empreinte :",
+        error
+      );
+
+      setErreur(
+        "Impossible de copier automatiquement l’empreinte."
+      );
+    }
+  }
+
   return (
     <main className="mx-auto max-w-7xl space-y-6">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Sécurité & conformité
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Sauvegardes de l’entreprise
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Téléchargez un export JSON isolé contenant les données
-              professionnelles rattachées à votre entreprise et
-              consultez l’historique des générations.
-            </p>
-          </div>
+      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-emerald-600" />
 
-          <Link
-            href="/chef/securite"
-            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            ← Sécurité
-          </Link>
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
+                💾
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Sécurité & conformité
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Sauvegardes de l’entreprise
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Téléchargez un export JSON isolé des données
+                  professionnelles et consultez l’historique des
+                  générations.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <button
+                type="button"
+                onClick={() => void actualiserHistorique()}
+                disabled={actualisation || generation}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true">↻</span>
+                {actualisation
+                  ? "Actualisation…"
+                  : "Actualiser"}
+              </button>
+
+              <Link
+                href="/chef/securite"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                ← Sécurité
+              </Link>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center">
-          <div>
-            <p className="font-bold text-emerald-950">
-              Export manuel sécurisé
-            </p>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-emerald-800">
-              Le fichier peut contenir des clients, documents,
-              interventions, paramètres et autres données
-              professionnelles. Conservez-le hors d’un appareil partagé
-              et protégez son emplacement.
-            </p>
-          </div>
+        <div className="border-t border-emerald-100 bg-emerald-50 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-black text-emerald-950">
+                Export manuel sécurisé
+              </p>
 
-          <button
-            type="button"
-            onClick={() => void genererSauvegarde()}
-            disabled={generation}
-            className="shrink-0 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
-          >
-            {generation
-              ? "Génération…"
-              : "Générer et télécharger"}
-          </button>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-emerald-800">
+                Le fichier peut contenir des données clients et des
+                documents professionnels. Conservez-le dans un
+                emplacement privé et protégé.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void genererSauvegarde()}
+              disabled={generation || actualisation}
+              className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {generation
+                ? "Génération…"
+                : "Générer et télécharger"}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -287,71 +444,102 @@ export default function SauvegardesChefPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Statistique
           label="Exports enregistrés"
           valeur={String(statistiques.total)}
+          description="Historique disponible"
         />
+
         <Statistique
           label="Réussis"
           valeur={String(statistiques.reussies)}
+          description="Fichiers générés"
+          positif={statistiques.reussies > 0}
         />
+
         <Statistique
           label="Échecs"
           valeur={String(statistiques.echecs)}
+          description="Générations à contrôler"
           alerte={statistiques.echecs > 0}
         />
+
         <Statistique
-          label="Dernière taille"
-          valeur={
+          label="Volume cumulé"
+          valeur={formatTaille(
+            statistiques.tailleCumulee
+          )}
+          description={
             derniereReussie
-              ? formatTaille(
-                  derniereReussie.taille_octets
-                )
-              : "Aucune"
+              ? `Dernier export : ${formatDate(
+                  derniereReussie.created_at
+                )}`
+              : "Aucun export réussi"
           }
         />
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col justify-between gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:p-6">
+        <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">
+            <h2 className="text-xl font-black text-slate-950">
               Historique des exports
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
               Le fichier lui-même n’est pas conservé dans Arboboard.
               Seules ses informations de contrôle sont enregistrées.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void chargerSauvegardes()}
-            disabled={chargement}
-            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-          >
-            Actualiser
-          </button>
+          <label className="w-full lg:w-52">
+            <span className="sr-only">
+              Filtrer l’historique
+            </span>
+
+            <select
+              value={filtreStatut}
+              onChange={(event) =>
+                setFiltreStatut(
+                  event.target.value as
+                    | "tous"
+                    | "terminee"
+                    | "echec"
+                )
+              }
+              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            >
+              <option value="tous">
+                Tous les exports ({sauvegardes.length})
+              </option>
+              <option value="terminee">
+                Réussis ({statistiques.reussies})
+              </option>
+              <option value="echec">
+                Échecs ({statistiques.echecs})
+              </option>
+            </select>
+          </label>
         </div>
 
         {chargement ? (
           <div className="p-10 text-center text-sm text-slate-500">
             Chargement de l’historique…
           </div>
-        ) : sauvegardes.length === 0 ? (
+        ) : sauvegardesAffichees.length === 0 ? (
           <div className="p-10 text-center">
             <div className="text-4xl">💾</div>
             <p className="mt-3 font-bold text-slate-950">
-              Aucun export généré
+              Aucun export pour ce filtre
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              La première sauvegarde apparaîtra ici.
+              Modifiez le filtre ou générez une nouvelle sauvegarde.
             </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {sauvegardes.map((sauvegarde) => (
+            {sauvegardesAffichees.map((sauvegarde) => (
               <article
                 key={sauvegarde.id}
                 className="p-5 sm:p-6"
@@ -359,8 +547,8 @@ export default function SauvegardesChefPage() {
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-slate-950">
-                        Export manuel JSON
+                      <h3 className="font-black text-slate-950">
+                        Export manuel {sauvegarde.format_fichier.toUpperCase()}
                       </h3>
 
                       <span
@@ -370,9 +558,9 @@ export default function SauvegardesChefPage() {
                             : "bg-red-50 text-red-700"
                         }`}
                       >
-                        {sauvegarde.statut === "terminee"
-                          ? "Terminé"
-                          : "Échec"}
+                        {statutLisible(
+                          sauvegarde.statut
+                        )}
                       </span>
                     </div>
 
@@ -392,14 +580,41 @@ export default function SauvegardesChefPage() {
                             )}
                           </strong>
                         </span>
+
+                        <span>
+                          Type :{" "}
+                          <strong className="text-slate-700">
+                            {sauvegarde.type_sauvegarde ||
+                              "manuel"}
+                          </strong>
+                        </span>
                       </div>
                     ) : null}
 
                     {sauvegarde.empreinte_sha256 ? (
-                      <p className="mt-3 break-all font-mono text-[11px] leading-5 text-slate-400">
-                        SHA-256 :{" "}
-                        {sauvegarde.empreinte_sha256}
-                      </p>
+                      <div className="mt-4 rounded-2xl bg-slate-50 p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                            Empreinte SHA-256
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void copierEmpreinte(sauvegarde)
+                            }
+                            className="w-fit text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                          >
+                            {empreinteCopiee === sauvegarde.id
+                              ? "✓ Copiée"
+                              : "Copier l’empreinte"}
+                          </button>
+                        </div>
+
+                        <code className="mt-2 block select-all break-all font-mono text-[11px] leading-5 text-slate-500">
+                          {sauvegarde.empreinte_sha256}
+                        </code>
+                      </div>
                     ) : null}
 
                     {sauvegarde.message_erreur ? (
@@ -422,18 +637,27 @@ export default function SauvegardesChefPage() {
         )}
       </section>
 
-      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-        <h2 className="font-bold text-amber-950">
-          Différence avec une sauvegarde complète
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-amber-800">
-          Cet export sert à récupérer les données de l’entreprise dans
-          un format lisible. Il ne contient pas l’ensemble de la
-          structure PostgreSQL, des fonctions, des politiques RLS, de
-          l’authentification et de la configuration technique du projet.
-          La restauration automatique depuis ce fichier n’est pas
-          encore proposée.
-        </p>
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
+            ℹ️
+          </div>
+
+          <div>
+            <h2 className="font-black text-amber-950">
+              Différence avec une sauvegarde complète
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-amber-800">
+              Cet export permet de récupérer les données de l’entreprise
+              dans un format lisible. Il ne contient pas toute la
+              structure PostgreSQL, les fonctions, les politiques RLS,
+              l’authentification ni la configuration technique du projet.
+              La restauration automatique depuis ce fichier n’est pas
+              encore proposée.
+            </p>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -442,11 +666,15 @@ export default function SauvegardesChefPage() {
 function Statistique({
   label,
   valeur,
+  description,
   alerte = false,
+  positif = false,
 }: {
   label: string;
   valeur: string;
+  description?: string;
   alerte?: boolean;
+  positif?: boolean;
 }) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -457,11 +685,19 @@ function Statistique({
         className={`mt-2 text-2xl font-bold ${
           alerte
             ? "text-red-700"
-            : "text-slate-950"
+            : positif
+              ? "text-emerald-700"
+              : "text-slate-950"
         }`}
       >
         {valeur}
       </p>
+
+      {description ? (
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -116,11 +116,11 @@ const BLOCS: BlocConformite[] = [
     description:
       "Export personnel et suivi des demandes d’exercice de droits.",
     emoji: "🇪🇺",
-    statut: "Actif",
+    statut: "À contrôler",
     details: [
-      "Téléchargement JSON des données personnelles du compte.",
-      "Demandes d’accès, rectification, effacement, limitation, opposition et portabilité.",
-      "Suivi des échéances, réponses et éventuelles prolongations.",
+      "Les routes serveur d’export et de demandes RGPD sont disponibles.",
+      "Aucune page dédiée n’est actuellement exposée dans l’espace chef.",
+      "Le compte développeur peut traiter les demandes reçues depuis l’administration RGPD.",
     ],
   },
   {
@@ -466,7 +466,7 @@ export default function SecuriteChefPage() {
       }
 
       const reponse = await fetch(
-        "/api/securite/documents-juridiques-publics",
+        "/api/documents-juridiques-publics",
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -483,22 +483,12 @@ export default function SecuriteChefPage() {
           donnees.erreur ||
           "Les statuts des documents juridiques sont indisponibles.";
 
-        console.warn(
-          "Statuts juridiques indisponibles :",
-          message
-        );
-
         setErreurConformite(message);
         return;
       }
 
       setStatutsDocuments(donnees.documents || []);
     } catch (error) {
-      console.warn(
-        "Initialisation conformité incomplète :",
-        error
-      );
-
       setErreurConformite(
         error instanceof Error
           ? error.message
@@ -593,28 +583,28 @@ export default function SecuriteChefPage() {
       setMessageSucces("");
 
       const entetes = [
-      "Date",
-      "Utilisateur",
-      "Email",
-      "Catégorie",
-      "Action",
-      "Résultat",
-      "Ressource",
-      "Identifiant ressource",
-      "Description",
-    ];
+        "Date",
+        "Utilisateur",
+        "Email",
+        "Catégorie",
+        "Action",
+        "Résultat",
+        "Ressource",
+        "Identifiant ressource",
+        "Description",
+      ];
 
-        const lignes = evenementsAffiches.map((evenement) => [
-      formatDate(evenement.created_at),
-      evenement.utilisateur_nom || "",
-      evenement.utilisateur_email || "",
-      libelleCategorie(evenement.categorie),
-      evenement.action,
-      libelleResultat(evenement.resultat),
-      evenement.ressource_type || "",
-      evenement.ressource_id || "",
-      evenement.description || "",
-    ]);
+      const lignes = evenementsAffiches.map((evenement) => [
+        formatDate(evenement.created_at),
+        evenement.utilisateur_nom || "",
+        evenement.utilisateur_email || "",
+        libelleCategorie(evenement.categorie),
+        evenement.action,
+        libelleResultat(evenement.resultat),
+        evenement.ressource_type || "",
+        evenement.ressource_id || "",
+        evenement.description || "",
+      ]);
 
       const contenu = [
       entetes.map(echapperCsv).join(";"),
@@ -624,19 +614,19 @@ export default function SecuriteChefPage() {
     ].join("\n");
 
       const blob = new Blob(
-      [`\uFEFF${contenu}`],
-      {
-        type: "text/csv;charset=utf-8",
-      }
-    );
+        [`\uFEFF${contenu}`],
+        {
+          type: "text/csv;charset=utf-8",
+        }
+      );
 
       const url = URL.createObjectURL(blob);
       const lien = document.createElement("a");
 
       lien.href = url;
       lien.download = `journal-activite-arboboard-${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
+        .toISOString()
+        .slice(0, 10)}.csv`;
 
       document.body.appendChild(lien);
       lien.click();
@@ -926,12 +916,10 @@ export default function SecuriteChefPage() {
             ) : null}
 
             {bloc.id === "rgpd" ? (
-              <Link
-                href="/chef/securite/donnees-personnelles"
-                className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-              >
-                Gérer mes données et demandes
-              </Link>
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                L’interface dédiée aux données personnelles n’est pas encore
+                activée dans l’espace chef.
+              </div>
             ) : null}
 
             {bloc.id === "consentements" ? (
@@ -947,6 +935,7 @@ export default function SecuriteChefPage() {
               <Link
                 href={bloc.cheminPublic}
                 target="_blank"
+                rel="noreferrer"
                 className="mt-5 inline-flex rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 {bloc.statut === "Publié"

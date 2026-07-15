@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -33,7 +38,7 @@ function messageErreur(error: unknown) {
       (message.includes("totp") ||
         message.includes("verification code"))
     ) {
-      return "Le code est incorrect ou a expiré. Attends le prochain code puis recommence.";
+      return "Le code est incorrect ou a expiré. Attendez le prochain code puis recommencez.";
     }
 
     if (message.includes("aal2")) {
@@ -71,11 +76,13 @@ export default function DoubleAuthentificationChefPage() {
     useState("");
 
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [creation, setCreation] = useState(false);
   const [verification, setVerification] = useState(false);
   const [desactivation, setDesactivation] = useState(false);
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
+  const [cleCopiee, setCleCopiee] = useState(false);
 
   const facteursVerifies = useMemo(
     () =>
@@ -85,14 +92,49 @@ export default function DoubleAuthentificationChefPage() {
     [facteurs]
   );
 
-  useEffect(() => {
-    void chargerConfiguration();
-  }, []);
+  const protectionActive = facteursVerifies.length > 0;
+  const sessionDoublementVerifiee = niveauActuel === "aal2";
 
-  async function chargerConfiguration() {
-    try {
-      setChargement(true);
-      setErreur("");
+  const niveauProtection = useMemo(() => {
+    if (protectionActive && sessionDoublementVerifiee) {
+      return {
+        libelle: "Protection maximale",
+        couleur:
+          "border-emerald-200 bg-emerald-50 text-emerald-700",
+        barre: "bg-emerald-600",
+        pourcentage: 100,
+      };
+    }
+
+    if (protectionActive) {
+      return {
+        libelle: "MFA active, session à confirmer",
+        couleur:
+          "border-blue-200 bg-blue-50 text-blue-700",
+        barre: "bg-blue-600",
+        pourcentage: 75,
+      };
+    }
+
+    return {
+      libelle: "Protection à renforcer",
+      couleur:
+        "border-amber-200 bg-amber-50 text-amber-700",
+      barre: "bg-amber-500",
+      pourcentage: 40,
+    };
+  }, [protectionActive, sessionDoublementVerifiee]);
+
+  const chargerConfiguration = useCallback(
+    async (chargementInitial = false) => {
+      try {
+        if (chargementInitial) {
+          setChargement(true);
+        } else {
+          setActualisation(true);
+        }
+
+        setErreur("");
 
       const [
         utilisateurResultat,
@@ -137,9 +179,24 @@ export default function DoubleAuthentificationChefPage() {
         error
       );
       setErreur(messageErreur(error));
-    } finally {
-      setChargement(false);
-    }
+      } finally {
+        setChargement(false);
+        setActualisation(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    void chargerConfiguration(true);
+  }, [chargerConfiguration]);
+
+  async function actualiserConfiguration() {
+    setMessage("");
+    await chargerConfiguration(false);
+    setMessage(
+      "La configuration de la double authentification a été actualisée."
+    );
   }
 
   async function nettoyerFacteursNonVerifies() {
@@ -251,13 +308,28 @@ export default function DoubleAuthentificationChefPage() {
         },
       });
 
+      const { error: deconnexionError } =
+        await supabase.auth.signOut({
+          scope: "others",
+        });
+
+      if (deconnexionError) {
+        console.warn(
+          "Les autres sessions n’ont pas pu être fermées :",
+          deconnexionError
+        );
+      }
+
       setInscription(null);
       setCodeActivation("");
+      setCleCopiee(false);
       setMessage(
-        "La double authentification est activée. Les autres sessions ont été déconnectées par mesure de sécurité."
+        deconnexionError
+          ? "La double authentification est activée. Les autres sessions n’ont pas toutes pu être fermées automatiquement."
+          : "La double authentification est activée. Les autres sessions ont été fermées par mesure de sécurité."
       );
 
-      await chargerConfiguration();
+      await chargerConfiguration(false);
     } catch (error) {
       console.error(
         "Erreur confirmation activation MFA :",
@@ -305,7 +377,37 @@ export default function DoubleAuthentificationChefPage() {
     } finally {
       setInscription(null);
       setCodeActivation("");
-      await chargerConfiguration();
+      setCleCopiee(false);
+      await chargerConfiguration(false);
+    }
+  }
+
+  async function copierCleSecrete() {
+    if (!inscription?.secret) return;
+
+    try {
+      await navigator.clipboard.writeText(
+        inscription.secret
+      );
+
+      setCleCopiee(true);
+      setErreur("");
+      setMessage(
+        "La clé de configuration a été copiée. Conservez-la uniquement dans un emplacement sécurisé."
+      );
+
+      window.setTimeout(() => {
+        setCleCopiee(false);
+      }, 2500);
+    } catch (error) {
+      console.error(
+        "Erreur copie clé MFA :",
+        error
+      );
+
+      setErreur(
+        "Impossible de copier automatiquement la clé. Sélectionnez-la manuellement."
+      );
     }
   }
 
@@ -379,7 +481,7 @@ export default function DoubleAuthentificationChefPage() {
         "Le facteur de double authentification a été supprimé."
       );
 
-      await chargerConfiguration();
+      await chargerConfiguration(false);
     } catch (error) {
       console.error(
         "Erreur désactivation MFA :",
@@ -412,38 +514,80 @@ export default function DoubleAuthentificationChefPage() {
 
   if (chargement) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="font-semibold text-slate-700">
-          Chargement de la double authentification…
-        </p>
+      <div className="mx-auto max-w-6xl">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
+          </div>
+
+          <p className="font-semibold text-slate-950">
+            Chargement de la double authentification…
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Vérification des appareils TOTP et du niveau de la session.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <main className="mx-auto max-w-6xl space-y-6">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Sécurité du compte
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
-              Double authentification
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Ajoute une seconde vérification à ton mot de passe avec
-              une application comme Google Authenticator, Microsoft
-              Authenticator, Authy ou 1Password.
-            </p>
-          </div>
+      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="h-1.5 bg-emerald-600" />
 
-          <Link
-            href="/chef/securite/compte"
-            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            ← Sécurité du compte
-          </Link>
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-2xl text-white shadow-sm">
+                📲
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Sécurité du compte
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Double authentification
+                </h1>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  Ajoutez une seconde vérification au mot de passe avec
+                  une application d’authentification compatible TOTP.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <button
+                type="button"
+                onClick={() =>
+                  void actualiserConfiguration()
+                }
+                disabled={
+                  actualisation ||
+                  creation ||
+                  verification ||
+                  desactivation
+                }
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true">↻</span>
+                {actualisation
+                  ? "Actualisation…"
+                  : "Actualiser"}
+              </button>
+
+              <Link
+                href="/chef/securite/compte"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >
+                ← Sécurité du compte
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -465,48 +609,81 @@ export default function DoubleAuthentificationChefPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Etat
           label="Protection MFA"
           valeur={
-            facteursVerifies.length > 0
+            protectionActive
               ? "Activée"
               : "Désactivée"
           }
-          positif={facteursVerifies.length > 0}
+          positif={protectionActive}
         />
+
         <Etat
           label="Niveau de cette session"
           valeur={
-            niveauActuel === "aal2"
+            sessionDoublementVerifiee
               ? "Doublement vérifiée"
               : "Mot de passe uniquement"
           }
-          positif={niveauActuel === "aal2"}
+          positif={sessionDoublementVerifiee}
         />
+
         <Etat
           label="Appareils configurés"
           valeur={String(facteursVerifies.length)}
           positif={facteursVerifies.length > 0}
         />
+
+        <div
+          className={`rounded-3xl border p-5 shadow-sm ${niveauProtection.couleur}`}
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-70">
+            Niveau de protection
+          </p>
+
+          <p className="mt-2 text-sm font-black">
+            {niveauProtection.libelle}
+          </p>
+
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80">
+            <div
+              className={`h-full rounded-full ${niveauProtection.barre}`}
+              style={{
+                width: `${niveauProtection.pourcentage}%`,
+              }}
+            />
+          </div>
+        </div>
       </section>
 
       {facteursVerifies.length > 0 ? (
         <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
-          <h2 className="text-xl font-bold text-emerald-950">
-            Protection active
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-emerald-800">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-xl">
+              ✓
+            </div>
+            <h2 className="text-xl font-black text-emerald-950">
+              Protection active
+            </h2>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-emerald-800">
             Après la saisie du mot de passe, Arboboard demandera un
             code temporaire à 6 chiffres avant d’ouvrir l’espace chef.
           </p>
         </section>
       ) : (
         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
-          <h2 className="text-xl font-bold text-amber-950">
-            Protection recommandée
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-amber-800">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-xl">
+              !
+            </div>
+            <h2 className="text-xl font-black text-amber-950">
+              Protection recommandée
+            </h2>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-amber-800">
             Sans second facteur, toute personne disposant du mot de
             passe peut tenter d’accéder au compte.
           </p>
@@ -530,7 +707,7 @@ export default function DoubleAuthentificationChefPage() {
               type="button"
               onClick={() => void commencerActivation()}
               disabled={creation}
-              className="shrink-0 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {creation
                 ? "Création…"
@@ -554,7 +731,7 @@ export default function DoubleAuthentificationChefPage() {
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-bold text-slate-950">
+                    <p className="font-black text-slate-950">
                       {facteur.friendly_name ||
                         `Appareil ${index + 1}`}
                     </p>
@@ -572,7 +749,7 @@ export default function DoubleAuthentificationChefPage() {
                   onClick={() =>
                     demanderDesactivation(facteur)
                   }
-                  className="shrink-0 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                  className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 sm:w-auto"
                 >
                   Supprimer cet appareil
                 </button>
@@ -595,19 +772,35 @@ export default function DoubleAuthentificationChefPage() {
           </ol>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-            <div className="rounded-2xl bg-white p-4">
+            <div className="rounded-2xl border border-blue-200 bg-white p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={inscription.qrCode}
                 alt="QR code de double authentification Arboboard"
                 className="mx-auto h-auto w-full max-w-[230px]"
               />
+
+              <p className="mt-3 text-center text-xs font-medium text-slate-500">
+                Scannez ce QR code uniquement depuis votre application d’authentification.
+              </p>
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-blue-950">
-                Clé de configuration manuelle
-              </p>
-              <code className="mt-2 block break-all rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-800">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-blue-950">
+                  Clé de configuration manuelle
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => void copierCleSecrete()}
+                  className="inline-flex w-fit items-center justify-center rounded-xl border border-blue-300 bg-white px-3 py-2 text-xs font-bold text-blue-800 transition hover:bg-blue-100"
+                >
+                  {cleCopiee ? "✓ Clé copiée" : "Copier la clé"}
+                </button>
+              </div>
+
+              <code className="mt-2 block select-all break-all rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800">
                 {inscription.secret}
               </code>
 
@@ -621,13 +814,15 @@ export default function DoubleAuthentificationChefPage() {
                   pattern="[0-9]*"
                   maxLength={6}
                   value={codeActivation}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setCodeActivation(
                       event.target.value
                         .replace(/\D/g, "")
                         .slice(0, 6)
-                    )
-                  }
+                    );
+                    setErreur("");
+                    setMessage("");
+                  }}
                   autoComplete="one-time-code"
                   className="mt-2 w-full rounded-xl border border-blue-300 bg-white px-4 py-3 text-center font-mono text-2xl font-bold tracking-[0.4em] outline-none focus:border-blue-700"
                   placeholder="000000"
@@ -644,7 +839,7 @@ export default function DoubleAuthentificationChefPage() {
                     verification ||
                     codeActivation.length !== 6
                   }
-                  className="rounded-xl bg-blue-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:opacity-40"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl bg-blue-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {verification
                     ? "Vérification…"
@@ -655,7 +850,7 @@ export default function DoubleAuthentificationChefPage() {
                   type="button"
                   onClick={() => void annulerActivation()}
                   disabled={verification}
-                  className="rounded-xl border border-blue-300 px-5 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-100 disabled:opacity-40"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-blue-300 px-5 py-3 text-sm font-semibold text-blue-900 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Annuler
                 </button>
@@ -691,13 +886,15 @@ export default function DoubleAuthentificationChefPage() {
             pattern="[0-9]*"
             maxLength={6}
             value={codeDesactivation}
-            onChange={(event) =>
+            onChange={(event) => {
               setCodeDesactivation(
                 event.target.value
                   .replace(/\D/g, "")
                   .slice(0, 6)
-              )
-            }
+              );
+              setErreur("");
+              setMessage("");
+            }}
             autoComplete="one-time-code"
             className="mt-5 w-full max-w-sm rounded-xl border border-red-300 bg-white px-4 py-3 text-center font-mono text-2xl font-bold tracking-[0.4em] outline-none focus:border-red-700"
             placeholder="000000"
@@ -713,7 +910,7 @@ export default function DoubleAuthentificationChefPage() {
                 desactivation ||
                 codeDesactivation.length !== 6
               }
-              className="rounded-xl bg-red-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800 disabled:opacity-40"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {desactivation
                 ? "Suppression…"
@@ -727,7 +924,7 @@ export default function DoubleAuthentificationChefPage() {
                 setCodeDesactivation("");
               }}
               disabled={desactivation}
-              className="rounded-xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-800 transition hover:bg-red-100 disabled:opacity-40"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Annuler
             </button>
@@ -735,16 +932,25 @@ export default function DoubleAuthentificationChefPage() {
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-        <h2 className="font-bold text-slate-950">
-          En cas de perte du téléphone
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Supabase ne fournit pas de codes de récupération TOTP.
-          Enregistre idéalement un second appareil sécurisé. Si aucun
-          facteur n’est accessible, une procédure d’assistance et de
-          vérification d’identité sera nécessaire.
-        </p>
+      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
+            📱
+          </div>
+
+          <div>
+            <h2 className="font-black text-slate-950">
+              En cas de perte du téléphone
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Supabase ne fournit pas de codes de récupération TOTP.
+              Enregistrez idéalement un second appareil sécurisé. Si aucun
+              facteur n’est accessible, une procédure d’assistance et de
+              vérification d’identité sera nécessaire.
+            </p>
+          </div>
+        </div>
       </section>
     </main>
   );

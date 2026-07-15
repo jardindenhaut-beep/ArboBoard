@@ -14,6 +14,7 @@ import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFact
 import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
+import BoutonDemandePaiementUrssaf from "@/components/urssaf/BoutonDemandePaiementUrssaf";
 
 type Client = {
   id: string;
@@ -1144,6 +1145,19 @@ Cordialement.`;
                         documentId={facture.id}
                         numero={facture.numero}
                       />
+
+                      {!estAvoir && (
+                        <BoutonDemandePaiementUrssaf
+                          factureId={facture.id}
+                          numero={facture.numero}
+                          clientType={client?.type_client}
+                          statut={facture.statut}
+                          totalHt={Number(facture.total_ht || 0)}
+                          totalTtc={Number(facture.total_ttc || 0)}
+                          estAvoir={estAvoir}
+                          onMiseAJour={chargerFactures}
+                        />
+                      )}
 
                       <Link
                         href={`/chef/factures/${facture.id}/impression`}

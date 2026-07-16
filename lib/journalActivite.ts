@@ -17,7 +17,6 @@ export type EntreeJournalActivite = {
 
 type ReponseJournal = {
   succes?: boolean;
-  erreur?: string;
 };
 
 export async function journaliserActivite(
@@ -29,10 +28,10 @@ export async function journaliserActivite(
       error: sessionError,
     } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.access_token) {
-      console.warn(
-        "Journal d’activité : aucune session active."
-      );
+    if (
+      sessionError ||
+      !session?.access_token
+    ) {
       return false;
     }
 
@@ -48,23 +47,17 @@ export async function journaliserActivite(
       }
     );
 
-    const donnees =
-      (await reponse.json().catch(() => ({}))) as ReponseJournal;
-
     if (!reponse.ok) {
-      console.warn(
-        "Journal d’activité non enregistré :",
-        donnees.erreur || reponse.statusText
-      );
       return false;
     }
 
+    const donnees =
+      (await reponse
+        .json()
+        .catch(() => ({}))) as ReponseJournal;
+
     return donnees.succes === true;
-  } catch (error) {
-    console.warn(
-      "Erreur silencieuse du journal d’activité :",
-      error
-    );
+  } catch {
     return false;
   }
 }

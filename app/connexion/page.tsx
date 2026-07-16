@@ -108,10 +108,9 @@ export default function ConnexionChefPage() {
       ) {
         await validerProfilEtRediriger(session.user.id);
       }
-    } catch (error) {
-      console.warn(
-        "Vérification de la session existante impossible :",
-        error
+    } catch {
+      setMessage(
+        "La session existante n’a pas pu être vérifiée. Vous pouvez vous connecter normalement."
       );
     }
   }

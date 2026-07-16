@@ -560,12 +560,8 @@ export default function ProfilChefPage() {
         })
         .eq("entreprise_id", entreprise.id);
 
-      if (synchronisationError) {
-        console.warn(
-          "Synchronisation des paramètres entreprise impossible :",
-          synchronisationError
-        );
-      }
+      const synchronisationParametresIncomplete =
+        Boolean(synchronisationError);
 
       const entrepriseMiseAJour: Entreprise = {
         ...entreprise,
@@ -598,7 +594,9 @@ export default function ProfilChefPage() {
       setFormulaireEntreprise(formulaireSauvegarde);
       setEntrepriseEnregistree(formulaireSauvegarde);
       setMessageSucces(
-        "Les informations de l’entreprise ont été enregistrées."
+        synchronisationParametresIncomplete
+          ? "Les informations principales de l’entreprise ont été enregistrées, mais les paramètres de documents n’ont pas pu être synchronisés."
+          : "Les informations de l’entreprise ont été enregistrées."
       );
 
       await journaliserActivite({

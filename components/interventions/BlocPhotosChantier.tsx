@@ -226,8 +226,7 @@ async function optimiserImage(fichier: File) {
         lastModified: fichier.lastModified,
       }
     );
-  } catch (error) {
-    console.warn("Optimisation photo impossible, fichier original conservé :", error);
+  } catch {
     return fichier;
   }
 }

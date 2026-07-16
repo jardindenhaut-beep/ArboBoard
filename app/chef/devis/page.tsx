@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseClient";
@@ -326,7 +326,7 @@ function dateDepassee(date?: string | null) {
   }
 }
 
-export default function PageDevis() {
+function ContenuPageDevis() {
   const searchParams = useSearchParams();
   const devisSelectionneId = searchParams.get("devisId");
   const [entrepriseId, setEntrepriseId] = useState("");
@@ -1919,5 +1919,35 @@ Cordialement.`;
         )}
       </div>
     </div>
+  );
+}
+
+function ChargementPageDevis() {
+  return (
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl">
+        <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
+          </div>
+
+          <p className="font-semibold text-slate-900">
+            Chargement des devis…
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Préparation de la page et des paramètres de navigation.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function PageDevis() {
+  return (
+    <Suspense fallback={<ChargementPageDevis />}>
+      <ContenuPageDevis />
+    </Suspense>
   );
 }

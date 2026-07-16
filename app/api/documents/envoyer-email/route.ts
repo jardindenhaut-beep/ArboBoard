@@ -4,6 +4,10 @@ import {
   genererPdfDocument,
   type TypeDocumentPdf,
 } from "@/lib/documents/genererPdfDocument";
+import {
+  normaliserDesignDocuments,
+  type DesignDocuments,
+} from "@/lib/documents/designDocuments";
 
 export const runtime = "nodejs";
 
@@ -169,6 +173,7 @@ function construireHtmlEmail(params: {
   sujet: string;
   message: string;
   nomPieceJointe: string;
+  design: DesignDocuments;
 }) {
   const {
     typeDocument,
@@ -178,6 +183,7 @@ function construireHtmlEmail(params: {
     lignes,
     message,
     nomPieceJointe,
+    design,
   } = params;
 
   const estAvoir = typeDocument === "avoir";
@@ -188,9 +194,9 @@ function construireHtmlEmail(params: {
   const titre = titreDocument(typeDocument);
   const libelle = libelleDocument(typeDocument);
 
-  const couleur = estAvoir ? "#7e22ce" : "#059669";
-  const fond = estAvoir ? "#faf5ff" : "#ecfdf5";
-  const bordure = estAvoir ? "#e9d5ff" : "#a7f3d0";
+  const couleur = design.design_couleur_principale;
+  const fond = design.design_couleur_secondaire;
+  const bordure = design.design_couleur_principale;
 
   const lignesHtml =
     lignes.length > 0
@@ -795,6 +801,7 @@ export async function POST(request: NextRequest) {
       sujet: sujetFinal,
       message: messageFinal,
       nomPieceJointe: pieceJointePdf.filename,
+      design: normaliserDesignDocuments(parametres),
     });
 
     const cc: string[] = [];

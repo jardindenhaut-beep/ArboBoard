@@ -11,6 +11,12 @@ import {
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
+import DesignDocumentsParametres from "@/components/parametres/DesignDocumentsParametres";
+import {
+  DESIGN_DOCUMENTS_DEFAUT,
+  normaliserDesignDocuments,
+  type DesignDocuments,
+} from "@/lib/documents/designDocuments";
 
 type ResultatContexteEntreprise = Awaited<
   ReturnType<typeof chargerContexteEntreprise>
@@ -55,7 +61,7 @@ type EntrepriseParametres = {
   prefixe_devis: string;
   prefixe_facture: string;
   prefixe_avoir: string;
-};
+} & DesignDocuments;
 
 const FORMULAIRE_VIDE: EntrepriseParametres = {
   nom_entreprise: "",
@@ -77,6 +83,7 @@ const FORMULAIRE_VIDE: EntrepriseParametres = {
   prefixe_devis: "DEV",
   prefixe_facture: "FAC",
   prefixe_avoir: "AV",
+  ...DESIGN_DOCUMENTS_DEFAUT,
 };
 
 function texte(valeur: unknown) {
@@ -319,6 +326,7 @@ export default function PageParametresChef() {
           texte(parametres?.prefixe_facture) || "FAC",
         prefixe_avoir:
           texte(parametres?.prefixe_avoir) || "AV",
+        ...normaliserDesignDocuments(parametres),
       };
 
       setForm(formulaireCharge);
@@ -353,6 +361,18 @@ export default function PageParametresChef() {
     setMessage(null);
   }
 
+  function modifierDesignDocument<K extends keyof DesignDocuments>(
+    champ: K,
+    valeur: DesignDocuments[K]
+  ) {
+    setForm((ancien) => ({
+      ...ancien,
+      [champ]: valeur,
+    }));
+    setErreur(null);
+    setMessage(null);
+  }
+
   function restaurerReglagesDocuments() {
     setForm((ancien) => ({
       ...ancien,
@@ -361,6 +381,7 @@ export default function PageParametresChef() {
       prefixe_devis: "DEV",
       prefixe_facture: "FAC",
       prefixe_avoir: "AV",
+      ...DESIGN_DOCUMENTS_DEFAUT,
     }));
     setErreur(null);
     setMessage(
@@ -546,6 +567,7 @@ export default function PageParametresChef() {
 
       const formulaireNormalise: EntrepriseParametres = {
         ...form,
+        ...normaliserDesignDocuments(form),
         nom_entreprise: form.nom_entreprise.trim(),
         adresse: form.adresse.trim(),
         code_postal: form.code_postal.trim(),
@@ -995,6 +1017,23 @@ export default function PageParametresChef() {
               />
             </div>
           </CarteParametres>
+
+          <DesignDocumentsParametres
+            valeur={form}
+            logoUrl={form.logo_url}
+            nomEntreprise={form.nom_entreprise}
+            onChange={modifierDesignDocument}
+            onReset={() => {
+              setForm((ancien) => ({
+                ...ancien,
+                ...DESIGN_DOCUMENTS_DEFAUT,
+              }));
+              setErreur(null);
+              setMessage(
+                "Le design standard a été restauré. Enregistrez pour le conserver."
+              );
+            }}
+          />
 
           <CarteParametres
             titre="Numérotation"

@@ -218,10 +218,7 @@ export default function DoubleAuthentificationChefPage() {
         });
 
       if (suppressionError) {
-        console.warn(
-          "Facteur MFA non vérifié non supprimé :",
-          suppressionError
-        );
+        continue;
       }
     }
   }
@@ -313,13 +310,6 @@ export default function DoubleAuthentificationChefPage() {
           scope: "others",
         });
 
-      if (deconnexionError) {
-        console.warn(
-          "Les autres sessions n’ont pas pu être fermées :",
-          deconnexionError
-        );
-      }
-
       setInscription(null);
       setCodeActivation("");
       setCleCopiee(false);
@@ -369,10 +359,9 @@ export default function DoubleAuthentificationChefPage() {
         });
 
       if (error) throw error;
-    } catch (error) {
-      console.warn(
-        "Suppression du facteur non vérifié impossible :",
-        error
+    } catch {
+      setErreur(
+        "L’activation a été fermée, mais le facteur temporaire n’a pas pu être supprimé automatiquement."
       );
     } finally {
       setInscription(null);

@@ -571,10 +571,7 @@ async function journaliser({
     );
 
   if (error) {
-    console.warn(
-      "Journalisation du paiement impossible :",
-      error
-    );
+    return;
   }
 }
 

@@ -3,17 +3,17 @@
 import Link from "next/link";
 import GestionMfaTelephone from "@/components/securite/GestionMfaTelephone";
 
-export default function DoubleAuthentificationChefPage() {
+export default function DoubleAuthentificationSalariePage() {
   return (
     <div className="space-y-6">
       <Link
-        href="/chef/securite"
+        href="/salarie/profil"
         className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-950"
       >
-        ← Retour à la sécurité
+        ← Retour à mon profil
       </Link>
 
-      <GestionMfaTelephone espace="chef" />
+      <GestionMfaTelephone espace="salarie" />
     </div>
   );
 }

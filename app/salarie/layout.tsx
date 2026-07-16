@@ -32,9 +32,19 @@ const MENUS_SALARIE: MenuItem[] = [
     emoji: "📅",
   },
   {
+    label: "Fiches terrain",
+    href: "/salarie/interventions",
+    emoji: "🧾",
+  },
+  {
     label: "Demandes",
     href: "/salarie/demandes",
     emoji: "📩",
+  },
+  {
+    label: "Sécurité",
+    href: "/salarie/securite/double-authentification",
+    emoji: "🔐",
   },
   {
     label: "Profil",
@@ -71,7 +81,15 @@ function routeAutoriseeSalarie(pathname: string) {
     return true;
   }
 
+  if (pathname.startsWith("/salarie/interventions")) {
+    return true;
+  }
+
   if (pathname.startsWith("/salarie/demandes")) {
+    return true;
+  }
+
+  if (pathname.startsWith("/salarie/securite")) {
     return true;
   }
 
@@ -132,6 +150,21 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
 
         if (profil.statut && profil.statut !== "actif") {
           await supabase.auth.signOut();
+          router.replace("/connexion/salarie");
+          return;
+        }
+
+        const { data: niveauMfa, error: niveauMfaError } =
+          await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+        if (niveauMfaError) {
+          throw niveauMfaError;
+        }
+
+        if (
+          niveauMfa.nextLevel === "aal2" &&
+          niveauMfa.currentLevel !== "aal2"
+        ) {
           router.replace("/connexion/salarie");
           return;
         }

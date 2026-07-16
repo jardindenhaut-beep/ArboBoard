@@ -95,6 +95,7 @@ type FicheElement = {
 
 type FicheSalarie = {
   id: string;
+  entreprise_id?: string | null;
   fiche_id: string;
   salarie_id: string | null;
   salarie_nom: string | null;
@@ -103,6 +104,9 @@ type FicheSalarie = {
   heure_depart_prevue: string | null;
   heure_arrivee_reelle: string | null;
   heure_depart_reelle: string | null;
+  arrivee_validee_at?: string | null;
+  depart_valide_at?: string | null;
+  commentaire_salarie?: string | null;
 };
 
 type Devis = {
@@ -137,6 +141,24 @@ type Client = {
   code_postal?: string | null;
   ville?: string | null;
 };
+
+type SalarieDisponible = {
+  id: string;
+  nom: string | null;
+  prenom: string | null;
+  email: string | null;
+  statut: string | null;
+};
+
+function nomSalarieDisponible(
+  salarie: SalarieDisponible
+) {
+  const nom = `${salarie.prenom || ""} ${
+    salarie.nom || ""
+  }`.trim();
+
+  return nom || salarie.email || "Salarié";
+}
 
 const BLOCS_ELEMENTS = [
   {
@@ -355,6 +377,11 @@ export default function DetailFicheInterventionPage() {
   const [fiche, setFiche] = useState<FicheIntervention | null>(null);
   const [elements, setElements] = useState<FicheElement[]>([]);
   const [equipe, setEquipe] = useState<FicheSalarie[]>([]);
+  const [salariesDisponibles, setSalariesDisponibles] =
+    useState<SalarieDisponible[]>([]);
+  const [selectionEquipe, setSelectionEquipe] = useState<string[]>([]);
+  const [enregistrementEquipe, setEnregistrementEquipe] =
+    useState(false);
   const [devis, setDevis] = useState<Devis | null>(null);
   const [facture, setFacture] = useState<Facture | null>(null);
   const [client, setClient] = useState<Client | null>(null);
@@ -432,8 +459,14 @@ export default function DetailFicheInterventionPage() {
     const ficheChargee = ficheData as FicheIntervention;
     setFiche(ficheChargee);
 
-    const [elementsResult, equipeResult, clientResult, devisResult, factureResult] =
-      await Promise.all([
+    const [
+      elementsResult,
+      equipeResult,
+      salariesResult,
+      clientResult,
+      devisResult,
+      factureResult,
+    ] = await Promise.all([
         supabase
           .from("fiches_intervention_elements")
           .select("*")
@@ -447,6 +480,13 @@ export default function DetailFicheInterventionPage() {
           .eq("entreprise_id", idEntreprise)
           .eq("fiche_id", idFiche)
           .order("created_at", { ascending: true }),
+
+        supabase
+          .from("salaries")
+          .select("id, nom, prenom, email, statut")
+          .eq("entreprise_id", idEntreprise)
+          .order("prenom", { ascending: true })
+          .order("nom", { ascending: true }),
 
         ficheChargee.client_id
           ? supabase
@@ -478,15 +518,178 @@ export default function DetailFicheInterventionPage() {
 
     if (elementsResult.error) throw elementsResult.error;
     if (equipeResult.error) throw equipeResult.error;
+    if (salariesResult.error) throw salariesResult.error;
     if (clientResult.error) throw clientResult.error;
     if (devisResult.error) throw devisResult.error;
     if (factureResult.error) throw factureResult.error;
 
+    const equipeChargee =
+      (equipeResult.data || []) as FicheSalarie[];
+
+    const salariesActifs =
+      ((salariesResult.data || []) as SalarieDisponible[]).filter(
+        (salarie) => {
+          const statut = String(
+            salarie.statut || "actif"
+          ).toLowerCase();
+
+          return ![
+            "archive",
+            "archivee",
+            "archivée",
+            "inactif",
+            "supprime",
+            "supprimé",
+          ].includes(statut);
+        }
+      );
+
+    const selectionInitiale = Array.from(
+      new Set([
+        ...equipeChargee
+          .map((item) => item.salarie_id)
+          .filter((id): id is string => Boolean(id)),
+        ...(ficheChargee.salarie_id
+          ? [ficheChargee.salarie_id]
+          : []),
+      ])
+    );
+
     setElements((elementsResult.data || []) as FicheElement[]);
-    setEquipe((equipeResult.data || []) as FicheSalarie[]);
+    setEquipe(equipeChargee);
+    setSalariesDisponibles(salariesActifs);
+    setSelectionEquipe(selectionInitiale);
     setClient((clientResult.data || null) as Client | null);
     setDevis((devisResult.data || null) as Devis | null);
     setFacture((factureResult.data || null) as Facture | null);
+  }
+
+  function basculerSalarieEquipe(salarieId: string) {
+    setSelectionEquipe((ancienne) =>
+      ancienne.includes(salarieId)
+        ? ancienne.filter((id) => id !== salarieId)
+        : [...ancienne, salarieId]
+    );
+    setMessageErreur("");
+    setMessageSucces("");
+  }
+
+  async function enregistrerEquipeAffectee() {
+    if (!entrepriseId || !fiche) return;
+
+    try {
+      setEnregistrementEquipe(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const selection = Array.from(
+        new Set(selectionEquipe)
+      );
+
+      const affectationsExistantes = new Map(
+        equipe
+          .filter(
+            (item): item is FicheSalarie & {
+              salarie_id: string;
+            } => Boolean(item.salarie_id)
+          )
+          .map((item) => [
+            item.salarie_id,
+            item,
+          ])
+      );
+
+      const aSupprimer = Array.from(
+        affectationsExistantes.keys()
+      ).filter((id) => !selection.includes(id));
+
+      if (aSupprimer.length > 0) {
+        const { error } = await supabase
+          .from("fiches_intervention_salaries")
+          .delete()
+          .eq("entreprise_id", entrepriseId)
+          .eq("fiche_id", fiche.id)
+          .in("salarie_id", aSupprimer);
+
+        if (error) throw error;
+      }
+
+      const aAjouter = selection.filter(
+        (id) => !affectationsExistantes.has(id)
+      );
+
+      if (aAjouter.length > 0) {
+        const payload = aAjouter.map((id) => {
+          const salarie = salariesDisponibles.find(
+            (item) => item.id === id
+          );
+
+          return {
+            entreprise_id: entrepriseId,
+            fiche_id: fiche.id,
+            salarie_id: id,
+            salarie_nom: salarie
+              ? nomSalarieDisponible(salarie)
+              : "Salarié",
+            role_chantier: "Intervenant",
+            heure_arrivee_prevue:
+              fiche.heure_debut_prevue ||
+              fiche.heure_debut ||
+              null,
+            heure_depart_prevue:
+              fiche.heure_fin_prevue ||
+              fiche.heure_fin ||
+              null,
+          };
+        });
+
+        const { error } = await supabase
+          .from("fiches_intervention_salaries")
+          .upsert(payload, {
+            onConflict: "fiche_id,salarie_id",
+          });
+
+        if (error) throw error;
+      }
+
+      const premierId = selection[0] || null;
+      const premierSalarie =
+        salariesDisponibles.find(
+          (item) => item.id === premierId
+        ) || null;
+
+      const { error: ficheError } = await supabase
+        .from("fiches_intervention")
+        .update({
+          salarie_id: premierId,
+          salarie_nom: premierSalarie
+            ? nomSalarieDisponible(premierSalarie)
+            : null,
+        })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (ficheError) throw ficheError;
+
+      await chargerFicheComplete(
+        entrepriseId,
+        fiche.id
+      );
+
+      setMessageSucces(
+        selection.length > 0
+          ? `${selection.length} salarié(s) affecté(s) à cette intervention.`
+          : "L’équipe a été retirée de cette intervention."
+      );
+    } catch (error) {
+      setMessageErreur(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’enregistrer l’équipe."
+      );
+    } finally {
+      setEnregistrementEquipe(false);
+    }
   }
 
   async function rafraichir() {
@@ -1294,57 +1497,109 @@ export default function DetailFicheInterventionPage() {
         <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-bold text-slate-950">Équipe affectée</h2>
+              <div>
+                <h2 className="font-bold text-slate-950">
+                  Équipe affectée
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Plusieurs salariés peuvent travailler sur la même fiche.
+                </p>
+              </div>
+
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                {equipe.length}
+                {selectionEquipe.length}
               </span>
             </div>
 
-            {equipe.length === 0 ? (
+            {salariesDisponibles.length === 0 ? (
               <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                Aucun salarié affecté à cette fiche.
+                Aucun salarié actif disponible.
               </p>
             ) : (
-              <div className="mt-4 space-y-3">
-                {equipe.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-lg shadow-sm">
-                        👤
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-950">
-                          {item.salarie_nom || "Salarié"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {item.role_chantier || "Intervenant"}
-                        </p>
-                      </div>
-                    </div>
+              <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+                {salariesDisponibles.map((salarie) => {
+                  const actif =
+                    selectionEquipe.includes(
+                      salarie.id
+                    );
 
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-xl bg-white px-3 py-2 text-slate-600">
-                        <p className="font-bold text-slate-400">Prévu</p>
-                        <p className="mt-1 font-semibold text-slate-700">
-                          {formatHeure(item.heure_arrivee_prevue)} →{" "}
-                          {formatHeure(item.heure_depart_prevue)}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-white px-3 py-2 text-slate-600">
-                        <p className="font-bold text-slate-400">Réel</p>
-                        <p className="mt-1 font-semibold text-emerald-700">
-                          {formatHeure(item.heure_arrivee_reelle)} →{" "}
-                          {formatHeure(item.heure_depart_reelle)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  const retourTerrain =
+                    equipe.find(
+                      (item) =>
+                        item.salarie_id ===
+                        salarie.id
+                    ) || null;
+
+                  return (
+                    <label
+                      key={salarie.id}
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${
+                        actif
+                          ? "border-emerald-300 bg-emerald-50"
+                          : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={actif}
+                        onChange={() =>
+                          basculerSalarieEquipe(
+                            salarie.id
+                          )
+                        }
+                        disabled={
+                          enregistrementEquipe ||
+                          fiche.statut ===
+                            "archivee"
+                        }
+                        className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-slate-950">
+                          {nomSalarieDisponible(
+                            salarie
+                          )}
+                        </span>
+
+                        {retourTerrain ? (
+                          <span className="mt-1 block text-xs text-slate-500">
+                            Réel :{" "}
+                            {formatHeure(
+                              retourTerrain.heure_arrivee_reelle
+                            )}{" "}
+                            →{" "}
+                            {formatHeure(
+                              retourTerrain.heure_depart_reelle
+                            )}
+                          </span>
+                        ) : (
+                          <span className="mt-1 block text-xs text-slate-400">
+                            Pas encore de retour terrain.
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={() =>
+                void enregistrerEquipeAffectee()
+              }
+              disabled={
+                enregistrementEquipe ||
+                fiche.statut === "archivee"
+              }
+              className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enregistrementEquipe
+                ? "Enregistrement…"
+                : "Enregistrer l’équipe"}
+            </button>
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">

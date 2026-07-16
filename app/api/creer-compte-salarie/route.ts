@@ -10,49 +10,70 @@ type BodyCreationSalarie = {
 };
 
 function limiteUtilisateursSelonPlan(plan: string) {
-  if (plan === "dev") {
-    return 999;
-  }
-
-  if (plan === "expert") {
-    return 10;
-  }
-
-  if (plan === "pro") {
-    return 3;
-  }
-
-  if (plan === "essentiel") {
-    return 1;
-  }
-
-  if (plan === "essai") {
-    return 3;
-  }
-
+  if (plan === "dev") return 999;
+  if (plan === "expert") return 10;
+  if (plan === "pro") return 3;
+  if (plan === "essentiel") return 1;
+  if (plan === "essai") return 3;
   return 1;
 }
 
 function planAutoriseSalaries(plan: string) {
-  return plan === "pro" || plan === "expert" || plan === "dev" || plan === "essai";
+  return [
+    "pro",
+    "expert",
+    "dev",
+    "essai",
+  ].includes(plan);
+}
+
+function normaliserTelephone(
+  valeur: string | undefined
+) {
+  const brut = String(valeur || "").trim();
+
+  if (!brut) return null;
+
+  let numero = brut.replace(/[()\s.-]/g, "");
+
+  if (numero.startsWith("00")) {
+    numero = `+${numero.slice(2)}`;
+  }
+
+  if (/^0[67]\d{8}$/.test(numero)) {
+    numero = `+33${numero.slice(1)}`;
+  } else if (/^33[67]\d{8}$/.test(numero)) {
+    numero = `+${numero}`;
+  }
+
+  if (!/^\+[1-9]\d{7,14}$/.test(numero)) {
+    throw new Error(
+      "Le numéro de téléphone n’est pas valide. Utilisez par exemple 06 12 34 56 78."
+    );
+  }
+
+  return numero;
 }
 
 export async function POST(request: Request) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         {
           error:
-            "Configuration Supabase manquante. Vérifie NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY.",
+            "Configuration Supabase manquante. Vérifiez les variables serveur.",
         },
         { status: 500 }
       );
     }
 
-    const authHeader = request.headers.get("authorization");
+    const authHeader =
+      request.headers.get("authorization");
 
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json(
@@ -63,12 +84,16 @@ export async function POST(request: Request) {
 
     const token = authHeader.replace("Bearer ", "");
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      serviceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
 
     const {
       data: { user },
@@ -77,16 +102,22 @@ export async function POST(request: Request) {
 
     if (erreurUtilisateur || !user) {
       return NextResponse.json(
-        { error: "Session chef invalide. Reconnecte-toi." },
+        {
+          error:
+            "Session chef invalide. Reconnectez-vous.",
+        },
         { status: 401 }
       );
     }
 
-    const { data: profilChef, error: erreurProfilChef } = await supabaseAdmin
-      .from("profils_utilisateurs")
-      .select("id, email, role, entreprise_id")
-      .eq("id", user.id)
-      .single();
+    const { data: profilChef, error: erreurProfilChef } =
+      await supabaseAdmin
+        .from("profils_utilisateurs")
+        .select(
+          "id, email, role, statut, entreprise_id"
+        )
+        .eq("id", user.id)
+        .maybeSingle();
 
     if (erreurProfilChef || !profilChef) {
       return NextResponse.json(
@@ -95,25 +126,38 @@ export async function POST(request: Request) {
       );
     }
 
-    if (profilChef.role !== "chef") {
+    if (
+      profilChef.role !== "chef" ||
+      (profilChef.statut &&
+        profilChef.statut !== "actif")
+    ) {
       return NextResponse.json(
-        { error: "Seul un compte chef peut créer un accès salarié." },
+        {
+          error:
+            "Seul un compte chef actif peut créer un accès salarié.",
+        },
         { status: 403 }
       );
     }
 
     if (!profilChef.entreprise_id) {
       return NextResponse.json(
-        { error: "Aucune entreprise rattachée au compte chef." },
+        {
+          error:
+            "Aucune entreprise rattachée au compte chef.",
+        },
         { status: 400 }
       );
     }
 
-    const { data: entreprise, error: erreurEntreprise } = await supabaseAdmin
-      .from("entreprises_abonnees")
-      .select("id, nom_entreprise, plan_abonnement, statut_abonnement")
-      .eq("id", profilChef.entreprise_id)
-      .maybeSingle();
+    const { data: entreprise, error: erreurEntreprise } =
+      await supabaseAdmin
+        .from("entreprises_abonnees")
+        .select(
+          "id, nom_entreprise, plan_abonnement, statut_abonnement"
+        )
+        .eq("id", profilChef.entreprise_id)
+        .maybeSingle();
 
     if (erreurEntreprise || !entreprise) {
       return NextResponse.json(
@@ -122,14 +166,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const plan = entreprise.plan_abonnement || "essai";
-    const statut = entreprise.statut_abonnement || "essai";
+    const plan =
+      entreprise.plan_abonnement || "essai";
+    const statut =
+      entreprise.statut_abonnement || "essai";
 
-    if (statut === "suspendu" || statut === "annule" || statut === "annulé") {
+    if (
+      ["suspendu", "annule", "annulé"].includes(
+        statut
+      )
+    ) {
       return NextResponse.json(
         {
           error:
-            "L’abonnement de l’entreprise est suspendu ou annulé. Impossible de créer un accès salarié.",
+            "L’abonnement de l’entreprise est suspendu ou annulé.",
         },
         { status: 403 }
       );
@@ -139,20 +189,29 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Ton plan actuel ne permet pas de créer des accès salariés. Passe au plan Pro ou Expert.",
+            "Votre plan actuel ne permet pas de créer des accès salariés.",
         },
         { status: 403 }
       );
     }
 
-    const limiteUtilisateurs = limiteUtilisateursSelonPlan(plan);
+    const limiteUtilisateurs =
+      limiteUtilisateursSelonPlan(plan);
 
-    const { count: nombreUtilisateurs, error: erreurComptage } =
-      await supabaseAdmin
-        .from("profils_utilisateurs")
-        .select("id", { count: "exact", head: true })
-        .eq("entreprise_id", profilChef.entreprise_id)
-        .eq("statut", "actif");
+    const {
+      count: nombreUtilisateurs,
+      error: erreurComptage,
+    } = await supabaseAdmin
+      .from("profils_utilisateurs")
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
+      .eq(
+        "entreprise_id",
+        profilChef.entreprise_id
+      )
+      .eq("statut", "actif");
 
     if (erreurComptage) {
       return NextResponse.json(
@@ -165,74 +224,113 @@ export async function POST(request: Request) {
       );
     }
 
-    if ((nombreUtilisateurs || 0) >= limiteUtilisateurs) {
-      return NextResponse.json(
-        {
-          error: `Limite atteinte pour ton plan ${plan}. Ton plan autorise ${limiteUtilisateurs} utilisateur${
-            limiteUtilisateurs > 1 ? "s" : ""
-          } actif${limiteUtilisateurs > 1 ? "s" : ""}.`,
-        },
-        { status: 403 }
-      );
-    }
+    const body =
+      (await request.json()) as BodyCreationSalarie;
 
-    const body = (await request.json()) as BodyCreationSalarie;
-
-    const email = body.email?.trim().toLowerCase();
+    const email = body.email
+      ?.trim()
+      .toLowerCase();
     const nom = body.nom?.trim() || "";
     const prenom = body.prenom?.trim() || "";
-    const telephone = body.telephone?.trim() || "";
+    const telephone =
+      normaliserTelephone(body.telephone);
 
     if (!email) {
       return NextResponse.json(
-        { error: "L'email du salarié est obligatoire." },
+        {
+          error:
+            "L’email du salarié est obligatoire.",
+        },
         { status: 400 }
       );
     }
 
     if (!nom && !prenom) {
       return NextResponse.json(
-        { error: "Le nom ou le prénom du salarié est obligatoire." },
+        {
+          error:
+            "Le nom ou le prénom du salarié est obligatoire.",
+        },
         { status: 400 }
       );
     }
 
-    const { data: utilisateurExistant } =
+    const { data: listeUtilisateurs, error: listeError } =
       await supabaseAdmin.auth.admin.listUsers();
 
-    const emailDejaUtilise = utilisateurExistant.users.find(
-      (u) => u.email?.toLowerCase() === email
-    );
+    if (listeError) {
+      return NextResponse.json(
+        {
+          error:
+            "Impossible de vérifier les comptes existants.",
+        },
+        { status: 500 }
+      );
+    }
 
-    if (emailDejaUtilise) {
-      const { data: profilExistant } = await supabaseAdmin
-        .from("profils_utilisateurs")
-        .select("id, email, role, entreprise_id")
-        .eq("id", emailDejaUtilise.id)
-        .maybeSingle();
+    const emailDejaUtilise =
+      listeUtilisateurs.users.find(
+        (utilisateur) =>
+          utilisateur.email?.toLowerCase() === email
+      );
 
-      if (
-        profilExistant &&
-        profilExistant.entreprise_id !== profilChef.entreprise_id
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Cet email est déjà utilisé par une autre entreprise. Utilise un autre email.",
-          },
-          { status: 400 }
-        );
-      }
+    const profilDejaDansEntreprise =
+      emailDejaUtilise
+        ? await supabaseAdmin
+            .from("profils_utilisateurs")
+            .select(
+              "id, email, role, entreprise_id, statut"
+            )
+            .eq("id", emailDejaUtilise.id)
+            .maybeSingle()
+        : { data: null, error: null };
 
-      if (profilExistant?.role === "chef") {
-        return NextResponse.json(
-          {
-            error:
-              "Cet email correspond déjà à un compte chef. Utilise un email salarié différent.",
-          },
-          { status: 400 }
-        );
-      }
+    if (
+      profilDejaDansEntreprise.data &&
+      profilDejaDansEntreprise.data
+        .entreprise_id !==
+        profilChef.entreprise_id
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Cet email est déjà utilisé par une autre entreprise.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      profilDejaDansEntreprise.data?.role ===
+      "chef"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Cet email correspond déjà à un compte chef.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const utilisateurDejaCompte =
+      Boolean(emailDejaUtilise);
+
+    if (
+      !utilisateurDejaCompte &&
+      (nombreUtilisateurs || 0) >=
+        limiteUtilisateurs
+    ) {
+      return NextResponse.json(
+        {
+          error: `Limite atteinte pour le plan ${plan}. Le plan autorise ${limiteUtilisateurs} utilisateur${
+            limiteUtilisateurs > 1 ? "s" : ""
+          } actif${
+            limiteUtilisateurs > 1 ? "s" : ""
+          }.`,
+        },
+        { status: 403 }
+      );
     }
 
     const origin =
@@ -240,31 +338,42 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://arboboard.fr";
 
-    const redirectTo = `${origin}/auth/set-password`;
+    const redirectTo =
+      `${origin}/auth/set-password`;
 
     let userSalarieId = "";
 
     if (emailDejaUtilise) {
       userSalarieId = emailDejaUtilise.id;
     } else {
-      const { data: invitation, error: erreurInvitation } =
-        await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          redirectTo,
-          data: {
-            nom,
-            prenom,
-            telephone,
-            role: "salarie",
-            entreprise_id: profilChef.entreprise_id,
-          },
-        });
+      const {
+        data: invitation,
+        error: erreurInvitation,
+      } =
+        await supabaseAdmin.auth.admin.inviteUserByEmail(
+          email,
+          {
+            redirectTo,
+            data: {
+              nom,
+              prenom,
+              telephone,
+              role: "salarie",
+              entreprise_id:
+                profilChef.entreprise_id,
+            },
+          }
+        );
 
-      if (erreurInvitation || !invitation.user) {
+      if (
+        erreurInvitation ||
+        !invitation.user
+      ) {
         return NextResponse.json(
           {
             error:
               erreurInvitation?.message ||
-              "Impossible d'envoyer l'invitation. L'email est peut-être déjà utilisé.",
+              "Impossible d’envoyer l’invitation.",
           },
           { status: 400 }
         );
@@ -273,60 +382,109 @@ export async function POST(request: Request) {
       userSalarieId = invitation.user.id;
     }
 
-    const { error: erreurProfilSalarie } = await supabaseAdmin
-      .from("profils_utilisateurs")
-      .upsert({
-        id: userSalarieId,
-        email,
-        role: "salarie",
-        nom,
-        prenom,
-        statut: "actif",
-        entreprise_id: profilChef.entreprise_id,
-      });
+    const { error: erreurProfilSalarie } =
+      await supabaseAdmin
+        .from("profils_utilisateurs")
+        .upsert(
+          {
+            id: userSalarieId,
+            email,
+            role: "salarie",
+            nom: nom || null,
+            prenom: prenom || null,
+            statut: "actif",
+            entreprise_id:
+              profilChef.entreprise_id,
+            telephone_mfa: telephone,
+          },
+          {
+            onConflict: "id",
+          }
+        );
 
     if (erreurProfilSalarie) {
       return NextResponse.json(
         {
           error:
             erreurProfilSalarie.message ||
-            "L'invitation a été envoyée mais le profil salarié n'a pas pu être créé.",
+            "Le profil salarié n’a pas pu être créé.",
         },
         { status: 500 }
       );
     }
 
-    if (body.salarieId) {
-      await supabaseAdmin
-        .from("salaries")
-        .update({
-          email,
-          nom,
-          prenom,
-          telephone,
-          statut: "Actif",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", body.salarieId)
-        .eq("entreprise_id", profilChef.entreprise_id);
+    let salarieId = body.salarieId || "";
+
+    if (!salarieId) {
+      const { data: salarieExistant } =
+        await supabaseAdmin
+          .from("salaries")
+          .select("id")
+          .eq(
+            "entreprise_id",
+            profilChef.entreprise_id
+          )
+          .ilike("email", email)
+          .limit(1)
+          .maybeSingle();
+
+      salarieId = salarieExistant?.id || "";
+    }
+
+    if (salarieId) {
+      const { error: erreurMiseAJourSalarie } =
+        await supabaseAdmin
+          .from("salaries")
+          .update({
+            email,
+            nom: nom || null,
+            prenom: prenom || null,
+            telephone,
+            user_id: userSalarieId,
+            profil_id: userSalarieId,
+            statut: "Actif",
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq("id", salarieId)
+          .eq(
+            "entreprise_id",
+            profilChef.entreprise_id
+          );
+
+      if (erreurMiseAJourSalarie) {
+        return NextResponse.json(
+          {
+            error:
+              erreurMiseAJourSalarie.message ||
+              "Le compte a été créé, mais la fiche salarié n’a pas pu être liée.",
+          },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: emailDejaUtilise
+      message: utilisateurDejaCompte
         ? "Profil salarié rattaché à l’entreprise."
         : "Invitation envoyée au salarié.",
       userId: userSalarieId,
+      salarieId: salarieId || null,
       plan,
       limiteUtilisateurs,
-      nombreUtilisateursAvantCreation: nombreUtilisateurs || 0,
+      nombreUtilisateursAvantCreation:
+        nombreUtilisateurs || 0,
     });
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
-        : "Erreur inconnue lors de l'envoi de l'invitation salarié.";
+        : "Erreur inconnue lors de la création du compte salarié.";
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500 }
+    );
   }
 }

@@ -1670,6 +1670,310 @@ export default function PlanningChefPage() {
     );
   }
 
+  function renduPlanningMobile() {
+    const dates = construireSemaine(
+      dateReference
+    );
+
+    const fichesJour = fichesFiltrees
+      .filter(
+        (fiche) =>
+          dateFiche(fiche) === dateReference
+      )
+      .sort((a, b) =>
+        (heureDebutFiche(a) || "99:99").localeCompare(
+          heureDebutFiche(b) || "99:99"
+        )
+      );
+
+    return (
+      <div className="space-y-4 lg:hidden">
+        <section className="sticky top-2 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setDateReference(
+                  ajouterJours(dateReference, -1)
+                )
+              }
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-xl font-bold text-slate-600"
+              aria-label="Jour précédent"
+            >
+              ‹
+            </button>
+
+            <div className="min-w-0 flex-1 text-center">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
+                Agenda du jour
+              </p>
+              <input
+                type="date"
+                value={dateReference}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    setDateReference(
+                      event.target.value
+                    );
+                  }
+                }}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-bold text-slate-900 outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setDateReference(
+                  ajouterJours(dateReference, 1)
+                )
+              }
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-xl font-bold text-slate-600"
+              aria-label="Jour suivant"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-7 gap-1">
+            {dates.map((date) => {
+              const actif =
+                date === dateReference;
+              const nombre = fichesFiltrees.filter(
+                (fiche) =>
+                  dateFiche(fiche) === date
+              ).length;
+
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() =>
+                    setDateReference(date)
+                  }
+                  className={`rounded-xl px-1 py-2 text-center transition ${
+                    actif
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  <span className="block text-[9px] font-bold uppercase">
+                    {formatJourSemaine(date)}
+                  </span>
+                  <span className="mt-0.5 block text-sm font-black">
+                    {formatNumeroJour(date)}
+                  </span>
+                  <span
+                    className={`mt-1 block text-[9px] ${
+                      actif
+                        ? "text-emerald-100"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {nombre}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-slate-700 [&::-webkit-details-marker]:hidden">
+              Recherche et filtres ▾
+            </summary>
+
+            <div className="grid gap-3 border-t border-slate-200 p-3">
+              <input
+                value={recherche}
+                onChange={(event) =>
+                  setRecherche(
+                    event.target.value
+                  )
+                }
+                placeholder="Client, ville, chantier…"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-emerald-500"
+              />
+
+              <select
+                value={filtreStatut}
+                onChange={(event) =>
+                  setFiltreStatut(
+                    event.target
+                      .value as FiltreStatut
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
+              >
+                <option value="tous">
+                  Tous les statuts
+                </option>
+                <option value="brouillon">
+                  Brouillons
+                </option>
+                <option value="planifiee">
+                  Planifiées
+                </option>
+                <option value="en_cours">
+                  En cours
+                </option>
+                <option value="terminee">
+                  Terminées
+                </option>
+                <option value="annulee">
+                  Annulées
+                </option>
+              </select>
+
+              <select
+                value={filtreSalarie}
+                onChange={(event) =>
+                  setFiltreSalarie(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
+              >
+                <option value="tous">
+                  Toute l’équipe
+                </option>
+                {optionsSalaries.map(
+                  (option) => (
+                    <option
+                      key={option.valeur}
+                      value={option.valeur}
+                    >
+                      {option.libelle}
+                    </option>
+                  )
+                )}
+              </select>
+
+              <button
+                type="button"
+                onClick={reinitialiserFiltres}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600"
+              >
+                Réinitialiser les filtres
+              </button>
+            </div>
+          </details>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <div>
+              <h2 className="font-black capitalize text-slate-950">
+                {formatDate(dateReference)}
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {pluraliserIntervention(
+                  fichesJour.length
+                )}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={allerAujourdhui}
+              className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"
+            >
+              Aujourd’hui
+            </button>
+          </div>
+
+          {fichesJour.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+                📅
+              </div>
+              <p className="mt-3 font-bold text-slate-950">
+                Aucun chantier ce jour
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Choisissez une autre date ou
+                modifiez les filtres.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {fichesJour.map((fiche) => {
+                const equipe =
+                  equipeDeFiche(fiche);
+
+                return (
+                  <Link
+                    key={fiche.id}
+                    href={`/chef/interventions/${fiche.id}`}
+                    className="block p-4 transition active:bg-slate-100"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-14 shrink-0 text-center">
+                        <p className="text-sm font-black text-slate-950">
+                          {formatHeure(
+                            heureDebutFiche(fiche)
+                          )}
+                        </p>
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          {formatHeure(
+                            heureFinFiche(fiche)
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="min-w-0 flex-1 border-l-2 border-emerald-300 pl-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-sm font-black text-slate-950">
+                            {titreFiche(fiche)}
+                          </h3>
+
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${badgeStatut(
+                              fiche.statut
+                            )}`}
+                          >
+                            {libelleStatut(
+                              fiche.statut
+                            )}
+                          </span>
+                        </div>
+
+                        <p className="mt-1 truncate text-xs font-semibold text-slate-700">
+                          {fiche.client_nom ||
+                            "Client non renseigné"}
+                        </p>
+
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          📍 {adresseFiche(fiche)}
+                        </p>
+
+                        <p className="mt-2 truncate text-[10px] text-blue-600">
+                          👥{" "}
+                          {equipe
+                            .map(
+                              (item) =>
+                                item.salarie_nom
+                            )
+                            .filter(Boolean)
+                            .join(", ") ||
+                            fiche.salarie_nom ||
+                            "Non affecté"}
+                        </p>
+                      </div>
+
+                      <span className="text-slate-400">
+                        ›
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   if (chargement) {
     return (
       <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
@@ -1710,7 +2014,7 @@ export default function PlanningChefPage() {
                   <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                     Planning chantier
                   </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                  <p className="mt-2 hidden max-w-3xl text-sm leading-6 text-slate-500 sm:block">
                     Organisez les interventions en vue jour, semaine, mois ou
                     liste. Glissez une fiche vers une autre date pour la
                     replanifier.
@@ -1759,6 +2063,9 @@ export default function PlanningChefPage() {
           </div>
         )}
 
+        {renduPlanningMobile()}
+
+        <div className="hidden space-y-6 lg:block">
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <button
           type="button"
@@ -2000,6 +2307,7 @@ export default function PlanningChefPage() {
         {vue === "semaine" && renduVueSemaine()}
         {vue === "mois" && renduVueMois()}
         {vue === "liste" && renduVueListe()}
+        </div>
       </div>
     </div>
   );

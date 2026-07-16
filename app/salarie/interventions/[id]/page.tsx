@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import BlocPhotosChantier from "@/components/interventions/BlocPhotosChantier";
 import BlocPvFinChantier from "@/components/interventions/BlocPvFinChantier";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
+import { resoudreSalarieConnecte } from "@/lib/salaries/resoudreSalarieConnecte";
 
 type FicheIntervention = {
   id: string;
@@ -317,6 +318,69 @@ export default function DetailInterventionSalariePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ficheId]);
 
+  useEffect(() => {
+    if (!entrepriseId || !ficheId || !salarie?.id) {
+      return;
+    }
+
+    const canal = supabase
+      .channel(`fiche-salarie-${ficheId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "fiches_intervention",
+          filter: `id=eq.${ficheId}`,
+        },
+        () => {
+          void chargerFicheComplete(
+            entrepriseId,
+            ficheId,
+            salarie
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "fiches_intervention_elements",
+          filter: `fiche_id=eq.${ficheId}`,
+        },
+        () => {
+          void chargerFicheComplete(
+            entrepriseId,
+            ficheId,
+            salarie
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "fiches_intervention_salaries",
+          filter: `fiche_id=eq.${ficheId}`,
+        },
+        () => {
+          void chargerFicheComplete(
+            entrepriseId,
+            ficheId,
+            salarie
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(canal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entrepriseId, ficheId, salarie?.id]);
+
   async function initialiserPage() {
     if (!ficheId) {
       setMessageErreur("Identifiant de fiche manquant.");
@@ -404,46 +468,21 @@ export default function DetailInterventionSalariePage() {
     idUtilisateur: string,
     emailProfil: string
   ) {
-    let salarieData: Salarie | null = null;
+    const salarieData =
+      await resoudreSalarieConnecte(
+        idEntreprise,
+        {
+          profilId: idProfil,
+          utilisateurId: idUtilisateur,
+          email: emailProfil,
+        }
+      );
 
-    const identifiants = Array.from(
-      new Set([idProfil, idUtilisateur].filter(Boolean))
+    setSalarie(
+      (salarieData || null) as Salarie | null
     );
 
-    for (const identifiant of identifiants) {
-      const { data, error } = await supabase
-        .from("salaries")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .or(
-          `user_id.eq.${identifiant},profil_id.eq.${identifiant}`
-        )
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data) {
-        salarieData = data as Salarie;
-        break;
-      }
-    }
-
-    if (!salarieData && emailProfil) {
-      const { data, error } = await supabase
-        .from("salaries")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .ilike("email", emailProfil)
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data) {
-        salarieData = data as Salarie;
-      }
-    }
-
-    setSalarie(salarieData);
-
-    return salarieData;
+    return (salarieData || null) as Salarie | null;
   }
 
   async function chargerFicheComplete(

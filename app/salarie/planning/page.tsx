@@ -1133,7 +1133,40 @@ export default function PlanningSalariePage() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid grid-cols-4 gap-2 md:hidden">
+        {[
+          ["Total", statistiques.total],
+          ["Aujourd’hui", statistiques.aujourdHui],
+          ["En cours", statistiques.enCours],
+          ["Alertes", statistiques.problemes],
+        ].map(([libelle, valeur]) => (
+          <button
+            key={String(libelle)}
+            type="button"
+            onClick={() => {
+              if (libelle === "Aujourd’hui") {
+                setFiltre("aujourd_hui");
+              } else if (libelle === "En cours") {
+                setFiltre("en_cours");
+              } else if (libelle === "Alertes") {
+                setFiltre("problemes");
+              } else {
+                setFiltre("toutes");
+              }
+            }}
+            className="rounded-2xl border border-slate-200 bg-white p-2 text-center shadow-sm"
+          >
+            <span className="block truncate text-[9px] font-bold uppercase text-slate-400">
+              {libelle}
+            </span>
+            <span className="mt-1 block text-xl font-black text-slate-950">
+              {valeur}
+            </span>
+          </button>
+        ))}
+      </section>
+
+      <section className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-3 xl:grid-cols-6">
         <button
           type="button"
           onClick={() => setFiltre("toutes")}
@@ -1252,7 +1285,7 @@ export default function PlanningSalariePage() {
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_240px]">
+        <div className="sticky top-2 z-10 grid gap-3 rounded-t-3xl border-b border-slate-200 bg-white/95 p-3 backdrop-blur sm:p-4 lg:grid-cols-[1fr_240px]">
           <input
             value={recherche}
             onChange={(event) =>

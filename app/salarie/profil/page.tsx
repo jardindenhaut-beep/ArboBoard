@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
+import { normaliserNumeroTelephone } from "@/lib/auth/mfaTelephone";
+import {
+  resoudreSalarieConnecte,
+  type SalarieConnecte,
+} from "@/lib/salaries/resoudreSalarieConnecte";
 
 type ProfilUtilisateur = {
   id: string;
@@ -12,17 +17,11 @@ type ProfilUtilisateur = {
   nom?: string | null;
   prenom?: string | null;
   entreprise_id?: string | null;
+  telephone_mfa?: string | null;
 };
 
-type Salarie = {
-  id: string;
-  entreprise_id?: string | null;
-  nom?: string | null;
-  prenom?: string | null;
-  email?: string | null;
-  telephone?: string | null;
-  statut?: string | null;
-};
+type Salarie = SalarieConnecte;
+
 
 type FormulaireProfil = {
   nom: string;
@@ -101,7 +100,10 @@ export default function ProfilSalariePage() {
       setFormulaire({
         nom: valeurTexte(salarieConnecte?.nom || profilConnecte.nom),
         prenom: valeurTexte(salarieConnecte?.prenom || profilConnecte.prenom),
-        telephone: valeurTexte(salarieConnecte?.telephone),
+        telephone: valeurTexte(
+          salarieConnecte?.telephone ||
+            profilConnecte.telephone_mfa
+        ),
       });
     } catch (error) {
       console.error("Erreur chargement profil salarié :", error);
@@ -115,34 +117,14 @@ export default function ProfilSalariePage() {
     idEntreprise: string,
     profilConnecte: ProfilUtilisateur
   ) {
-    const { data: salarieParId, error: erreurParId } = await supabase
-      .from("salaries")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .eq("id", profilConnecte.id)
-      .maybeSingle();
-
-    if (!erreurParId && salarieParId) {
-      return salarieParId as Salarie;
-    }
-
-    if (!profilConnecte.email) {
-      return null;
-    }
-
-    const { data: salarieParEmail, error: erreurParEmail } = await supabase
-      .from("salaries")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .ilike("email", profilConnecte.email)
-      .maybeSingle();
-
-    if (erreurParEmail) {
-      console.error("Erreur chargement fiche salarié :", erreurParEmail);
-      return null;
-    }
-
-    return (salarieParEmail || null) as Salarie | null;
+    return await resoudreSalarieConnecte(
+      idEntreprise,
+      {
+        profilId: profilConnecte.id,
+        utilisateurId: profilConnecte.id,
+        email: profilConnecte.email,
+      }
+    );
   }
 
   function modifierChamp(champ: keyof FormulaireProfil, valeur: string) {
@@ -163,9 +145,14 @@ export default function ProfilSalariePage() {
       setMessageErreur("");
       setMessageSucces("");
 
+      const telephoneNormalise = formulaire.telephone.trim()
+        ? normaliserNumeroTelephone(formulaire.telephone)
+        : null;
+
       const payloadProfil = {
         nom: nettoyerTexte(formulaire.nom),
         prenom: nettoyerTexte(formulaire.prenom),
+        telephone_mfa: telephoneNormalise,
       };
 
       const { error: erreurProfil } = await supabase
@@ -179,7 +166,10 @@ export default function ProfilSalariePage() {
         const payloadSalarie = {
           nom: nettoyerTexte(formulaire.nom),
           prenom: nettoyerTexte(formulaire.prenom),
-          telephone: nettoyerTexte(formulaire.telephone),
+          telephone: telephoneNormalise,
+          user_id: profil.id,
+          profil_id: profil.id,
+          updated_at: new Date().toISOString(),
         };
 
         const { error: erreurSalarie } = await supabase
@@ -190,7 +180,7 @@ export default function ProfilSalariePage() {
 
         if (erreurSalarie) throw erreurSalarie;
 
-        setSalarie((ancien) =>
+        setSalarie((ancien: Salarie | null) =>
           ancien
             ? {
                 ...ancien,
@@ -336,6 +326,13 @@ export default function ProfilSalariePage() {
             >
               {enregistrement ? "Enregistrement..." : "Enregistrer mon profil"}
             </button>
+
+            <a
+              href="/salarie/securite/double-authentification"
+              className="inline-flex items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            >
+              🔐 Configurer la double authentification
+            </a>
           </div>
         </div>
 

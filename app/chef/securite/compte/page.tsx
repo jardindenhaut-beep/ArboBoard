@@ -212,8 +212,16 @@ export default function SecuriteCompteChefPage() {
         fournisseur,
       });
 
+      const facteursData = facteursResultat.data as {
+        phone?: Array<{ status?: string }>;
+        totp?: Array<{ status?: string }>;
+      };
+
       setMfaActive(
-        facteursResultat.data.totp.some(
+        [
+          ...(facteursData.phone || []),
+          ...(facteursData.totp || []),
+        ].some(
           (facteur) => facteur.status === "verified"
         )
       );

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseClient";
@@ -355,7 +355,7 @@ function progressionPaiementFacture(facture: Facture) {
   return Math.min(100, Math.max(0, (montantPaye / totalTtc) * 100));
 }
 
-export default function PageFactures() {
+function ContenuPageFactures() {
   const searchParams = useSearchParams();
   const factureSelectionneeId = searchParams.get("factureId");
 
@@ -2156,5 +2156,36 @@ Cordialement.`;
         )}
       </div>
     </div>
+  );
+}
+
+
+function ChargementPageFactures() {
+  return (
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl">
+        <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
+          </div>
+
+          <p className="font-semibold text-slate-900">
+            Chargement des factures…
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Préparation de la page et des paramètres de navigation.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function PageFactures() {
+  return (
+    <Suspense fallback={<ChargementPageFactures />}>
+      <ContenuPageFactures />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
@@ -369,7 +369,7 @@ function resteAPayerFactureClient(facture: FactureClient) {
   );
 }
 
-export default function ClientsPage() {
+function ContenuPageClients() {
   const searchParams = useSearchParams();
   const clientSelectionneId = searchParams.get("clientId");
 
@@ -3062,5 +3062,36 @@ export default function ClientsPage() {
       )}
       </div>
     </div>
+  );
+}
+
+
+function ChargementPageClients() {
+  return (
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl">
+        <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+            ⏳
+          </div>
+
+          <p className="font-semibold text-slate-900">
+            Chargement des clients…
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Préparation de la page et des paramètres de navigation.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function ClientsPage() {
+  return (
+    <Suspense fallback={<ChargementPageClients />}>
+      <ContenuPageClients />
+    </Suspense>
   );
 }

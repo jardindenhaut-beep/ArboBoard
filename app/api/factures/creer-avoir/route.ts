@@ -162,9 +162,7 @@ async function enregistrerHistoriqueAvoir({
     }
   }
 
-  console.warn(
-    "Historique factures_avoirs non enregistré. L’avoir reste bien créé dans la table factures."
-  );
+  return;
 }
 
 export async function POST(request: NextRequest) {

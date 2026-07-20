@@ -420,6 +420,9 @@ export default function FichesInterventionPage() {
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
+  const [ficheDeplieeId, setFicheDeplieeId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1463,398 +1466,319 @@ export default function FichesInterventionPage() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        {[
-          {
-            filtre: "tous" as const,
-            label: "Total",
-            valeur: statistiques.total,
-            icone: "📚",
-            inactif: "border-slate-200 bg-white text-slate-950",
-            actif: "border-emerald-500 bg-emerald-50 text-emerald-950 ring-4 ring-emerald-100",
-          },
-          {
-            filtre: "brouillon" as const,
-            label: "Brouillons",
-            valeur: statistiques.brouillons,
-            icone: "📝",
-            inactif: "border-slate-200 bg-white text-slate-950",
-            actif: "border-slate-500 bg-slate-100 text-slate-950 ring-4 ring-slate-100",
-          },
-          {
-            filtre: "planifiee" as const,
-            label: "Planifiées",
-            valeur: statistiques.planifiees,
-            icone: "📅",
-            inactif: "border-blue-100 bg-blue-50 text-blue-950",
-            actif: "border-blue-500 bg-blue-100 text-blue-950 ring-4 ring-blue-100",
-          },
-          {
-            filtre: "en_cours" as const,
-            label: "En cours",
-            valeur: statistiques.enCours,
-            icone: "🚧",
-            inactif: "border-amber-100 bg-amber-50 text-amber-950",
-            actif: "border-amber-500 bg-amber-100 text-amber-950 ring-4 ring-amber-100",
-          },
-          {
-            filtre: "terminee" as const,
-            label: "Terminées",
-            valeur: statistiques.terminees,
-            icone: "✅",
-            inactif: "border-emerald-100 bg-emerald-50 text-emerald-950",
-            actif: "border-emerald-500 bg-emerald-100 text-emerald-950 ring-4 ring-emerald-100",
-          },
-          {
-            filtre: "archivee" as const,
-            label: "Archivées",
-            valeur: statistiques.archivees,
-            icone: "🗃️",
-            inactif: "border-slate-200 bg-slate-100 text-slate-800",
-            actif: "border-slate-500 bg-slate-200 text-slate-900 ring-4 ring-slate-100",
-          },
-        ].map((carte) => {
-          const active = filtreStatut === carte.filtre;
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-200 sm:grid-cols-6">
+          {[
+            ["tous", "Toutes", statistiques.total],
+            ["brouillon", "Brouillons", statistiques.brouillons],
+            ["planifiee", "Planifiées", statistiques.planifiees],
+            ["en_cours", "En cours", statistiques.enCours],
+            ["terminee", "Terminées", statistiques.terminees],
+            ["archivee", "Archivées", statistiques.archivees],
+          ].map(([filtre, label, valeur]) => {
+            const actif = filtreStatut === filtre;
 
-          return (
-            <button
-              key={carte.filtre}
-              type="button"
-              onClick={() => setFiltreStatut(carte.filtre)}
-              aria-pressed={active}
-              className={`group rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-3xl ${
-                active ? carte.actif : carte.inactif
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide opacity-65 sm:text-xs">
-                    {carte.label}
-                  </p>
-
-                  <p className="mt-2 text-2xl font-black sm:text-3xl">
-                    {carte.valeur}
-                  </p>
-                </div>
-
-                <span className="text-xl transition group-hover:scale-110">
-                  {carte.icone}
-                </span>
-              </div>
-            </button>
-          );
-        })}
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 p-4 sm:p-5">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <div className="relative min-w-0 flex-1">
-              <span
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                aria-hidden="true"
+            return (
+              <button
+                key={String(filtre)}
+                type="button"
+                onClick={() =>
+                  setFiltreStatut(filtre as "tous" | StatutFiche)
+                }
+                className={`px-3 py-3 text-left transition sm:px-4 ${
+                  actif
+                    ? "bg-emerald-50 text-emerald-800"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
               >
-                🔎
-              </span>
-
-              <input
-                value={recherche}
-                onChange={(event) => setRecherche(event.target.value)}
-                aria-label="Rechercher une fiche d’intervention"
-                placeholder="Client, devis, ville, salarié, matériel, travaux…"
-                className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-              />
-            </div>
-
-            <select
-              value={filtreStatut}
-              onChange={(event) =>
-                setFiltreStatut(event.target.value as "tous" | StatutFiche)
-              }
-              aria-label="Filtrer les fiches par statut"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 xl:w-60"
-            >
-              <option value="tous">Tous les statuts actifs</option>
-              <option value="brouillon">Brouillons</option>
-              <option value="planifiee">Planifiées</option>
-              <option value="en_cours">En cours</option>
-              <option value="terminee">Terminées</option>
-              <option value="annulee">Annulées</option>
-              <option value="archivee">Archivées</option>
-            </select>
-
-            <div className="flex items-center justify-between gap-3 xl:justify-end">
-              <span className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
-                {fichesFiltrees.length} résultat(s)
-              </span>
-
-              {(recherche || filtreStatut !== "tous") && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecherche("");
-                    setFiltreStatut("tous");
-                  }}
-                  className="whitespace-nowrap rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-                >
-                  Réinitialiser
-                </button>
-              )}
-            </div>
-          </div>
+                <span className="block text-[10px] font-bold uppercase tracking-wide sm:text-xs">
+                  {label}
+                </span>
+                <span className="mt-1 block text-xl font-black">
+                  {Number(valeur)}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {chargement ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-              📋
-            </div>
+        <div className="grid gap-3 border-b border-slate-200 bg-slate-50/70 p-3 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+          <label className="relative block">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              🔎
+            </span>
+            <input
+              value={recherche}
+              onChange={(event) => setRecherche(event.target.value)}
+              placeholder="Rechercher un client, une ville, un salarié ou une tâche…"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
 
-            <p className="font-semibold text-slate-900">
-              Chargement des fiches...
-            </p>
+          <select
+            value={filtreStatut}
+            onChange={(event) =>
+              setFiltreStatut(event.target.value as "tous" | StatutFiche)
+            }
+            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+          >
+            <option value="tous">Tous les statuts actifs</option>
+            <option value="brouillon">Brouillons</option>
+            <option value="planifiee">Planifiées</option>
+            <option value="en_cours">En cours</option>
+            <option value="terminee">Terminées</option>
+            <option value="annulee">Annulées</option>
+            <option value="archivee">Archivées</option>
+          </select>
 
-            <p className="mt-1 text-sm text-slate-500">
-              Récupération des chantiers depuis Supabase.
-            </p>
-          </div>
-        ) : fichesFiltrees.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-              📋
-            </div>
-
-            <p className="font-semibold text-slate-900">
-              Aucune fiche d’intervention trouvée
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {recherche || filtreStatut !== "tous"
-                ? "Aucune fiche ne correspond aux filtres sélectionnés."
-                : "Créez une fiche depuis un devis pour préparer un chantier."}
-            </p>
-
-            {recherche || filtreStatut !== "tous" ? (
+          <div className="flex items-center justify-between gap-2 lg:justify-end">
+            <span className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+              {fichesFiltrees.length} fiche(s)
+            </span>
+            {(recherche || filtreStatut !== "tous") && (
               <button
                 type="button"
                 onClick={() => {
                   setRecherche("");
                   setFiltreStatut("tous");
                 }}
-                className="mt-5 rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"
               >
-                Effacer les filtres
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={ouvrirCreation}
-                className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
-                Créer depuis un devis
+                Effacer
               </button>
             )}
           </div>
+        </div>
+
+        {chargement ? (
+          <div className="p-10 text-center text-sm font-semibold text-slate-500">
+            Chargement des fiches…
+          </div>
+        ) : fichesFiltrees.length === 0 ? (
+          <div className="p-10 text-center">
+            <p className="font-bold text-slate-900">
+              Aucune fiche d’intervention
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Aucune fiche ne correspond à la recherche ou au statut choisi.
+            </p>
+          </div>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {fichesFiltrees.map((fiche) => {
-              const devisLie = devisDeFiche(fiche);
-              const equipe = salariesDeFiche(fiche.id);
-              const typeArticle =
-                articles.find(
-                  (article) =>
-                    article.nom ===
-                    fiche.type_intervention
-                ) || null;
+          <>
+            <div className="hidden grid-cols-[minmax(230px,1.35fr)_150px_150px_minmax(170px,0.9fr)_125px_52px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-wide text-slate-400 lg:grid">
+              <span>Intervention / client</span>
+              <span>Date et heure</span>
+              <span>Équipe</span>
+              <span>Progression</span>
+              <span>Statut</span>
+              <span />
+            </div>
 
-              const nomsEquipe =
-                equipe
-                  .map(
-                    (membre) =>
-                      membre.salarie_nom
-                  )
-                  .filter(Boolean)
-                  .join(", ") ||
-                fiche.salarie_nom ||
-                "Non affecté";
+            <div className="divide-y divide-slate-100">
+              {fichesFiltrees.map((fiche) => {
+                const devisLie = devisDeFiche(fiche);
+                const equipe = salariesDeFiche(fiche.id);
+                const typeArticle =
+                  articles.find(
+                    (article) => article.nom === fiche.type_intervention
+                  ) || null;
+                const ouverte = ficheDeplieeId === fiche.id;
+                const nomsEquipe =
+                  equipe
+                    .map((membre) => membre.salarie_nom)
+                    .filter(Boolean)
+                    .join(", ") ||
+                  fiche.salarie_nom ||
+                  "Non affectée";
+                const etapesValidees = nombreEtapesValidees(fiche);
 
-              return (
-                <article
-                  key={fiche.id}
-                  className={`border-l-4 bg-white px-4 py-3 transition hover:bg-slate-50 sm:px-5 ${bordureCarteStatut(
-                    fiche.statut
-                  )}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-xl">
-                      {iconeType(typeArticle)}
-                    </span>
+                return (
+                  <article
+                    key={fiche.id}
+                    className={`border-l-4 bg-white ${bordureCarteStatut(
+                      fiche.statut
+                    )}`}
+                  >
+                    <div className="flex items-stretch">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFicheDeplieeId(ouverte ? null : fiche.id)
+                        }
+                        aria-expanded={ouverte}
+                        className="min-w-0 flex-1 px-3 py-3 text-left transition hover:bg-slate-50 sm:px-4"
+                      >
+                        <div className="grid gap-2 lg:grid-cols-[minmax(230px,1.35fr)_150px_150px_minmax(170px,0.9fr)_125px] lg:items-center lg:gap-3">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg">
+                              {iconeType(typeArticle)}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="flex items-center gap-2">
+                                <span className="truncate text-sm font-black text-slate-950">
+                                  {titreFiche(fiche)}
+                                </span>
+                                <span className="shrink-0 text-xs text-slate-400">
+                                  {ouverte ? "⌃" : "⌄"}
+                                </span>
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs font-semibold text-slate-600">
+                                {fiche.client_nom || "Client non renseigné"}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[11px] text-slate-400 lg:hidden">
+                                📍 {adresseFiche(fiche)}
+                              </span>
+                            </span>
+                          </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-sm font-black text-slate-950 sm:text-base">
-                          {titreFiche(fiche)}
-                        </h2>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 lg:block">
+                            <span className="font-semibold">
+                              {formatDate(
+                                fiche.date_prevue || fiche.date_intervention
+                              )}
+                            </span>
+                            <span className="lg:mt-1 lg:block">
+                              {formatHeure(
+                                fiche.heure_debut_prevue || fiche.heure_debut
+                              )}{" "}
+                              →{" "}
+                              {formatHeure(
+                                fiche.heure_fin_prevue || fiche.heure_fin
+                              )}
+                            </span>
+                          </div>
 
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatut(
-                            fiche.statut
-                          )}`}
+                          <div className="truncate text-xs font-semibold text-slate-600">
+                            👥 {nomsEquipe}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                              <span>{etapesValidees}/3 étapes</span>
+                              <span>{Math.round((etapesValidees / 3) * 100)} %</span>
+                            </div>
+                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="h-full rounded-full bg-emerald-500"
+                                style={{
+                                  width: `${Math.round(
+                                    (etapesValidees / 3) * 100
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 lg:block">
+                            <span
+                              className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatut(
+                                fiche.statut
+                              )}`}
+                            >
+                              {libelleStatut(fiche.statut)}
+                            </span>
+                            {fiche.probleme_signale && (
+                              <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold text-red-700">
+                                ⚠ Problème
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+
+                      <details className="relative flex w-14 shrink-0 items-center justify-center border-l border-slate-100">
+                        <summary
+                          className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-lg font-black text-slate-500 hover:bg-slate-100 [&::-webkit-details-marker]:hidden"
+                          aria-label="Actions de la fiche"
                         >
-                          {libelleStatut(
-                            fiche.statut
-                          )}
-                        </span>
-
-                        {fiche.probleme_signale && (
-                          <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold text-red-700">
-                            ⚠ Problème
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-1 grid gap-x-4 gap-y-1 text-xs text-slate-500 sm:grid-cols-[minmax(140px,0.8fr)_150px_150px_minmax(180px,1fr)]">
-                        <p className="truncate font-semibold text-slate-700">
-                          {fiche.client_nom ||
-                            "Client non renseigné"}
-                        </p>
-
-                        <p>
-                          📅{" "}
-                          {formatDate(
-                            fiche.date_prevue ||
-                              fiche.date_intervention
-                          )}
-                        </p>
-
-                        <p>
-                          🕒{" "}
-                          {formatHeure(
-                            fiche.heure_debut_prevue ||
-                              fiche.heure_debut
-                          )}{" "}
-                          →{" "}
-                          {formatHeure(
-                            fiche.heure_fin_prevue ||
-                              fiche.heure_fin
-                          )}
-                        </p>
-
-                        <p
-                          className="truncate"
-                          title={adresseFiche(fiche)}
-                        >
-                          📍 {adresseFiche(fiche)}
-                        </p>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {[
-                          [
-                            "Matériel",
-                            fiche.etape_materiel_statut,
-                          ],
-                          [
-                            "Arrivée",
-                            fiche.etape_arrivee_statut,
-                          ],
-                          [
-                            "Fin",
-                            fiche.etape_fin_statut,
-                          ],
-                        ].map(([libelle, statut]) => (
-                          <span
-                            key={String(libelle)}
-                            className={`rounded-full px-2 py-1 text-[10px] font-bold ${
-                              statut === "valide"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : statut === "probleme"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-slate-100 text-slate-500"
-                            }`}
+                          ⋮
+                        </summary>
+                        <div className="absolute right-2 top-11 z-40 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
+                          <Link
+                            href={`/chef/interventions/${fiche.id}`}
+                            className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
                           >
-                            {statut === "valide"
-                              ? "✓ "
-                              : "○ "}
-                            {libelle}
-                          </span>
-                        ))}
-
-                        <span
-                          className="max-w-full truncate rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700"
-                          title={nomsEquipe}
-                        >
-                          👥 {nomsEquipe}
-                        </span>
-
-                        {fiche.numero && (
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
-                            {fiche.numero}
-                          </span>
-                        )}
-                      </div>
+                            Ouvrir la fiche
+                          </Link>
+                          {devisLie && (
+                            <Link
+                              href={`/chef/devis?devisId=${devisLie.id}`}
+                              className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              Voir le devis
+                            </Link>
+                          )}
+                          {(fiche.statut === "brouillon" ||
+                            fiche.statut === "planifiee") && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void changerStatutFiche(fiche, "en_cours")
+                              }
+                              className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-amber-700 hover:bg-amber-50"
+                            >
+                              Passer en cours
+                            </button>
+                          )}
+                          {fiche.statut === "en_cours" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void changerStatutFiche(fiche, "terminee")
+                              }
+                              className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                            >
+                              Terminer
+                            </button>
+                          )}
+                        </div>
+                      </details>
                     </div>
 
-                    <details className="relative shrink-0">
-                      <summary className="flex h-10 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
-                        Actions ▾
-                      </summary>
-
-                      <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                        <Link
-                          href={`/chef/interventions/${fiche.id}`}
-                          className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
-                        >
-                          Ouvrir la fiche
-                        </Link>
-
-                        {devisLie && (
-                          <Link
-                            href={`/chef/devis?devisId=${devisLie.id}`}
-                            className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                          >
-                            Voir le devis
-                          </Link>
-                        )}
-
-                        {fiche.statut ===
-                          "planifiee" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              changerStatutFiche(
-                                fiche,
-                                "en_cours"
-                              )
-                            }
-                            className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-amber-700 hover:bg-amber-50"
-                          >
-                            Passer en cours
-                          </button>
-                        )}
-
-                        {fiche.statut ===
-                          "en_cours" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              changerStatutFiche(
-                                fiche,
-                                "terminee"
-                              )
-                            }
-                            className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
-                          >
-                            Terminer la fiche
-                          </button>
-                        )}
+                    {ouverte && (
+                      <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-4">
+                        <div className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                              Adresse
+                            </p>
+                            <p className="mt-1 font-semibold text-slate-700">
+                              {adresseFiche(fiche)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                              Préparation
+                            </p>
+                            <p className="mt-1 font-semibold text-slate-700">
+                              {libelleEtape(fiche.etape_materiel_statut)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                              Arrivée / fin
+                            </p>
+                            <p className="mt-1 font-semibold text-slate-700">
+                              {libelleEtape(fiche.etape_arrivee_statut)} ·{" "}
+                              {libelleEtape(fiche.etape_fin_statut)}
+                            </p>
+                          </div>
+                          <div className="flex items-end gap-2 xl:justify-end">
+                            <Link
+                              href={`/chef/interventions/${fiche.id}`}
+                              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                            >
+                              Ouvrir la fiche complète
+                            </Link>
+                          </div>
+                        </div>
                       </div>
-                    </details>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 

@@ -240,10 +240,21 @@ export function messageErreurMfa(error: unknown) {
     }
 
     if (
-      normalisee.includes("phone") &&
-      normalisee.includes("provider")
+      normalisee.includes("mfa enroll is disabled") &&
+      normalisee.includes("phone")
     ) {
-      return "L’envoi SMS n’est pas encore configuré dans Supabase.";
+      return "La double authentification par téléphone n’est pas encore activée dans Supabase. Activez le MFA téléphone et configurez un fournisseur SMS avant de recommencer.";
+    }
+
+    if (
+      normalisee.includes("phone") &&
+      (
+        normalisee.includes("provider") ||
+        normalisee.includes("sms") ||
+        normalisee.includes("disabled")
+      )
+    ) {
+      return "L’envoi des codes par téléphone n’est pas encore disponible. Vérifiez l’activation du MFA téléphone et du fournisseur SMS dans Supabase.";
     }
 
     if (normalisee.includes("rate limit")) {

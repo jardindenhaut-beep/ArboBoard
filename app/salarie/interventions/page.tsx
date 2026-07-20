@@ -176,6 +176,9 @@ export default function InterventionsSalariePage() {
   const [actualisation, setActualisation] =
     useState(false);
   const [erreur, setErreur] = useState("");
+  const [ficheDeplieeId, setFicheDeplieeId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     void initialiser();
@@ -456,19 +459,18 @@ export default function InterventionsSalariePage() {
   }
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div>
-            <p className="text-sm font-semibold text-emerald-700">
-              Espace salarié
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">
+              Terrain
             </p>
-            <h1 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">
+            <h1 className="mt-1 text-2xl font-black text-slate-950">
               Mes fiches d’intervention
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Consultez les consignes puis remplissez les
-              étapes terrain, les photos et le PV.
+            <p className="mt-1 text-sm text-slate-500">
+              Consultez vos chantiers et renseignez directement les étapes terrain.
             </p>
           </div>
 
@@ -476,205 +478,201 @@ export default function InterventionsSalariePage() {
             type="button"
             onClick={() => void rafraichir()}
             disabled={actualisation || !salarie}
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
-            {actualisation
-              ? "Actualisation…"
-              : "Actualiser"}
+            {actualisation ? "Actualisation…" : "↻ Actualiser"}
           </button>
         </div>
-      </section>
 
-      {erreur && (
-        <div
-          role="alert"
-          className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-        >
-          {erreur}
-        </div>
-      )}
-
-      <section className="grid grid-cols-4 gap-2">
-        {[
-          ["Total", statistiques.total],
-          ["Aujourd’hui", statistiques.aujourdHui],
-          ["En cours", statistiques.enCours],
-          ["Alertes", statistiques.problemes],
-        ].map(([label, valeur]) => (
-          <div
-            key={String(label)}
-            className="rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm"
-          >
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              {label}
-            </p>
-            <p className="mt-1 text-xl font-black text-slate-950">
-              {valeur}
-            </p>
+        {erreur && (
+          <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {erreur}
           </div>
-        ))}
-      </section>
+        )}
 
-      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-200 sm:grid-cols-6">
+          {[
+            ["a_venir", "À venir"],
+            ["aujourd_hui", "Aujourd’hui"],
+            ["en_cours", "En cours"],
+            ["terminees", "Terminées"],
+            ["problemes", "Problèmes"],
+            ["toutes", "Toutes"],
+          ].map(([valeur, label]) => (
+            <button
+              key={valeur}
+              type="button"
+              onClick={() => setFiltre(valeur as FiltreStatut)}
+              className={`px-2 py-3 text-center text-[11px] font-bold transition sm:text-xs ${
+                filtre === valeur
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="border-b border-slate-200 bg-slate-50 p-3">
           <input
             value={recherche}
-            onChange={(event) =>
-              setRecherche(event.target.value)
-            }
-            placeholder="Client, ville, chantier…"
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            onChange={(event) => setRecherche(event.target.value)}
+            placeholder="Rechercher un client, une ville ou un chantier…"
+            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
           />
-
-          <select
-            value={filtre}
-            onChange={(event) =>
-              setFiltre(
-                event.target.value as FiltreStatut
-              )
-            }
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="a_venir">À venir</option>
-            <option value="aujourd_hui">
-              Aujourd’hui
-            </option>
-            <option value="en_cours">En cours</option>
-            <option value="terminees">
-              Terminées
-            </option>
-            <option value="problemes">
-              Problèmes
-            </option>
-            <option value="toutes">
-              Toutes
-            </option>
-          </select>
         </div>
 
         {fichesFiltrees.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="font-bold text-slate-950">
-              Aucune fiche disponible
+          <div className="p-10 text-center">
+            <p className="font-bold text-slate-900">
+              Aucune intervention à afficher
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Aucune intervention affectée ne correspond
-              aux filtres.
+              Les fiches affectées par votre chef apparaîtront ici.
             </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {fichesFiltrees.map((fiche) => {
-              const equipe = equipeFiche(fiche.id);
+              const ouverte = ficheDeplieeId === fiche.id;
+              const equipe = affectations.filter(
+                (item) => item.fiche_id === fiche.id
+              );
+              const etapes = [
+                fiche.etape_materiel_statut,
+                fiche.etape_arrivee_statut,
+                fiche.etape_fin_statut,
+              ].filter(etapeValidee).length;
 
               return (
-                <article
-                  key={fiche.id}
-                  className="p-4 transition hover:bg-slate-50 sm:p-5"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                      🌳
-                    </div>
+                <article key={fiche.id} className="bg-white">
+                  <div className="flex items-stretch">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFicheDeplieeId(ouverte ? null : fiche.id)
+                      }
+                      className="min-w-0 flex-1 px-4 py-3 text-left hover:bg-slate-50"
+                    >
+                      <div className="grid gap-2 lg:grid-cols-[minmax(240px,1.3fr)_170px_minmax(150px,0.8fr)_130px] lg:items-center">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h2 className="truncate text-sm font-black text-slate-950">
+                              {titreFiche(fiche)}
+                            </h2>
+                            <span className="text-xs text-slate-400">
+                              {ouverte ? "⌃" : "⌄"}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">
+                            {fiche.client_nom || "Client non renseigné"}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-400">
+                            📍 {adresseFiche(fiche)}
+                          </p>
+                        </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate font-black text-slate-950">
-                          {titreFiche(fiche)}
-                        </h2>
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${badgeStatut(
-                            fiche.statut
-                          )}`}
-                        >
-                          {libelleStatut(
-                            fiche.statut
-                          )}
-                        </span>
-                      </div>
+                        <div className="text-xs text-slate-600">
+                          <p className="font-semibold">
+                            {formatDate(dateFiche(fiche))}
+                          </p>
+                          <p className="mt-0.5">
+                            {formatHeure(heureDebut(fiche))} →{" "}
+                            {formatHeure(heureFin(fiche))}
+                          </p>
+                        </div>
 
-                      <p className="mt-1 truncate text-sm font-semibold text-slate-700">
-                        {fiche.client_nom ||
-                          "Client non renseigné"}
-                      </p>
+                        <div>
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                            <span>{etapes}/3 étapes</span>
+                            <span>{Math.round((etapes / 3) * 100)} %</span>
+                          </div>
+                          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-emerald-500"
+                              style={{
+                                width: `${Math.round((etapes / 3) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
 
-                      <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-3">
-                        <p>
-                          📅 {formatDate(dateFiche(fiche))}
-                        </p>
-                        <p>
-                          🕒 {formatHeure(
-                            heureDebut(fiche)
-                          )}{" "}
-                          → {formatHeure(heureFin(fiche))}
-                        </p>
-                        <p className="truncate">
-                          📍 {adresseFiche(fiche)}
-                        </p>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {[
-                          [
-                            "Matériel",
-                            fiche.etape_materiel_statut,
-                          ],
-                          [
-                            "Arrivée",
-                            fiche.etape_arrivee_statut,
-                          ],
-                          [
-                            "Fin",
-                            fiche.etape_fin_statut,
-                          ],
-                        ].map(([label, statut]) => (
+                        <div className="flex items-center gap-2 lg:justify-end">
                           <span
-                            key={String(label)}
-                            className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                              etapeValidee(
-                                statut as string | null
-                              )
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-100 text-slate-500"
-                            }`}
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatut(
+                              fiche.statut
+                            )}`}
                           >
-                            {etapeValidee(
-                              statut as string | null
-                            )
-                              ? "✓ "
-                              : "○ "}
-                            {label}
+                            {libelleStatut(fiche.statut)}
                           </span>
-                        ))}
-
-                        {fiche.probleme_signale && (
-                          <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold text-red-700">
-                            ⚠ Problème
-                          </span>
-                        )}
+                          {fiche.probleme_signale && (
+                            <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold text-red-700">
+                              ⚠
+                            </span>
+                          )}
+                        </div>
                       </div>
-
-                      {equipe.length > 0 && (
-                        <p className="mt-3 truncate text-xs text-slate-500">
-                          Équipe :{" "}
-                          {equipe
-                            .map(
-                              (item) =>
-                                item.salarie_nom
-                            )
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      )}
-                    </div>
+                    </button>
 
                     <Link
                       href={`/salarie/interventions/${fiche.id}`}
-                      className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                      className="flex w-14 shrink-0 items-center justify-center border-l border-slate-100 text-xl font-black text-emerald-700 hover:bg-emerald-50"
+                      aria-label="Ouvrir la fiche"
                     >
-                      Ouvrir
+                      →
                     </Link>
                   </div>
+
+                  {ouverte && (
+                    <div className="border-t border-slate-100 bg-slate-50 px-4 py-4">
+                      <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                            Équipe
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-700">
+                            {equipe
+                              .map((item) => item.salarie_nom)
+                              .filter(Boolean)
+                              .join(", ") || "Équipe non renseignée"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                            Matériel
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-700">
+                            {fiche.etape_materiel_statut === "valide"
+                              ? "Validé"
+                              : "À préparer"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                            Arrivée / fin
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-700">
+                            {fiche.etape_arrivee_statut === "valide"
+                              ? "Arrivée validée"
+                              : "Arrivée en attente"}{" "}
+                            ·{" "}
+                            {fiche.etape_fin_statut === "valide"
+                              ? "Fin validée"
+                              : "Fin en attente"}
+                          </p>
+                        </div>
+                        <div className="flex items-end">
+                          <Link
+                            href={`/salarie/interventions/${fiche.id}`}
+                            className="inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                          >
+                            Remplir la fiche
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </article>
               );
             })}

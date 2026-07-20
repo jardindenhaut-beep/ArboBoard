@@ -10,6 +10,13 @@ import BlocPvFinChantier from "@/components/interventions/BlocPvFinChantier";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
 import { resoudreSalarieConnecte } from "@/lib/salaries/resoudreSalarieConnecte";
 
+type OngletFicheSalarie =
+  | "resume"
+  | "preparation"
+  | "terrain"
+  | "photos"
+  | "pv";
+
 type FicheIntervention = {
   id: string;
   entreprise_id: string;
@@ -306,6 +313,8 @@ export default function DetailInterventionSalariePage() {
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
+  const [ongletActif, setOngletActif] =
+    useState<OngletFicheSalarie>("resume");
 
   const [commentairePreparation, setCommentairePreparation] = useState("");
   const [commentaireArrivee, setCommentaireArrivee] = useState("");
@@ -1385,7 +1394,39 @@ export default function DetailInterventionSalariePage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <nav className="sticky top-3 z-20 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
+        <div className="flex min-w-max gap-1">
+          {[
+            ["resume", "Résumé", "📋"],
+            ["preparation", "Préparation", "🧰"],
+            ["terrain", "Terrain", "🧭"],
+            ["photos", "Photos", "📷"],
+            ["pv", "Fin / signature", "✍️"],
+          ].map(([valeur, label, icone]) => (
+            <button
+              key={valeur}
+              type="button"
+              onClick={() =>
+                setOngletActif(valeur as OngletFicheSalarie)
+              }
+              className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                ongletActif === valeur
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <span className="mr-1.5">{icone}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <section
+        className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
+          ongletActif === "resume" ? "grid" : "hidden"
+        }`}
+      >
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Statut
@@ -1429,9 +1470,19 @@ export default function DetailInterventionSalariePage() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_420px]">
+      <section
+        className={`grid gap-5 ${
+          ongletActif === "resume"
+            ? "xl:grid-cols-[minmax(0,1fr)_360px]"
+            : "grid-cols-1"
+        }`}
+      >
         <div className="space-y-5">
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section
+            className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+              ongletActif === "resume" ? "block" : "hidden"
+            }`}
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
                 📍
@@ -1479,7 +1530,11 @@ export default function DetailInterventionSalariePage() {
             )}
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section
+            className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+              ongletActif === "resume" ? "block" : "hidden"
+            }`}
+          >
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
                 🧭
@@ -1507,7 +1562,11 @@ export default function DetailInterventionSalariePage() {
             />
           </section>
 
-          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+          <section
+            className={`rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm sm:p-5 ${
+              ongletActif === "preparation" ? "block" : "hidden"
+            }`}
+          >
             <h2 className="font-bold text-emerald-950">
               Étape 1 — Préparation matériel
             </h2>
@@ -1546,7 +1605,11 @@ export default function DetailInterventionSalariePage() {
             </button>
           </section>
 
-          <section className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+          <section
+            className={`rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5 ${
+              ongletActif === "terrain" ? "block" : "hidden"
+            }`}
+          >
             <h2 className="font-bold text-blue-950">
               Étape 2 — Arrivée chantier
             </h2>
@@ -1585,22 +1648,34 @@ export default function DetailInterventionSalariePage() {
             </button>
           </section>
 
-          {BLOCS_ELEMENTS.map((bloc) =>
-            renduBlocElements(
-              bloc.categorie,
-              bloc.titre,
-              bloc.icone,
-              bloc.description
-            )
-          )}
+          <div
+            className={`space-y-4 ${
+              ongletActif === "preparation" ? "block" : "hidden"
+            }`}
+          >
+            {BLOCS_ELEMENTS.map((bloc) =>
+              renduBlocElements(
+                bloc.categorie,
+                bloc.titre,
+                bloc.icone,
+                bloc.description
+              )
+            )}
+          </div>
 
-          <BlocPhotosChantier
-            entrepriseId={entrepriseId}
-            ficheId={fiche.id}
-            userId={authUserId || null}
-          />
+          <div className={ongletActif === "photos" ? "block" : "hidden"}>
+            <BlocPhotosChantier
+              entrepriseId={entrepriseId}
+              ficheId={fiche.id}
+              userId={authUserId || null}
+            />
+          </div>
 
-          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <section
+            className={`rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5 ${
+              ongletActif === "terrain" ? "block" : "hidden"
+            }`}
+          >
             <h2 className="font-bold text-amber-950">
               Étape 3 — Fin de chantier
             </h2>
@@ -1671,17 +1746,23 @@ export default function DetailInterventionSalariePage() {
             </button>
           </section>
 
-          <BlocPvFinChantier
-            entrepriseId={entrepriseId}
-            ficheId={fiche.id}
-            clientId={fiche.client_id}
-            clientNom={fiche.client_nom}
-            signataireEntrepriseNom={nomSignataireEntreprise}
-            afficherEnvoiEmail={false}
-          />
+          <div className={ongletActif === "pv" ? "block" : "hidden"}>
+            <BlocPvFinChantier
+              entrepriseId={entrepriseId}
+              ficheId={fiche.id}
+              clientId={fiche.client_id}
+              clientNom={fiche.client_nom}
+              signataireEntrepriseNom={nomSignataireEntreprise}
+              afficherEnvoiEmail={false}
+            />
+          </div>
         </div>
 
-        <aside className="space-y-5">
+        <aside
+          className={`space-y-4 ${
+            ongletActif === "resume" ? "block" : "hidden"
+          }`}
+        >
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-bold text-slate-950">Mon affectation</h2>
 

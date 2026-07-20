@@ -17,6 +17,13 @@ type StatutFiche =
   | "annulee"
   | "archivee";
 
+type OngletFicheChef =
+  | "resume"
+  | "preparation"
+  | "terrain"
+  | "photos"
+  | "pv";
+
 type FicheIntervention = {
   id: string;
   entreprise_id: string;
@@ -390,6 +397,8 @@ export default function DetailFicheInterventionPage() {
   const [enregistrement, setEnregistrement] = useState(false);
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
+  const [ongletActif, setOngletActif] =
+    useState<OngletFicheChef>("resume");
 
   useEffect(() => {
     initialiserPage();
@@ -1286,8 +1295,36 @@ export default function DetailFicheInterventionPage() {
         </div>
       )}
 
-      {fiche.probleme_signale && (
-        <section className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
+      <nav className="sticky top-3 z-20 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
+        <div className="flex min-w-max gap-1">
+          {[
+            ["resume", "Résumé", "📋"],
+            ["preparation", "Préparation", "🧰"],
+            ["terrain", "Suivi terrain", "🧭"],
+            ["photos", "Photos", "📷"],
+            ["pv", "Fin / PV", "✍️"],
+          ].map(([valeur, label, icone]) => (
+            <button
+              key={valeur}
+              type="button"
+              onClick={() =>
+                setOngletActif(valeur as OngletFicheChef)
+              }
+              className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                ongletActif === valeur
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <span className="mr-1.5">{icone}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {fiche.probleme_signale && ongletActif === "resume" && (
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
               ⚠️
@@ -1305,7 +1342,9 @@ export default function DetailFicheInterventionPage() {
 
       <section
         id="suivi-terrain"
-        className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+        className={`scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+          ongletActif === "terrain" ? "block" : "hidden"
+        }`}
       >
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
@@ -1333,11 +1372,19 @@ export default function DetailFicheInterventionPage() {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <section
+        className={`grid gap-5 ${
+          ongletActif === "resume"
+            ? "xl:grid-cols-[minmax(0,1fr)_360px]"
+            : "grid-cols-1"
+        }`}
+      >
         <div className="min-w-0 space-y-5">
           <section
             id="informations-chantier"
-            className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+            className={`scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+              ongletActif === "resume" ? "block" : "hidden"
+            }`}
           >
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
@@ -1418,7 +1465,12 @@ export default function DetailFicheInterventionPage() {
             )}
           </section>
 
-          <div id="contenu-fiche" className="scroll-mt-24 space-y-5">
+          <div
+            id="contenu-fiche"
+            className={`scroll-mt-24 space-y-4 ${
+              ongletActif === "preparation" ? "block" : "hidden"
+            }`}
+          >
             {BLOCS_ELEMENTS.map((bloc) =>
               renduBlocElements(
                 bloc.categorie,
@@ -1429,8 +1481,10 @@ export default function DetailFicheInterventionPage() {
             )}
           </div>
 
-          {travauxSimples && elements.length === 0 && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          {travauxSimples &&
+            elements.length === 0 &&
+            ongletActif === "preparation" && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
                   📝
@@ -1452,7 +1506,9 @@ export default function DetailFicheInterventionPage() {
 
           <section
             id="photos-chantier"
-            className="scroll-mt-24 space-y-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+            className={`scroll-mt-24 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+              ongletActif === "photos" ? "block" : "hidden"
+            }`}
           >
             <div>
               <p className="text-sm font-bold text-slate-950">
@@ -1472,7 +1528,9 @@ export default function DetailFicheInterventionPage() {
 
           <section
             id="pv-fin-chantier"
-            className="scroll-mt-24 space-y-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+            className={`scroll-mt-24 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
+              ongletActif === "pv" ? "block" : "hidden"
+            }`}
           >
             <div>
               <p className="text-sm font-bold text-slate-950">
@@ -1494,7 +1552,11 @@ export default function DetailFicheInterventionPage() {
           </section>
         </div>
 
-        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+        <aside
+          className={`space-y-4 xl:sticky xl:top-24 xl:self-start ${
+            ongletActif === "resume" ? "block" : "hidden"
+          }`}
+        >
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>

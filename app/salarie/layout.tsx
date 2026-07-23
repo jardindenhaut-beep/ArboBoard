@@ -227,7 +227,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
   }, [contexte]);
 
   async function deconnexion() {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     router.replace("/connexion/salarie");
   }
 

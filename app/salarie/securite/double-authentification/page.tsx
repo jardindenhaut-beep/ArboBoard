@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import GestionMfaTelephone from "@/components/securite/GestionMfaTelephone";
+import GestionMfaApplication from "@/components/securite/GestionMfaTelephone";
 
 export default function DoubleAuthentificationSalariePage() {
   return (
@@ -13,7 +13,7 @@ export default function DoubleAuthentificationSalariePage() {
         ← Retour à mon profil
       </Link>
 
-      <GestionMfaTelephone espace="salarie" />
+      <GestionMfaApplication espace="salarie" />
     </div>
   );
 }

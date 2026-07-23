@@ -213,15 +213,11 @@ export default function SecuriteCompteChefPage() {
       });
 
       const facteursData = facteursResultat.data as {
-        phone?: Array<{ status?: string }>;
         totp?: Array<{ status?: string }>;
       };
 
       setMfaActive(
-        [
-          ...(facteursData.phone || []),
-          ...(facteursData.totp || []),
-        ].some(
+        (facteursData.totp || []).some(
           (facteur) => facteur.status === "verified"
         )
       );
@@ -666,12 +662,12 @@ export default function SecuriteCompteChefPage() {
               }`}
             >
               {mfaActive
-                ? `Le compte demande un code temporaire après le mot de passe. Niveau de cette session : ${
+                ? `Le code de l'application est demandé lors d'une nouvelle session ou sur un nouvel appareil. Niveau de cette session : ${
                     niveauMfa === "aal2"
                       ? "doublement vérifiée"
                       : "mot de passe uniquement"
                   }.`
-                : "Ajoute une application d’authentification pour protéger le compte même si le mot de passe est découvert."}
+                : "Ajoute une application d'authentification gratuite pour protéger le compte même si le mot de passe est découvert."}
             </p>
           </div>
 
@@ -684,7 +680,7 @@ export default function SecuriteCompteChefPage() {
             }`}
           >
             {mfaActive
-              ? "Gérer les appareils"
+              ? "Gérer l'application"
               : "Activer la protection"}
           </Link>
         </div>

@@ -4,16 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   extraireFacteursMfa,
-  masquerNumeroTelephone,
   messageErreurMfa,
-  normaliserNumeroTelephone,
   obtenirTypeFacteurMfa,
   type FacteurMfaArboboard,
 } from "@/lib/auth/mfaTelephone";
-import {
-  resoudreSalarieConnecte,
-  type SalarieConnecte,
-} from "@/lib/salaries/resoudreSalarieConnecte";
 
 type Props = {
   espace: "chef" | "salarie";
@@ -24,13 +18,21 @@ type ProfilMfa = {
   email: string | null;
   role: string | null;
   entreprise_id: string | null;
-  telephone_mfa?: string | null;
 };
 
-type InscriptionTelephone = {
+type InscriptionTotp = {
   factorId: string;
-  challengeId: string;
-  telephone: string;
+  qrCode: string;
+  secret: string;
+};
+
+type ReponseInscriptionTotp = {
+  id: string;
+  totp?: {
+    qr_code?: string;
+    secret?: string;
+    uri?: string;
+  } | null;
 };
 
 function formaterDate(date?: string | null) {
@@ -46,46 +48,37 @@ function formaterDate(date?: string | null) {
   }
 }
 
-export default function GestionMfaTelephone({
+function sourceQrCode(qrCode: string) {
+  const valeur = qrCode.trim();
+
+  if (valeur.startsWith("<svg")) {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+      valeur
+    )}`;
+  }
+
+  return valeur;
+}
+
+export default function GestionMfaApplication({
   espace,
 }: Props) {
   const [profil, setProfil] = useState<ProfilMfa | null>(null);
-  const [salarie, setSalarie] = useState<SalarieConnecte | null>(
-    null
-  );
-  const [facteurs, setFacteurs] = useState<FacteurMfaArboboard[]>(
-    []
-  );
+  const [facteurs, setFacteurs] = useState<
+    FacteurMfaArboboard[]
+  >([]);
   const [niveauActuel, setNiveauActuel] = useState<
     "aal1" | "aal2" | null
   >(null);
 
-  const [telephone, setTelephone] = useState("");
-  const [code, setCode] = useState("");
   const [inscription, setInscription] =
-    useState<InscriptionTelephone | null>(null);
+    useState<InscriptionTotp | null>(null);
+  const [code, setCode] = useState("");
 
   const [chargement, setChargement] = useState(true);
   const [action, setAction] = useState("");
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
-
-  const facteursTelephone = useMemo(
-    () =>
-      facteurs.filter(
-        (facteur) =>
-          obtenirTypeFacteurMfa(facteur) === "phone"
-      ),
-    [facteurs]
-  );
-
-  const facteursTelephoneVerifies = useMemo(
-    () =>
-      facteursTelephone.filter(
-        (facteur) => facteur.status === "verified"
-      ),
-    [facteursTelephone]
-  );
 
   const facteursTotp = useMemo(
     () =>
@@ -96,8 +89,25 @@ export default function GestionMfaTelephone({
     [facteurs]
   );
 
+  const facteursTotpVerifies = useMemo(
+    () =>
+      facteursTotp.filter(
+        (facteur) => facteur.status === "verified"
+      ),
+    [facteursTotp]
+  );
+
+  const anciensFacteursTelephone = useMemo(
+    () =>
+      facteurs.filter(
+        (facteur) =>
+          obtenirTypeFacteurMfa(facteur) === "phone"
+      ),
+    [facteurs]
+  );
+
   const protectionActive =
-    facteursTelephoneVerifies.length > 0;
+    facteursTotpVerifies.length > 0;
 
   const charger = useCallback(async () => {
     try {
@@ -137,9 +147,7 @@ export default function GestionMfaTelephone({
       const { data: profilData, error: profilError } =
         await supabase
           .from("profils_utilisateurs")
-          .select(
-            "id, email, role, entreprise_id, telephone_mfa"
-          )
+          .select("id, email, role, entreprise_id")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -152,55 +160,35 @@ export default function GestionMfaTelephone({
 
       const profilCharge = profilData as ProfilMfa;
 
-      if (profilCharge.role !== espace) {
+      const role = String(
+        profilCharge.role || ""
+      ).toLowerCase();
+
+      const roleAutorise =
+        espace === "chef"
+          ? [
+              "chef",
+              "admin",
+              "administrateur",
+              "gerant",
+              "gérant",
+              "dirigeant",
+              "patron",
+            ].includes(role)
+          : role === "salarie";
+
+      if (!roleAutorise) {
         throw new Error(
           espace === "chef"
-            ? "Cette page est réservée au chef d’entreprise."
+            ? "Cette page est réservée au chef d'entreprise."
             : "Cette page est réservée aux salariés."
         );
       }
 
       setProfil(profilCharge);
       setNiveauActuel(niveauResultat.data.currentLevel);
-
-      const facteursCharges = extraireFacteursMfa(
-        facteursResultat.data
-      );
-
-      setFacteurs(facteursCharges);
-
-      let salarieTrouve: SalarieConnecte | null = null;
-
-      if (
-        espace === "salarie" &&
-        profilCharge.entreprise_id
-      ) {
-        salarieTrouve = await resoudreSalarieConnecte(
-          profilCharge.entreprise_id,
-          {
-            profilId: profilCharge.id,
-            utilisateurId: user.id,
-            email: profilCharge.email || user.email,
-          }
-        );
-
-        setSalarie(salarieTrouve);
-      } else {
-        setSalarie(null);
-      }
-
-      const telephoneInitial =
-        profilCharge.telephone_mfa ||
-        salarieTrouve?.telephone ||
-        facteursCharges.find(
-          (facteur) =>
-            obtenirTypeFacteurMfa(facteur) === "phone" &&
-            facteur.status === "verified"
-        )?.phone ||
-        "";
-
-      setTelephone((ancien) =>
-        ancien.trim() ? ancien : telephoneInitial
+      setFacteurs(
+        extraireFacteursMfa(facteursResultat.data)
       );
     } catch (error) {
       setErreur(messageErreurMfa(error));
@@ -213,40 +201,6 @@ export default function GestionMfaTelephone({
     void charger();
   }, [charger]);
 
-  async function enregistrerTelephone(
-    numeroNormalise: string
-  ) {
-    if (!profil) return;
-
-    const { error: profilError } = await supabase
-      .from("profils_utilisateurs")
-      .update({
-        telephone_mfa: numeroNormalise,
-      })
-      .eq("id", profil.id);
-
-    if (profilError) throw profilError;
-
-    if (
-      espace === "salarie" &&
-      salarie?.id &&
-      profil.entreprise_id
-    ) {
-      const { error: salarieError } = await supabase
-        .from("salaries")
-        .update({
-          telephone: numeroNormalise,
-          user_id: profil.id,
-          profil_id: profil.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", salarie.id)
-        .eq("entreprise_id", profil.entreprise_id);
-
-      if (salarieError) throw salarieError;
-    }
-  }
-
   async function commencerInscription() {
     try {
       setAction("inscription");
@@ -254,89 +208,50 @@ export default function GestionMfaTelephone({
       setMessage("");
       setCode("");
 
-      if (facteursTelephoneVerifies.length > 0) {
+      if (facteursTotpVerifies.length > 0) {
         throw new Error(
-          "Un numéro de téléphone est déjà actif. Supprimez-le avant d’en enregistrer un autre."
+          "Une application d'authentification est déjà active sur ce compte."
         );
       }
 
-      const numeroNormalise =
-        normaliserNumeroTelephone(telephone);
-
-      const facteursNonVerifies =
-        facteursTelephone.filter(
-          (facteur) => facteur.status !== "verified"
-        );
+      const facteursNonVerifies = facteursTotp.filter(
+        (facteur) => facteur.status !== "verified"
+      );
 
       for (const facteur of facteursNonVerifies) {
-        await supabase.auth.mfa.unenroll({
+        const { error } = await supabase.auth.mfa.unenroll({
           factorId: facteur.id,
         });
+
+        if (error) throw error;
       }
 
-      const { data: facteur, error: facteurError } =
-        await supabase.auth.mfa.enroll({
-          factorType: "phone",
-          friendlyName: "Téléphone Arboboard",
-          phone: numeroNormalise,
-        });
-
-      if (facteurError) throw facteurError;
-
-      const { data: challenge, error: challengeError } =
-        await supabase.auth.mfa.challenge({
-          factorId: facteur.id,
-        });
-
-      if (challengeError) throw challengeError;
-
-      setInscription({
-        factorId: facteur.id,
-        challengeId: challenge.id,
-        telephone: numeroNormalise,
-      });
-
-      setTelephone(numeroNormalise);
-      setMessage(
-        `Un code vient d’être envoyé au ${masquerNumeroTelephone(
-          numeroNormalise
-        )}.`
-      );
-    } catch (error) {
-      setErreur(messageErreurMfa(error));
-    } finally {
-      setAction("");
-    }
-  }
-
-  async function renvoyerCode() {
-    if (!inscription) return;
-
-    try {
-      setAction("renvoi");
-      setErreur("");
-      setMessage("");
-
       const { data, error } =
-        await supabase.auth.mfa.challenge({
-          factorId: inscription.factorId,
+        await supabase.auth.mfa.enroll({
+          factorType: "totp",
+          friendlyName: "Application Arboboard",
         });
 
       if (error) throw error;
 
-      setInscription((ancien) =>
-        ancien
-          ? {
-              ...ancien,
-              challengeId: data.id,
-            }
-          : ancien
-      );
+      const facteur = data as ReponseInscriptionTotp;
+      const qrCode = facteur.totp?.qr_code || "";
+      const secret = facteur.totp?.secret || "";
+
+      if (!facteur.id || !qrCode || !secret) {
+        throw new Error(
+          "Supabase n'a pas retourné le QR code nécessaire à l'activation."
+        );
+      }
+
+      setInscription({
+        factorId: facteur.id,
+        qrCode,
+        secret,
+      });
 
       setMessage(
-        `Un nouveau code a été envoyé au ${masquerNumeroTelephone(
-          inscription.telephone
-        )}.`
+        "Scannez le QR code puis saisissez le code affiché dans votre application."
       );
     } catch (error) {
       setErreur(messageErreurMfa(error));
@@ -353,30 +268,26 @@ export default function GestionMfaTelephone({
       setErreur("");
       setMessage("");
 
-      const codeNettoye = code.replace(/\D/g, "");
+      const codeNettoye = code.replace(/\D/g, "").slice(0, 8);
 
       if (codeNettoye.length < 6) {
         throw new Error(
-          "Saisissez le code reçu par SMS."
+          "Saisissez le code à 6 chiffres affiché dans votre application."
         );
       }
 
-      const { error } = await supabase.auth.mfa.verify({
-        factorId: inscription.factorId,
-        challengeId: inscription.challengeId,
-        code: codeNettoye,
-      });
+      const { error } =
+        await supabase.auth.mfa.challengeAndVerify({
+          factorId: inscription.factorId,
+          code: codeNettoye,
+        });
 
       if (error) throw error;
-
-      await enregistrerTelephone(
-        inscription.telephone
-      );
 
       setInscription(null);
       setCode("");
       setMessage(
-        "La double authentification par téléphone est maintenant active."
+        "La double authentification gratuite par application est maintenant active."
       );
 
       await charger();
@@ -387,6 +298,23 @@ export default function GestionMfaTelephone({
     }
   }
 
+  async function copierSecret() {
+    if (!inscription?.secret) return;
+
+    try {
+      await navigator.clipboard.writeText(
+        inscription.secret
+      );
+      setMessage(
+        "La clé secrète a été copiée. Collez-la dans votre application d'authentification."
+      );
+    } catch {
+      setErreur(
+        "La copie automatique est impossible. Sélectionnez la clé manuellement."
+      );
+    }
+  }
+
   async function supprimerFacteur(
     facteur: FacteurMfaArboboard
   ) {
@@ -394,8 +322,8 @@ export default function GestionMfaTelephone({
 
     const confirmation = window.confirm(
       type === "phone"
-        ? "Désactiver la double authentification par téléphone ?"
-        : "Supprimer l’ancien facteur par application d’authentification ?"
+        ? "Supprimer cet ancien facteur téléphone ?"
+        : "Désactiver la double authentification par application ?"
     );
 
     if (!confirmation) return;
@@ -405,7 +333,10 @@ export default function GestionMfaTelephone({
       setErreur("");
       setMessage("");
 
-      if (niveauActuel !== "aal2") {
+      if (
+        facteur.status === "verified" &&
+        niveauActuel !== "aal2"
+      ) {
         throw new Error(
           "Reconnectez-vous et validez votre code de sécurité avant de supprimer ce facteur."
         );
@@ -417,17 +348,10 @@ export default function GestionMfaTelephone({
 
       if (error) throw error;
 
-      if (type === "phone" && profil) {
-        await supabase
-          .from("profils_utilisateurs")
-          .update({ telephone_mfa: null })
-          .eq("id", profil.id);
-      }
-
       setMessage(
         type === "phone"
-          ? "La double authentification par téléphone a été désactivée."
-          : "L’ancien facteur d’authentification a été supprimé."
+          ? "L'ancien facteur téléphone a été supprimé."
+          : "La double authentification par application a été désactivée."
       );
 
       await charger();
@@ -465,20 +389,23 @@ export default function GestionMfaTelephone({
               <p className="text-sm font-semibold text-emerald-700">
                 Sécurité du compte
               </p>
+
               <h1 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">
-                Double authentification par téléphone
+                Double authentification par application
               </h1>
+
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Après votre mot de passe, Arboboard envoie un code
-                de vérification sur votre téléphone.
+                Utilisez gratuitement Google Authenticator,
+                Microsoft Authenticator, 2FAS ou toute autre
+                application compatible TOTP.
               </p>
             </div>
 
             <span
-              className={`inline-flex w-fit rounded-full border px-3 py-1.5 text-xs font-bold ${
+              className={`w-fit rounded-full px-3 py-1.5 text-xs font-bold ${
                 protectionActive
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-amber-200 bg-amber-50 text-amber-700"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-amber-50 text-amber-700"
               }`}
             >
               {protectionActive
@@ -489,261 +416,280 @@ export default function GestionMfaTelephone({
         </div>
       </section>
 
-      {erreur && (
+      {erreur ? (
         <div
           role="alert"
-          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
         >
           {erreur}
         </div>
-      )}
+      ) : null}
 
-      {message && (
+      {message ? (
         <div
           role="status"
-          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
         >
           {message}
         </div>
-      )}
+      ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <article className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-5">
-            <h2 className="font-bold text-slate-950">
-              Numéro de vérification
+            <h2 className="font-black text-slate-950">
+              Application d'authentification
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Utilisez le numéro personnel de la personne qui
-              se connecte.
+              Aucun SMS n'est envoyé et aucun abonnement
+              supplémentaire n'est nécessaire.
             </p>
           </div>
 
           <div className="space-y-5 p-5">
-            {facteursTelephoneVerifies.length > 0 ? (
-              <div className="space-y-3">
-                {facteursTelephoneVerifies.map(
-                  (facteur) => (
-                    <div
-                      key={facteur.id}
-                      className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-bold text-emerald-950">
-                          {masquerNumeroTelephone(
-                            facteur.phone
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs text-emerald-700">
-                          Actif depuis{" "}
-                          {formaterDate(
-                            facteur.updated_at ||
-                              facteur.created_at
-                          )}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void supprimerFacteur(facteur)
-                        }
-                        disabled={Boolean(action)}
-                        className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        {action ===
-                        `suppression-${facteur.id}`
-                          ? "Suppression…"
-                          : "Désactiver"}
-                      </button>
-                    </div>
-                  )
-                )}
-              </div>
-            ) : (
+            {!protectionActive && !inscription ? (
               <>
-                <label className="block">
-                  <span className="text-sm font-medium text-slate-700">
-                    Numéro de téléphone
-                  </span>
+                <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                  <p className="font-bold text-slate-900">
+                    Activation en trois étapes
+                  </p>
+                  <p className="mt-2">
+                    1. Installez une application d'authentification.
+                  </p>
+                  <p>2. Scannez le QR code Arboboard.</p>
+                  <p>
+                    3. Confirmez avec le code à 6 chiffres.
+                  </p>
+                </div>
 
-                  <input
-                    type="tel"
-                    value={telephone}
-                    onChange={(event) =>
-                      setTelephone(event.target.value)
-                    }
-                    placeholder="+33612345678"
-                    autoComplete="tel"
-                    className="mt-1.5 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
+                <button
+                  type="button"
+                  onClick={() =>
+                    void commencerInscription()
+                  }
+                  disabled={Boolean(action)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {action === "inscription"
+                    ? "Préparation…"
+                    : "Afficher le QR code"}
+                </button>
+              </>
+            ) : null}
 
-                  <span className="mt-1.5 block text-xs text-slate-500">
-                    Un numéro français comme 06 12 34 56 78
-                    sera automatiquement converti au format
-                    international.
-                  </span>
-                </label>
+            {inscription ? (
+              <div className="space-y-5">
+                <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <img
+                      src={sourceQrCode(inscription.qrCode)}
+                      alt="QR code d'activation Arboboard"
+                      className="mx-auto h-48 w-48"
+                    />
+                  </div>
 
-                {!inscription ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void commencerInscription()
-                    }
-                    disabled={Boolean(action)}
-                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    {action === "inscription"
-                      ? "Envoi du code…"
-                      : "Envoyer le code d’activation"}
-                  </button>
-                ) : (
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                    <label className="block">
-                      <span className="text-sm font-bold text-blue-950">
-                        Code reçu par SMS
-                      </span>
+                  <div>
+                    <h3 className="font-black text-slate-950">
+                      Scannez ce QR code
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Dans votre application, choisissez
+                      « Ajouter un compte » puis scannez le QR code.
+                    </p>
 
-                      <input
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        value={code}
-                        onChange={(event) =>
-                          setCode(
-                            event.target.value
-                              .replace(/\D/g, "")
-                              .slice(0, 8)
-                          )
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            void verifierInscription();
-                          }
-                        }}
-                        placeholder="123456"
-                        className="mt-2 w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-center text-xl font-black tracking-[0.35em] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                      />
-                    </label>
-
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Clé de saisie manuelle
+                      </p>
+                      <code className="mt-2 block break-all text-sm font-bold text-slate-900">
+                        {inscription.secret}
+                      </code>
                       <button
                         type="button"
-                        onClick={() =>
-                          void verifierInscription()
-                        }
-                        disabled={Boolean(action)}
-                        className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                        onClick={() => void copierSecret()}
+                        className="mt-3 text-sm font-semibold text-emerald-700 hover:underline"
                       >
-                        {action === "verification"
-                          ? "Vérification…"
-                          : "Activer la protection"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void renvoyerCode()
-                        }
-                        disabled={Boolean(action)}
-                        className="rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                      >
-                        {action === "renvoi"
-                          ? "Envoi…"
-                          : "Renvoyer le code"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInscription(null);
-                          setCode("");
-                          setErreur("");
-                          setMessage("");
-                        }}
-                        disabled={Boolean(action)}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-                      >
-                        Annuler
+                        Copier la clé
                       </button>
                     </div>
                   </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+                </div>
 
-        <aside className="space-y-5">
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Code à 6 chiffres
+                  </span>
+                  <input
+                    value={code}
+                    onChange={(event) =>
+                      setCode(
+                        event.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 8)
+                      )
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        void verifierInscription();
+                      }
+                    }}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    className="mt-1.5 w-full max-w-sm rounded-xl border border-slate-300 px-4 py-3 text-center text-xl font-black tracking-[0.35em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void verifierInscription()
+                    }
+                    disabled={Boolean(action)}
+                    className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {action === "verification"
+                      ? "Vérification…"
+                      : "Activer la protection"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInscription(null);
+                      setCode("");
+                      setMessage("");
+                    }}
+                    disabled={Boolean(action)}
+                    className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {protectionActive ? (
+              <div className="space-y-3">
+                {facteursTotpVerifies.map((facteur) => (
+                  <div
+                    key={facteur.id}
+                    className="flex flex-col justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center"
+                  >
+                    <div>
+                      <p className="font-bold text-emerald-950">
+                        {facteur.friendly_name ||
+                          "Application Arboboard"}
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-700">
+                        Active depuis le{" "}
+                        {formaterDate(facteur.created_at)}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void supprimerFacteur(facteur)
+                      }
+                      disabled={Boolean(action)}
+                      className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {action ===
+                      `suppression-${facteur.id}`
+                        ? "Suppression…"
+                        : "Désactiver"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </article>
+
+        <aside className="space-y-4">
+          <div className="rounded-3xl border border-blue-200 bg-blue-50 p-5">
+            <h2 className="font-black text-blue-950">
+              Appareil reconnu
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-blue-800">
+              Sur ce navigateur, le code ne sera pas redemandé
+              tant que la session reste ouverte.
+            </p>
+            <p className="mt-2 text-xs leading-5 text-blue-700">
+              Il sera demandé sur un nouvel appareil ou navigateur,
+              après une déconnexion, en navigation privée ou après
+              suppression des données du navigateur.
+            </p>
+          </div>
+
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">
+            <h2 className="font-black text-slate-950">
               État de la session
             </h2>
-
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-slate-500">
                   Niveau actuel
                 </dt>
-                <dd className="font-bold text-slate-950">
+                <dd className="text-right font-bold text-slate-900">
                   {niveauActuel === "aal2"
                     ? "Doublement vérifiée"
                     : "Mot de passe uniquement"}
                 </dd>
               </div>
-
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">
-                  Compte
-                </dt>
-                <dd className="max-w-48 truncate font-semibold text-slate-950">
-                  {profil?.email || "—"}
+                <dt className="text-slate-500">Compte</dt>
+                <dd className="break-all text-right font-bold text-slate-900">
+                  {profil?.email || "Non renseigné"}
                 </dd>
               </div>
             </dl>
           </div>
-
-          {facteursTotp.length > 0 && (
-            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-              <h2 className="font-bold text-amber-950">
-                Ancienne application d’authentification
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-amber-800">
-                Un ancien facteur par application est encore
-                présent. Activez d’abord le téléphone, puis
-                supprimez l’ancien facteur.
-              </p>
-
-              <div className="mt-4 space-y-2">
-                {facteursTotp.map((facteur) => (
-                  <button
-                    key={facteur.id}
-                    type="button"
-                    onClick={() =>
-                      void supprimerFacteur(facteur)
-                    }
-                    disabled={Boolean(action)}
-                    className="w-full rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-                  >
-                    Supprimer l’ancien facteur
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-3xl border border-blue-200 bg-blue-50 p-5">
-            <h2 className="font-bold text-blue-950">
-              Configuration nécessaire
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-blue-800">
-              Le fournisseur SMS doit être activé dans
-              Supabase avant que les codes puissent être
-              envoyés.
-            </p>
-          </div>
         </aside>
       </section>
+
+      {anciensFacteursTelephone.length > 0 ? (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
+          <h2 className="font-black text-amber-950">
+            Ancien facteur téléphone détecté
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-amber-800">
+            Ce facteur n'est plus utilisé par Arboboard.
+            Activez d'abord l'application gratuite, puis supprimez
+            l'ancien facteur téléphone.
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {anciensFacteursTelephone.map((facteur) => (
+              <div
+                key={facteur.id}
+                className="flex flex-col justify-between gap-3 rounded-2xl bg-white p-4 sm:flex-row sm:items-center"
+              >
+                <div>
+                  <p className="font-bold text-slate-900">
+                    Téléphone
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Statut : {facteur.status}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void supprimerFacteur(facteur)
+                  }
+                  disabled={Boolean(action)}
+                  className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Supprimer
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -6,12 +6,9 @@ import { useRouter } from "next/navigation";
 import { journaliserActivite } from "@/lib/journalActivite";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  masquerNumeroTelephone,
   messageErreurMfa,
   preparerMfaApresConnexion,
-  renvoyerCodeMfa,
   verifierCodeMfa,
-  type TypeFacteurMfa,
 } from "@/lib/auth/mfaTelephone";
 
 type ProfilUtilisateur = {
@@ -40,12 +37,8 @@ export default function ConnexionChefPage() {
   const [utilisateurId, setUtilisateurId] = useState("");
   const [factorId, setFactorId] = useState("");
   const [challengeId, setChallengeId] = useState("");
-  const [typeFacteur, setTypeFacteur] =
-    useState<TypeFacteurMfa | null>(null);
-  const [telephoneMasque, setTelephoneMasque] = useState("");
 
   const [chargement, setChargement] = useState(false);
-  const [renvoi, setRenvoi] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -64,7 +57,7 @@ export default function ConnexionChefPage() {
 
     if (error || !data) {
       throw new Error(
-        "Aucun profil chef n’est associé à ce compte."
+        "Aucun profil chef n'est associé à ce compte."
       );
     }
 
@@ -83,7 +76,7 @@ export default function ConnexionChefPage() {
       ].includes(role)
     ) {
       throw new Error(
-        "Ce compte n’est pas un compte chef."
+        "Ce compte n'est pas un compte chef."
       );
     }
 
@@ -91,14 +84,12 @@ export default function ConnexionChefPage() {
       profil.statut &&
       profil.statut.toLowerCase() !== "actif"
     ) {
-      throw new Error(
-        "Ce compte est désactivé."
-      );
+      throw new Error("Ce compte est désactivé.");
     }
 
     if (!profil.entreprise_id) {
       throw new Error(
-        "Ce compte n’est rattaché à aucune entreprise."
+        "Ce compte n'est rattaché à aucune entreprise."
       );
     }
 
@@ -107,7 +98,8 @@ export default function ConnexionChefPage() {
 
   async function terminerConnexion(
     userId: string,
-    profil?: ProfilUtilisateur
+    profil?: ProfilUtilisateur,
+    avecMfa = false
   ) {
     const profilValide =
       profil || (await chargerProfilChef(userId));
@@ -119,12 +111,11 @@ export default function ConnexionChefPage() {
       ressource_id: profilValide.id,
       resultat: "succes",
       description:
-        "Connexion réussie à l’espace chef.",
+        "Connexion réussie à l'espace chef.",
       details: {
-        double_authentification:
-          typeFacteur === "phone"
-            ? "telephone"
-            : typeFacteur || "non_requise",
+        double_authentification: avecMfa
+          ? "application_totp"
+          : "session_deja_verifiee_ou_non_requise",
       },
     });
 
@@ -142,15 +133,15 @@ export default function ConnexionChefPage() {
     const mfa = await preparerMfaApresConnexion();
 
     if (!mfa.necessaire) {
-      await terminerConnexion(userId, profilValide);
+      await terminerConnexion(
+        userId,
+        profilValide,
+        false
+      );
       return;
     }
 
-    if (
-      !mfa.facteur ||
-      !mfa.challengeId ||
-      !mfa.typeFacteur
-    ) {
+    if (!mfa.facteur || !mfa.challengeId) {
       throw new Error(
         "Impossible de préparer la double authentification."
       );
@@ -159,12 +150,6 @@ export default function ConnexionChefPage() {
     setUtilisateurId(userId);
     setFactorId(mfa.facteur.id);
     setChallengeId(mfa.challengeId);
-    setTypeFacteur(mfa.typeFacteur);
-    setTelephoneMasque(
-      mfa.typeFacteur === "phone"
-        ? masquerNumeroTelephone(mfa.facteur.phone)
-        : ""
-    );
     setCodeMfa("");
     setEtape("double_authentification");
   }
@@ -179,7 +164,7 @@ export default function ConnexionChefPage() {
 
       await preparerSecondeEtape(session.user.id);
     } catch {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
       setEtape("identifiants");
     }
   }
@@ -193,7 +178,7 @@ export default function ConnexionChefPage() {
 
       if (!emailNettoye || !motDePasse) {
         throw new Error(
-          "Merci de remplir l’email et le mot de passe."
+          "Merci de remplir l'email et le mot de passe."
         );
       }
 
@@ -207,8 +192,7 @@ export default function ConnexionChefPage() {
         throw new Error(
           error?.message === "Invalid login credentials"
             ? "Email ou mot de passe incorrect."
-            : error?.message ||
-                "Connexion impossible."
+            : error?.message || "Connexion impossible."
         );
       }
 
@@ -229,7 +213,7 @@ export default function ConnexionChefPage() {
         texte.includes("désactivé") ||
         texte.includes("entreprise")
       ) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
       }
 
       setMessage(texte);
@@ -259,7 +243,11 @@ export default function ConnexionChefPage() {
         code: codeMfa,
       });
 
-      await terminerConnexion(utilisateurId);
+      await terminerConnexion(
+        utilisateurId,
+        undefined,
+        true
+      );
     } catch (error) {
       setMessage(messageErreurMfa(error));
     } finally {
@@ -267,35 +255,13 @@ export default function ConnexionChefPage() {
     }
   }
 
-  async function renvoyerLeCode() {
-    if (!factorId || typeFacteur !== "phone") return;
-
-    try {
-      setRenvoi(true);
-      setMessage("");
-
-      const nouveauChallenge =
-        await renvoyerCodeMfa(factorId);
-
-      setChallengeId(nouveauChallenge);
-      setMessage(
-        `Un nouveau code a été envoyé au ${telephoneMasque}.`
-      );
-    } catch (error) {
-      setMessage(messageErreurMfa(error));
-    } finally {
-      setRenvoi(false);
-    }
-  }
-
   async function annulerMfa() {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     setEtape("identifiants");
     setUtilisateurId("");
     setFactorId("");
     setChallengeId("");
     setCodeMfa("");
-    setTypeFacteur(null);
     setMessage("");
   }
 
@@ -307,7 +273,7 @@ export default function ConnexionChefPage() {
             href="/"
             className="text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
-            ← Retour à l’accueil
+            ← Retour à l'accueil
           </Link>
         </div>
 
@@ -326,15 +292,13 @@ export default function ConnexionChefPage() {
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {etape === "identifiants"
                 ? "Accédez à la gestion de votre entreprise."
-                : typeFacteur === "phone"
-                  ? `Saisissez le code envoyé au ${telephoneMasque}.`
-                  : "Saisissez temporairement le code de votre ancienne application d’authentification."}
+                : "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres."}
             </p>
           </div>
 
           {etape === "identifiants" ? (
             <div className="grid gap-5">
-              <label className="block">
+              <label>
                 <span className="mb-1 block text-sm font-medium text-slate-700">
                   Email
                 </span>
@@ -345,12 +309,12 @@ export default function ConnexionChefPage() {
                     setEmail(event.target.value)
                   }
                   autoComplete="email"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
-                  placeholder="contact@entreprise.fr"
+                  placeholder="vous@entreprise.fr"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </label>
 
-              <label className="block">
+              <label>
                 <span className="mb-1 block text-sm font-medium text-slate-700">
                   Mot de passe
                 </span>
@@ -366,14 +330,14 @@ export default function ConnexionChefPage() {
                     }
                   }}
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
                   placeholder="Mot de passe"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                 />
               </label>
 
               <Link
                 href="/mot-de-passe-oublie"
-                className="text-sm font-semibold text-emerald-700 hover:underline"
+                className="text-sm font-semibold text-slate-700 hover:underline"
               >
                 Mot de passe oublié ?
               </Link>
@@ -390,26 +354,38 @@ export default function ConnexionChefPage() {
               </button>
             </div>
           ) : (
-            <div className="grid gap-4">
-              <input
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={codeMfa}
-                onChange={(event) =>
-                  setCodeMfa(
-                    event.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 8)
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void verifierMfa();
+            <div className="grid gap-5">
+              <label>
+                <span className="mb-1 block text-sm font-medium text-slate-700">
+                  Code de l'application
+                </span>
+                <input
+                  value={codeMfa}
+                  onChange={(event) =>
+                    setCodeMfa(
+                      event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 8)
+                    )
                   }
-                }}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-4 text-center text-2xl font-black tracking-[0.35em] outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
-                placeholder="123456"
-              />
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      void verifierMfa();
+                    }
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  placeholder="123456"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-black tracking-[0.35em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+                Cet appareil restera connecté tant que vous ne
+                vous déconnectez pas et que les données du
+                navigateur ne sont pas supprimées.
+              </div>
 
               <button
                 type="button"
@@ -422,49 +398,25 @@ export default function ConnexionChefPage() {
                   : "Valider le code"}
               </button>
 
-              {typeFacteur === "phone" && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void renvoyerLeCode()
-                  }
-                  disabled={renvoi || chargement}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                >
-                  {renvoi
-                    ? "Envoi…"
-                    : "Renvoyer le code"}
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={() => void annulerMfa()}
                 disabled={chargement}
-                className="text-sm font-semibold text-slate-500 hover:text-slate-900"
+                className="rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                Annuler et revenir à la connexion
+                Annuler et se déconnecter
               </button>
             </div>
           )}
 
-          {message && (
+          {message ? (
             <p
               role="alert"
-              className="mt-5 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+              className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
               {message}
             </p>
-          )}
-
-          <div className="mt-6 border-t border-slate-200 pt-5 text-center">
-            <Link
-              href="/connexion/salarie"
-              className="text-sm font-semibold text-slate-600 hover:text-slate-950 hover:underline"
-            >
-              Vous êtes salarié ? Connexion salarié
-            </Link>
-          </div>
+          ) : null}
         </div>
       </div>
     </main>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import GestionMfaTelephone from "@/components/securite/GestionMfaTelephone";
+import GestionMfaApplication from "@/components/securite/GestionMfaTelephone";
 
 export default function DoubleAuthentificationChefPage() {
   return (
@@ -13,7 +13,7 @@ export default function DoubleAuthentificationChefPage() {
         ← Retour à la sécurité
       </Link>
 
-      <GestionMfaTelephone espace="chef" />
+      <GestionMfaApplication espace="chef" />
     </div>
   );
 }

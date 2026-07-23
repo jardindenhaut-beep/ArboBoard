@@ -5,12 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  masquerNumeroTelephone,
   messageErreurMfa,
   preparerMfaApresConnexion,
-  renvoyerCodeMfa,
   verifierCodeMfa,
-  type TypeFacteurMfa,
 } from "@/lib/auth/mfaTelephone";
 
 type ProfilUtilisateur = {
@@ -39,12 +36,8 @@ export default function ConnexionSalariePage() {
   const [utilisateurId, setUtilisateurId] = useState("");
   const [factorId, setFactorId] = useState("");
   const [challengeId, setChallengeId] = useState("");
-  const [typeFacteur, setTypeFacteur] =
-    useState<TypeFacteurMfa | null>(null);
-  const [telephoneMasque, setTelephoneMasque] = useState("");
 
   const [chargement, setChargement] = useState(false);
-  const [renvoi, setRenvoi] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -63,18 +56,17 @@ export default function ConnexionSalariePage() {
 
     if (error || !data) {
       throw new Error(
-        "Aucun profil salarié n’est associé à ce compte."
+        "Aucun profil salarié n'est associé à ce compte."
       );
     }
 
     const profil = data as ProfilUtilisateur;
-
     if (
       String(profil.role || "").toLowerCase() !==
       "salarie"
     ) {
       throw new Error(
-        "Ce compte n’est pas un compte salarié."
+        "Ce compte n'est pas un compte salarié."
       );
     }
 
@@ -82,14 +74,12 @@ export default function ConnexionSalariePage() {
       profil.statut &&
       profil.statut.toLowerCase() !== "actif"
     ) {
-      throw new Error(
-        "Ce compte salarié est désactivé. Contactez votre chef."
-      );
+      throw new Error("Ce compte salarié est désactivé. Contactez votre chef.");
     }
 
     if (!profil.entreprise_id) {
       throw new Error(
-        "Ce compte salarié n’est rattaché à aucune entreprise."
+        "Ce compte salarié n'est rattaché à aucune entreprise."
       );
     }
 
@@ -98,9 +88,13 @@ export default function ConnexionSalariePage() {
 
   async function terminerConnexion(
     userId: string,
-    profil?: ProfilUtilisateur
+    profil?: ProfilUtilisateur,
+    avecMfa = false
   ) {
+    void avecMfa;
     await chargerProfilSalarie(userId);
+    void profil;
+
     router.replace("/salarie/dashboard");
     router.refresh();
   }
@@ -115,15 +109,15 @@ export default function ConnexionSalariePage() {
     const mfa = await preparerMfaApresConnexion();
 
     if (!mfa.necessaire) {
-      await terminerConnexion(userId, profilValide);
+      await terminerConnexion(
+        userId,
+        profilValide,
+        false
+      );
       return;
     }
 
-    if (
-      !mfa.facteur ||
-      !mfa.challengeId ||
-      !mfa.typeFacteur
-    ) {
+    if (!mfa.facteur || !mfa.challengeId) {
       throw new Error(
         "Impossible de préparer la double authentification."
       );
@@ -132,12 +126,6 @@ export default function ConnexionSalariePage() {
     setUtilisateurId(userId);
     setFactorId(mfa.facteur.id);
     setChallengeId(mfa.challengeId);
-    setTypeFacteur(mfa.typeFacteur);
-    setTelephoneMasque(
-      mfa.typeFacteur === "phone"
-        ? masquerNumeroTelephone(mfa.facteur.phone)
-        : ""
-    );
     setCodeMfa("");
     setEtape("double_authentification");
   }
@@ -152,7 +140,7 @@ export default function ConnexionSalariePage() {
 
       await preparerSecondeEtape(session.user.id);
     } catch {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
       setEtape("identifiants");
     }
   }
@@ -166,7 +154,7 @@ export default function ConnexionSalariePage() {
 
       if (!emailNettoye || !motDePasse) {
         throw new Error(
-          "Merci de remplir l’email et le mot de passe."
+          "Merci de remplir l'email et le mot de passe."
         );
       }
 
@@ -180,13 +168,11 @@ export default function ConnexionSalariePage() {
         throw new Error(
           error?.message === "Invalid login credentials"
             ? "Email ou mot de passe incorrect."
-            : error?.message ||
-                "Connexion impossible."
+            : error?.message || "Connexion impossible."
         );
       }
 
-      const profil =
-        await chargerProfilSalarie(data.user.id);
+      const profil = await chargerProfilSalarie(data.user.id);
 
       await preparerSecondeEtape(
         data.user.id,
@@ -203,7 +189,7 @@ export default function ConnexionSalariePage() {
         texte.includes("désactivé") ||
         texte.includes("entreprise")
       ) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
       }
 
       setMessage(texte);
@@ -233,7 +219,11 @@ export default function ConnexionSalariePage() {
         code: codeMfa,
       });
 
-      await terminerConnexion(utilisateurId);
+      await terminerConnexion(
+        utilisateurId,
+        undefined,
+        true
+      );
     } catch (error) {
       setMessage(messageErreurMfa(error));
     } finally {
@@ -241,35 +231,13 @@ export default function ConnexionSalariePage() {
     }
   }
 
-  async function renvoyerLeCode() {
-    if (!factorId || typeFacteur !== "phone") return;
-
-    try {
-      setRenvoi(true);
-      setMessage("");
-
-      const nouveauChallenge =
-        await renvoyerCodeMfa(factorId);
-
-      setChallengeId(nouveauChallenge);
-      setMessage(
-        `Un nouveau code a été envoyé au ${telephoneMasque}.`
-      );
-    } catch (error) {
-      setMessage(messageErreurMfa(error));
-    } finally {
-      setRenvoi(false);
-    }
-  }
-
   async function annulerMfa() {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     setEtape("identifiants");
     setUtilisateurId("");
     setFactorId("");
     setChallengeId("");
     setCodeMfa("");
-    setTypeFacteur(null);
     setMessage("");
   }
 
@@ -281,7 +249,7 @@ export default function ConnexionSalariePage() {
             href="/"
             className="text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
-            ← Retour à l’accueil
+            ← Retour à l'accueil
           </Link>
         </div>
 
@@ -300,17 +268,15 @@ export default function ConnexionSalariePage() {
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {etape === "identifiants"
                 ? "Accédez à votre planning et à vos fiches terrain."
-                : typeFacteur === "phone"
-                  ? `Saisissez le code envoyé au ${telephoneMasque}.`
-                  : "Saisissez temporairement le code de votre ancienne application d’authentification."}
+                : "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres."}
             </p>
           </div>
 
           {etape === "identifiants" ? (
             <div className="grid gap-5">
-              <label className="block">
+              <label>
                 <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Email salarié
+                  Email
                 </span>
                 <input
                   type="email"
@@ -319,12 +285,12 @@ export default function ConnexionSalariePage() {
                     setEmail(event.target.value)
                   }
                   autoComplete="email"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
                   placeholder="salarie@mail.fr"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
                 />
               </label>
 
-              <label className="block">
+              <label>
                 <span className="mb-1 block text-sm font-medium text-slate-700">
                   Mot de passe
                 </span>
@@ -340,14 +306,14 @@ export default function ConnexionSalariePage() {
                     }
                   }}
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
                   placeholder="Mot de passe"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
                 />
               </label>
 
               <Link
                 href="/mot-de-passe-oublie"
-                className="text-sm font-semibold text-slate-700 hover:text-slate-900 hover:underline"
+                className="text-sm font-semibold text-slate-700 hover:underline"
               >
                 Mot de passe oublié ?
               </Link>
@@ -364,26 +330,38 @@ export default function ConnexionSalariePage() {
               </button>
             </div>
           ) : (
-            <div className="grid gap-4">
-              <input
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={codeMfa}
-                onChange={(event) =>
-                  setCodeMfa(
-                    event.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 8)
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void verifierMfa();
+            <div className="grid gap-5">
+              <label>
+                <span className="mb-1 block text-sm font-medium text-slate-700">
+                  Code de l'application
+                </span>
+                <input
+                  value={codeMfa}
+                  onChange={(event) =>
+                    setCodeMfa(
+                      event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 8)
+                    )
                   }
-                }}
-                className="w-full rounded-2xl border border-slate-300 px-4 py-4 text-center text-2xl font-black tracking-[0.35em] outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
-                placeholder="123456"
-              />
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      void verifierMfa();
+                    }
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  placeholder="123456"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-black tracking-[0.35em] outline-none focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
+                />
+              </label>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+                Cet appareil restera connecté tant que vous ne
+                vous déconnectez pas et que les données du
+                navigateur ne sont pas supprimées.
+              </div>
 
               <button
                 type="button"
@@ -396,45 +374,25 @@ export default function ConnexionSalariePage() {
                   : "Valider le code"}
               </button>
 
-              {typeFacteur === "phone" && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void renvoyerLeCode()
-                  }
-                  disabled={renvoi || chargement}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                >
-                  {renvoi
-                    ? "Envoi…"
-                    : "Renvoyer le code"}
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={() => void annulerMfa()}
                 disabled={chargement}
-                className="text-sm font-semibold text-slate-500 hover:text-slate-900"
+                className="rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                Annuler et revenir à la connexion
+                Annuler et se déconnecter
               </button>
             </div>
           )}
 
-          {message && (
+          {message ? (
             <p
               role="alert"
-              className="mt-5 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+              className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
               {message}
             </p>
-          )}
-
-          <p className="mt-6 text-center text-sm text-slate-500">
-            Vous n’avez pas encore d’accès ? Demandez une
-            invitation à votre chef.
-          </p>
+          ) : null}
         </div>
       </div>
     </main>

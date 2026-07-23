@@ -16,65 +16,29 @@ export type FacteurMfaArboboard = {
 export type EtapeMfaPreparee = {
   necessaire: boolean;
   facteur: FacteurMfaArboboard | null;
-  typeFacteur: TypeFacteurMfa | null;
+  typeFacteur: "totp" | null;
   challengeId: string | null;
 };
-
-export function normaliserNumeroTelephone(
-  valeur: string,
-  paysParDefaut = "FR"
-) {
-  const brut = valeur.trim();
-
-  if (!brut) {
-    throw new Error("Le numéro de téléphone est obligatoire.");
-  }
-
-  let numero = brut.replace(/[()\s.-]/g, "");
-
-  if (numero.startsWith("00")) {
-    numero = `+${numero.slice(2)}`;
-  }
-
-  if (paysParDefaut === "FR" && /^0[67]\d{8}$/.test(numero)) {
-    numero = `+33${numero.slice(1)}`;
-  }
-
-  if (paysParDefaut === "FR" && /^33[67]\d{8}$/.test(numero)) {
-    numero = `+${numero}`;
-  }
-
-  if (!/^\+[1-9]\d{7,14}$/.test(numero)) {
-    throw new Error(
-      "Le numéro doit être au format international, par exemple +33612345678."
-    );
-  }
-
-  return numero;
-}
-
-export function masquerNumeroTelephone(
-  valeur: string | null | undefined
-) {
-  const numero = String(valeur || "").trim();
-
-  if (!numero) return "numéro masqué";
-  if (numero.length <= 5) return numero;
-
-  return `${numero.slice(0, 4)}••••${numero.slice(-3)}`;
-}
 
 function typeFacteur(
   facteur: FacteurMfaArboboard
 ): TypeFacteurMfa | null {
   const type = String(
     facteur.factor_type || facteur.type || ""
-  ).toLowerCase();
+  )
+    .trim()
+    .toLowerCase();
 
-  if (type === "phone" || facteur.phone) return "phone";
   if (type === "totp") return "totp";
+  if (type === "phone" || facteur.phone) return "phone";
 
   return null;
+}
+
+export function obtenirTypeFacteurMfa(
+  facteur: FacteurMfaArboboard | null
+) {
+  return facteur ? typeFacteur(facteur) : null;
 }
 
 export function extraireFacteursMfa(
@@ -91,8 +55,8 @@ export function extraireFacteursMfa(
 
   const tous = [
     ...(resultat?.all || []),
-    ...(resultat?.phone || []),
     ...(resultat?.totp || []),
+    ...(resultat?.phone || []),
   ];
 
   const uniques = new Map<string, FacteurMfaArboboard>();
@@ -109,25 +73,13 @@ export function extraireFacteursMfa(
 export function choisirFacteurMfaConnexion(
   facteurs: FacteurMfaArboboard[]
 ) {
-  const verifies = facteurs.filter(
-    (facteur) => facteur.status === "verified"
-  );
-
   return (
-    verifies.find(
-      (facteur) => typeFacteur(facteur) === "phone"
-    ) ||
-    verifies.find(
-      (facteur) => typeFacteur(facteur) === "totp"
-    ) ||
-    null
+    facteurs.find(
+      (facteur) =>
+        facteur.status === "verified" &&
+        typeFacteur(facteur) === "totp"
+    ) || null
   );
-}
-
-export function obtenirTypeFacteurMfa(
-  facteur: FacteurMfaArboboard | null
-) {
-  return facteur ? typeFacteur(facteur) : null;
 }
 
 export async function preparerMfaApresConnexion(): Promise<EtapeMfaPreparee> {
@@ -157,13 +109,24 @@ export async function preparerMfaApresConnexion(): Promise<EtapeMfaPreparee> {
     throw facteursError;
   }
 
-  const facteur = choisirFacteurMfaConnexion(
-    extraireFacteursMfa(facteursData)
-  );
+  const facteurs = extraireFacteursMfa(facteursData);
+  const facteur = choisirFacteurMfaConnexion(facteurs);
 
   if (!facteur) {
+    const ancienTelephoneVerifie = facteurs.some(
+      (element) =>
+        element.status === "verified" &&
+        typeFacteur(element) === "phone"
+    );
+
+    if (ancienTelephoneVerifie) {
+      throw new Error(
+        "Ce compte utilise encore un ancien facteur MFA par téléphone. Activez d'abord l'application d'authentification depuis la sécurité du compte, puis supprimez le facteur téléphone."
+      );
+    }
+
     throw new Error(
-      "La double authentification est active, mais aucun facteur vérifié n’a été trouvé."
+      "La double authentification est active, mais aucune application d'authentification vérifiée n'a été trouvée."
     );
   }
 
@@ -179,9 +142,52 @@ export async function preparerMfaApresConnexion(): Promise<EtapeMfaPreparee> {
   return {
     necessaire: true,
     facteur,
-    typeFacteur: typeFacteur(facteur),
+    typeFacteur: "totp",
     challengeId: challenge.id,
   };
+}
+
+export async function verifierCodeMfa(params: {
+  facteurId: string;
+  challengeId: string;
+  code: string;
+}) {
+  const code = params.code.replace(/\D/g, "").slice(0, 8);
+
+  if (code.length < 6) {
+    throw new Error(
+      "Saisissez le code à 6 chiffres affiché dans votre application d'authentification."
+    );
+  }
+
+  const { error } = await supabase.auth.mfa.verify({
+    factorId: params.facteurId,
+    challengeId: params.challengeId,
+    code,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
+/**
+ * Compatibilité temporaire avec les anciens imports téléphone.
+ * Les nouveaux écrans Arboboard n'utilisent plus ces fonctions.
+ */
+export function normaliserNumeroTelephone(valeur: string) {
+  return valeur.trim();
+}
+
+export function masquerNumeroTelephone(
+  valeur: string | null | undefined
+) {
+  const numero = String(valeur || "").trim();
+
+  if (!numero) return "numéro masqué";
+  if (numero.length <= 5) return numero;
+
+  return `${numero.slice(0, 4)}••••${numero.slice(-3)}`;
 }
 
 export async function renvoyerCodeMfa(
@@ -198,28 +204,6 @@ export async function renvoyerCodeMfa(
   return data.id;
 }
 
-export async function verifierCodeMfa(params: {
-  facteurId: string;
-  challengeId: string;
-  code: string;
-}) {
-  const code = params.code.replace(/\D/g, "").slice(0, 8);
-
-  if (code.length < 6) {
-    throw new Error("Saisissez le code de vérification reçu.");
-  }
-
-  const { error } = await supabase.auth.mfa.verify({
-    factorId: params.facteurId,
-    challengeId: params.challengeId,
-    code,
-  });
-
-  if (error) {
-    throw error;
-  }
-}
-
 export function messageErreurMfa(error: unknown) {
   if (
     error &&
@@ -234,31 +218,28 @@ export function messageErreurMfa(error: unknown) {
       normalisee.includes("invalid") &&
       (normalisee.includes("code") ||
         normalisee.includes("challenge") ||
-        normalisee.includes("verification"))
+        normalisee.includes("verification") ||
+        normalisee.includes("totp"))
     ) {
-      return "Le code est incorrect ou a expiré. Demandez un nouveau code puis recommencez.";
+      return "Le code est incorrect ou a expiré. Attendez le prochain code affiché dans l'application puis recommencez.";
     }
 
     if (
-      normalisee.includes("mfa enroll is disabled") &&
-      normalisee.includes("phone")
+      normalisee.includes("factor") &&
+      normalisee.includes("already")
     ) {
-      return "La double authentification par téléphone n’est pas encore activée dans Supabase. Activez le MFA téléphone et configurez un fournisseur SMS avant de recommencer.";
+      return "Une application d'authentification est déjà enregistrée sur ce compte.";
     }
 
     if (
-      normalisee.includes("phone") &&
-      (
-        normalisee.includes("provider") ||
-        normalisee.includes("sms") ||
-        normalisee.includes("disabled")
-      )
+      normalisee.includes("aal2") ||
+      normalisee.includes("assurance level")
     ) {
-      return "L’envoi des codes par téléphone n’est pas encore disponible. Vérifiez l’activation du MFA téléphone et du fournisseur SMS dans Supabase.";
+      return "Validez d'abord votre code de sécurité avant de modifier la double authentification.";
     }
 
     if (normalisee.includes("rate limit")) {
-      return "Trop de tentatives ont été effectuées. Patientez avant de demander un nouveau code.";
+      return "Trop de tentatives ont été effectuées. Patientez quelques instants avant de recommencer.";
     }
 
     return message;

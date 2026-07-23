@@ -5,6 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  verifierAppareilConfiance,
+} from "@/lib/auth/appareilConfianceClient";
+import {
   abonnementEstBloque,
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
@@ -165,8 +168,17 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
           niveauMfa.nextLevel === "aal2" &&
           niveauMfa.currentLevel !== "aal2"
         ) {
-          router.replace("/connexion/salarie");
-          return;
+          const confiance =
+            await verifierAppareilConfiance();
+
+          if (!actif) return;
+
+          if (!confiance) {
+            router.replace(
+              "/connexion/salarie?mfa=required"
+            );
+            return;
+          }
         }
 
         const abonnementBloque = abonnementEstBloque(entreprise);

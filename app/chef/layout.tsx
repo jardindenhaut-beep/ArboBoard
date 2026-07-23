@@ -11,6 +11,9 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  verifierAppareilConfiance,
+} from "@/lib/auth/appareilConfianceClient";
+import {
   abonnementEstBloque,
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
@@ -421,6 +424,8 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
   const [niveauAuthentification, setNiveauAuthentification] =
     useState<NiveauAuthentification>(null);
   const [mfaRequise, setMfaRequise] = useState(false);
+  const [appareilReconnu, setAppareilReconnu] =
+    useState(false);
 
   useEffect(() => {
     let actif = true;
@@ -431,6 +436,7 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
         setMessageErreur("");
         setMfaRequise(false);
         setNiveauAuthentification(null);
+        setAppareilReconnu(false);
 
         const resultat = await chargerContexteEntreprise();
 
@@ -456,7 +462,9 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
         const entreprise = contexteEntreprise.entreprise;
 
         if (!roleChefAutorise(profil.role)) {
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({
+        scope: "local",
+      });
           router.replace("/connexion");
           return;
         }
@@ -493,9 +501,20 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
           niveauActuel === "aal1" &&
           prochainNiveau === "aal2"
         ) {
-          setMfaRequise(true);
-          router.replace("/connexion?mfa=required");
-          return;
+          const confiance =
+            await verifierAppareilConfiance();
+
+          if (!actif) return;
+
+          if (!confiance) {
+            setMfaRequise(true);
+            router.replace(
+              "/connexion?mfa=required"
+            );
+            return;
+          }
+
+          setAppareilReconnu(true);
         }
 
         const abonnementBloque =
@@ -717,6 +736,10 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
             {niveauAuthentification === "aal2" ? (
               <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-medium text-violet-700">
                 MFA vérifiée
+              </span>
+            ) : appareilReconnu ? (
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                Appareil fiable
               </span>
             ) : null}
           </div>

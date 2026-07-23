@@ -8,6 +8,12 @@ import {
   obtenirTypeFacteurMfa,
   type FacteurMfaArboboard,
 } from "@/lib/auth/mfaTelephone";
+import {
+  enregistrerAppareilConfiance,
+  listerAppareilsConfiance,
+  revoquerAppareilConfiance,
+  type AppareilConfiance,
+} from "@/lib/auth/appareilConfianceClient";
 
 type Props = {
   espace: "chef" | "salarie";
@@ -79,6 +85,8 @@ export default function GestionMfaApplication({
   const [action, setAction] = useState("");
   const [erreur, setErreur] = useState("");
   const [message, setMessage] = useState("");
+  const [appareils, setAppareils] =
+    useState<AppareilConfiance[]>([]);
 
   const facteursTotp = useMemo(
     () =>
@@ -190,6 +198,15 @@ export default function GestionMfaApplication({
       setFacteurs(
         extraireFacteursMfa(facteursResultat.data)
       );
+
+      try {
+        const appareilsCharges =
+          await listerAppareilsConfiance();
+
+        setAppareils(appareilsCharges);
+      } catch {
+        setAppareils([]);
+      }
     } catch (error) {
       setErreur(messageErreurMfa(error));
     } finally {
@@ -286,9 +303,18 @@ export default function GestionMfaApplication({
 
       setInscription(null);
       setCode("");
-      setMessage(
-        "La double authentification gratuite par application est maintenant active."
-      );
+
+      try {
+        await enregistrerAppareilConfiance();
+
+        setMessage(
+          "La double authentification est active et ce navigateur est reconnu pendant 90 jours."
+        );
+      } catch {
+        setMessage(
+          "La double authentification est active. L’appareil pourra être reconnu lors de la prochaine connexion."
+        );
+      }
 
       await charger();
     } catch (error) {
@@ -357,6 +383,49 @@ export default function GestionMfaApplication({
       await charger();
     } catch (error) {
       setErreur(messageErreurMfa(error));
+    } finally {
+      setAction("");
+    }
+  }
+
+  async function supprimerAppareilConfiance(
+    appareil: AppareilConfiance
+  ) {
+    const confirmation = window.confirm(
+      appareil.appareil_actuel
+        ? "Ne plus faire confiance à cet appareil ? Le code sera demandé lors de la prochaine connexion."
+        : `Révoquer « ${appareil.nom_appareil} » ?`
+    );
+
+    if (!confirmation) return;
+
+    try {
+      setAction(
+        `appareil-${appareil.id}`
+      );
+      setErreur("");
+      setMessage("");
+
+      await revoquerAppareilConfiance(
+        appareil.id
+      );
+
+      setAppareils((anciens) =>
+        anciens.filter(
+          (element) =>
+            element.id !== appareil.id
+        )
+      );
+
+      setMessage(
+        "L’appareil a été révoqué. Le code sera demandé lors de sa prochaine connexion."
+      );
+    } catch (error) {
+      setErreur(
+        error instanceof Error
+          ? error.message
+          : "Impossible de révoquer cet appareil."
+      );
     } finally {
       setAction("");
     }
@@ -611,16 +680,16 @@ export default function GestionMfaApplication({
         <aside className="space-y-4">
           <div className="rounded-3xl border border-blue-200 bg-blue-50 p-5">
             <h2 className="font-black text-blue-950">
-              Appareil reconnu
+              Appareil de confiance
             </h2>
             <p className="mt-2 text-sm leading-6 text-blue-800">
-              Sur ce navigateur, le code ne sera pas redemandé
-              tant que la session reste ouverte.
+              Après validation du code, ce navigateur peut être
+              reconnu pendant 90 jours.
             </p>
             <p className="mt-2 text-xs leading-5 text-blue-700">
-              Il sera demandé sur un nouvel appareil ou navigateur,
-              après une déconnexion, en navigation privée ou après
-              suppression des données du navigateur.
+              Une déconnexion normale ne supprime pas cette confiance.
+              Le code restera obligatoire sur un nouveau navigateur,
+              en navigation privée ou après suppression des cookies.
             </p>
           </div>
 
@@ -648,6 +717,72 @@ export default function GestionMfaApplication({
             </dl>
           </div>
         </aside>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5 sm:p-6">
+          <h2 className="text-lg font-black text-slate-950">
+            Appareils de confiance
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Ces navigateurs peuvent se reconnecter sans nouveau code
+            pendant 90 jours. Vous pouvez les révoquer à tout moment.
+          </p>
+        </div>
+
+        <div className="space-y-3 p-5 sm:p-6">
+          {appareils.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+              Aucun appareil de confiance n’est actuellement enregistré.
+            </div>
+          ) : (
+            appareils.map((appareil) => (
+              <div
+                key={appareil.id}
+                className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-bold text-slate-950">
+                      {appareil.nom_appareil}
+                    </p>
+                    {appareil.appareil_actuel ? (
+                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                        Cet appareil
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Dernière utilisation :{" "}
+                    {formaterDate(
+                      appareil.derniere_utilisation_at
+                    )}
+                  </p>
+                  <p className="text-xs leading-5 text-slate-500">
+                    Confiance valable jusqu’au{" "}
+                    {formaterDate(appareil.expire_at)}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void supprimerAppareilConfiance(
+                      appareil
+                    )
+                  }
+                  disabled={Boolean(action)}
+                  className="shrink-0 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {action ===
+                  `appareil-${appareil.id}`
+                    ? "Révocation…"
+                    : "Révoquer"}
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </section>
 
       {anciensFacteursTelephone.length > 0 ? (

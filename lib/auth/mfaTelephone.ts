@@ -1,4 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
+import {
+  verifierAppareilConfiance,
+} from "@/lib/auth/appareilConfianceClient";
 
 export type TypeFacteurMfa = "phone" | "totp";
 
@@ -30,7 +33,9 @@ function typeFacteur(
     .toLowerCase();
 
   if (type === "totp") return "totp";
-  if (type === "phone" || facteur.phone) return "phone";
+  if (type === "phone" || facteur.phone) {
+    return "phone";
+  }
 
   return null;
 }
@@ -38,7 +43,9 @@ function typeFacteur(
 export function obtenirTypeFacteurMfa(
   facteur: FacteurMfaArboboard | null
 ) {
-  return facteur ? typeFacteur(facteur) : null;
+  return facteur
+    ? typeFacteur(facteur)
+    : null;
 }
 
 export function extraireFacteursMfa(
@@ -59,15 +66,23 @@ export function extraireFacteursMfa(
     ...(resultat?.phone || []),
   ];
 
-  const uniques = new Map<string, FacteurMfaArboboard>();
+  const uniques = new Map<
+    string,
+    FacteurMfaArboboard
+  >();
 
   for (const facteur of tous) {
     if (facteur?.id) {
-      uniques.set(facteur.id, facteur);
+      uniques.set(
+        facteur.id,
+        facteur
+      );
     }
   }
 
-  return Array.from(uniques.values());
+  return Array.from(
+    uniques.values()
+  );
 }
 
 export function choisirFacteurMfaConnexion(
@@ -102,6 +117,18 @@ export async function preparerMfaApresConnexion(): Promise<EtapeMfaPreparee> {
     };
   }
 
+  const appareilReconnu =
+    await verifierAppareilConfiance();
+
+  if (appareilReconnu) {
+    return {
+      necessaire: false,
+      facteur: null,
+      typeFacteur: null,
+      challengeId: null,
+    };
+  }
+
   const { data: facteursData, error: facteursError } =
     await supabase.auth.mfa.listFactors();
 
@@ -109,15 +136,23 @@ export async function preparerMfaApresConnexion(): Promise<EtapeMfaPreparee> {
     throw facteursError;
   }
 
-  const facteurs = extraireFacteursMfa(facteursData);
-  const facteur = choisirFacteurMfaConnexion(facteurs);
+  const facteurs =
+    extraireFacteursMfa(
+      facteursData
+    );
+
+  const facteur =
+    choisirFacteurMfaConnexion(
+      facteurs
+    );
 
   if (!facteur) {
-    const ancienTelephoneVerifie = facteurs.some(
-      (element) =>
-        element.status === "verified" &&
-        typeFacteur(element) === "phone"
-    );
+    const ancienTelephoneVerifie =
+      facteurs.some(
+        (element) =>
+          element.status === "verified" &&
+          typeFacteur(element) === "phone"
+      );
 
     if (ancienTelephoneVerifie) {
       throw new Error(
@@ -152,7 +187,9 @@ export async function verifierCodeMfa(params: {
   challengeId: string;
   code: string;
 }) {
-  const code = params.code.replace(/\D/g, "").slice(0, 8);
+  const code = params.code
+    .replace(/\D/g, "")
+    .slice(0, 8);
 
   if (code.length < 6) {
     throw new Error(
@@ -160,11 +197,12 @@ export async function verifierCodeMfa(params: {
     );
   }
 
-  const { error } = await supabase.auth.mfa.verify({
-    factorId: params.facteurId,
-    challengeId: params.challengeId,
-    code,
-  });
+  const { error } =
+    await supabase.auth.mfa.verify({
+      factorId: params.facteurId,
+      challengeId: params.challengeId,
+      code,
+    });
 
   if (error) {
     throw error;
@@ -173,16 +211,18 @@ export async function verifierCodeMfa(params: {
 
 /**
  * Compatibilité temporaire avec les anciens imports téléphone.
- * Les nouveaux écrans Arboboard n'utilisent plus ces fonctions.
  */
-export function normaliserNumeroTelephone(valeur: string) {
+export function normaliserNumeroTelephone(
+  valeur: string
+) {
   return valeur.trim();
 }
 
 export function masquerNumeroTelephone(
   valeur: string | null | undefined
 ) {
-  const numero = String(valeur || "").trim();
+  const numero =
+    String(valeur || "").trim();
 
   if (!numero) return "numéro masqué";
   if (numero.length <= 5) return numero;
@@ -193,9 +233,10 @@ export function masquerNumeroTelephone(
 export async function renvoyerCodeMfa(
   facteurId: string
 ) {
-  const { data, error } = await supabase.auth.mfa.challenge({
-    factorId: facteurId,
-  });
+  const { data, error } =
+    await supabase.auth.mfa.challenge({
+      factorId: facteurId,
+    });
 
   if (error) {
     throw error;
@@ -204,7 +245,9 @@ export async function renvoyerCodeMfa(
   return data.id;
 }
 
-export function messageErreurMfa(error: unknown) {
+export function messageErreurMfa(
+  error: unknown
+) {
   if (
     error &&
     typeof error === "object" &&
@@ -212,14 +255,17 @@ export function messageErreurMfa(error: unknown) {
     typeof error.message === "string"
   ) {
     const message = error.message;
-    const normalisee = message.toLowerCase();
+    const normalisee =
+      message.toLowerCase();
 
     if (
       normalisee.includes("invalid") &&
-      (normalisee.includes("code") ||
+      (
+        normalisee.includes("code") ||
         normalisee.includes("challenge") ||
         normalisee.includes("verification") ||
-        normalisee.includes("totp"))
+        normalisee.includes("totp")
+      )
     ) {
       return "Le code est incorrect ou a expiré. Attendez le prochain code affiché dans l'application puis recommencez.";
     }
@@ -238,7 +284,9 @@ export function messageErreurMfa(error: unknown) {
       return "Validez d'abord votre code de sécurité avant de modifier la double authentification.";
     }
 
-    if (normalisee.includes("rate limit")) {
+    if (
+      normalisee.includes("rate limit")
+    ) {
       return "Trop de tentatives ont été effectuées. Patientez quelques instants avant de recommencer.";
     }
 

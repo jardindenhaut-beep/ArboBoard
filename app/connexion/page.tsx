@@ -10,6 +10,9 @@ import {
   preparerMfaApresConnexion,
   verifierCodeMfa,
 } from "@/lib/auth/mfaTelephone";
+import {
+  enregistrerAppareilConfiance,
+} from "@/lib/auth/appareilConfianceClient";
 
 type ProfilUtilisateur = {
   id: string;
@@ -31,6 +34,10 @@ export default function ConnexionChefPage() {
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [codeMfa, setCodeMfa] = useState("");
+  const [
+    faireConfianceAppareil,
+    setFaireConfianceAppareil,
+  ] = useState(true);
 
   const [etape, setEtape] =
     useState<EtapeConnexion>("identifiants");
@@ -243,6 +250,17 @@ export default function ConnexionChefPage() {
         code: codeMfa,
       });
 
+      if (faireConfianceAppareil) {
+        try {
+          await enregistrerAppareilConfiance();
+        } catch (erreurAppareil) {
+          console.error(
+            "Impossible d'enregistrer l'appareil de confiance :",
+            erreurAppareil
+          );
+        }
+      }
+
       await terminerConnexion(
         utilisateurId,
         undefined,
@@ -381,11 +399,29 @@ export default function ConnexionChefPage() {
                 />
               </label>
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
-                Cet appareil restera connecté tant que vous ne
-                vous déconnectez pas et que les données du
-                navigateur ne sont pas supprimées.
-              </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={faireConfianceAppareil}
+                  onChange={(event) =>
+                    setFaireConfianceAppareil(
+                      event.target.checked
+                    )
+                  }
+                  className="mt-1 h-4 w-4 rounded border-blue-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  <span className="block text-sm font-bold text-blue-950">
+                    Faire confiance à cet appareil pendant 90 jours
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-blue-800">
+                    Le code ne sera plus demandé sur ce navigateur,
+                    même après une déconnexion normale. Il restera
+                    obligatoire sur un nouvel appareil ou après
+                    suppression des cookies.
+                  </span>
+                </span>
+              </label>
 
               <button
                 type="button"

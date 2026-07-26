@@ -8,6 +8,15 @@ export const TYPES_DOCUMENTS_JURIDIQUES = [
 export type TypeDocumentJuridique =
   (typeof TYPES_DOCUMENTS_JURIDIQUES)[number];
 
+export const TYPES_DOCUMENTS_AVEC_ACCEPTATION = [
+  "politique_confidentialite",
+  "cgu",
+  "cgv",
+] as const;
+
+export type TypeDocumentAvecAcceptation =
+  (typeof TYPES_DOCUMENTS_AVEC_ACCEPTATION)[number];
+
 export type DocumentJuridiquePlateforme = {
   id: string;
   type_document: TypeDocumentJuridique;
@@ -31,6 +40,24 @@ export type DocumentJuridiquePublie = {
   version: string;
   publie_at: string;
 };
+
+export type StatutAcceptationJuridique = {
+  acceptation_requise: boolean;
+  portee_acceptation: "aucune" | "utilisateur" | "entreprise";
+  utilisateurs_concernes: number;
+  utilisateurs_a_jour: number;
+  utilisateurs_a_mettre_a_jour: number;
+  entreprise_a_jour: boolean | null;
+};
+
+export type StatutDocumentJuridiquePublic =
+  StatutAcceptationJuridique & {
+    type_document: TypeDocumentJuridique;
+    titre?: string | null;
+    version?: string | null;
+    publie_at?: string | null;
+    publie: boolean;
+  };
 
 export const INFORMATIONS_DOCUMENTS_JURIDIQUES: Record<
   TypeDocumentJuridique,
@@ -73,6 +100,17 @@ export function estTypeDocumentJuridique(
     typeof valeur === "string" &&
     TYPES_DOCUMENTS_JURIDIQUES.includes(
       valeur as TypeDocumentJuridique
+    )
+  );
+}
+
+export function estTypeDocumentAvecAcceptation(
+  valeur: unknown
+): valeur is TypeDocumentAvecAcceptation {
+  return (
+    typeof valeur === "string" &&
+    TYPES_DOCUMENTS_AVEC_ACCEPTATION.includes(
+      valeur as TypeDocumentAvecAcceptation
     )
   );
 }

@@ -62,10 +62,21 @@ type StatutDocumentJuridique = {
   version?: string | null;
   publie_at?: string | null;
   publie: boolean;
+  acceptation_requise?: boolean;
+  portee_acceptation?: "aucune" | "utilisateur" | "entreprise";
+  utilisateurs_concernes?: number;
+  utilisateurs_a_jour?: number;
+  utilisateurs_a_mettre_a_jour?: number;
+  entreprise_a_jour?: boolean | null;
 };
 
 type ReponseStatutsDocuments = {
   documents?: StatutDocumentJuridique[];
+  synthese_acceptations?: {
+    utilisateurs_actifs?: number;
+    utilisateurs_a_mettre_a_jour?: number;
+    cgv_entreprise_a_jour?: boolean | null;
+  };
   erreur?: string;
 };
 
@@ -325,6 +336,11 @@ export default function SecuriteChefPage() {
   const [statutsDocuments, setStatutsDocuments] = useState<
     StatutDocumentJuridique[]
   >([]);
+  const [utilisateursActifs, setUtilisateursActifs] = useState(0);
+  const [utilisateursAMettreAJour, setUtilisateursAMettreAJour] =
+    useState(0);
+  const [cgvEntrepriseAJour, setCgvEntrepriseAJour] =
+    useState<boolean | null>(null);
   const [chargementConformite, setChargementConformite] =
     useState(true);
   const [erreurConformite, setErreurConformite] = useState("");
@@ -396,6 +412,37 @@ export default function SecuriteChefPage() {
         document.publie_at
       );
 
+      const detailsAcceptation: string[] = [];
+
+      if (
+        document.acceptation_requise &&
+        document.portee_acceptation === "utilisateur"
+      ) {
+        const concernes = document.utilisateurs_concernes || 0;
+        const aJour = document.utilisateurs_a_jour || 0;
+        const restant = document.utilisateurs_a_mettre_a_jour || 0;
+
+        detailsAcceptation.push(
+          `${aJour}/${concernes} utilisateur(s) ont accepté cette version.`
+        );
+        detailsAcceptation.push(
+          restant > 0
+            ? `${restant} utilisateur(s) doivent accepter la version actuelle.`
+            : "Tous les utilisateurs actifs sont à jour."
+        );
+      }
+
+      if (
+        document.acceptation_requise &&
+        document.portee_acceptation === "entreprise"
+      ) {
+        detailsAcceptation.push(
+          document.entreprise_a_jour
+            ? "La version actuelle des CGV a été acceptée par l’entreprise."
+            : "La version actuelle des CGV doit être acceptée avant une nouvelle souscription."
+        );
+      }
+
       return {
         ...bloc,
         statut: "Publié" as StatutConformite,
@@ -404,6 +451,7 @@ export default function SecuriteChefPage() {
           datePublication
             ? `Dernière publication : ${datePublication}.`
             : "Document disponible publiquement.",
+          ...detailsAcceptation,
           "Le document est maintenu par l’éditeur Arboboard.",
         ],
       };
@@ -501,6 +549,15 @@ export default function SecuriteChefPage() {
       }
 
       setStatutsDocuments(donnees.documents || []);
+      setUtilisateursActifs(
+        donnees.synthese_acceptations?.utilisateurs_actifs || 0
+      );
+      setUtilisateursAMettreAJour(
+        donnees.synthese_acceptations?.utilisateurs_a_mettre_a_jour || 0
+      );
+      setCgvEntrepriseAJour(
+        donnees.synthese_acceptations?.cgv_entreprise_a_jour ?? null
+      );
     } catch (error) {
       setErreurConformite(
         error instanceof Error
@@ -750,7 +807,7 @@ export default function SecuriteChefPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
             Conformité suivie
@@ -778,6 +835,45 @@ export default function SecuriteChefPage() {
 
           <p className="mt-1 text-xs text-violet-700">
             Documents actuellement publiés
+          </p>
+        </div>
+
+        <div
+          className={`rounded-3xl border p-5 shadow-sm ${
+            utilisateursAMettreAJour > 0 || cgvEntrepriseAJour === false
+              ? "border-amber-200 bg-amber-50"
+              : "border-emerald-200 bg-emerald-50"
+          }`}
+        >
+          <p
+            className={`text-xs font-semibold uppercase tracking-wide ${
+              utilisateursAMettreAJour > 0 || cgvEntrepriseAJour === false
+                ? "text-amber-600"
+                : "text-emerald-600"
+            }`}
+          >
+            Acceptations à mettre à jour
+          </p>
+
+          <p
+            className={`mt-2 text-2xl font-black ${
+              utilisateursAMettreAJour > 0 || cgvEntrepriseAJour === false
+                ? "text-amber-950"
+                : "text-emerald-950"
+            }`}
+          >
+            {utilisateursAMettreAJour}
+          </p>
+
+          <p
+            className={`mt-1 text-xs ${
+              utilisateursAMettreAJour > 0 || cgvEntrepriseAJour === false
+                ? "text-amber-700"
+                : "text-emerald-700"
+            }`}
+          >
+            {utilisateursActifs} utilisateur(s) actif(s)
+            {cgvEntrepriseAJour === false ? " · CGV entreprise à accepter" : ""}
           </p>
         </div>
 

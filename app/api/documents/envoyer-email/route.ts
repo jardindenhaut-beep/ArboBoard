@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
+  entetesLimiteRequetes,
+  obtenirAdresseIp,
+  verifierLimiteRequetes,
+} from "@/lib/securite/limiteurRequetes";
+
+import {
   genererPdfDocument,
   type TypeDocumentPdf,
 } from "@/lib/documents/genererPdfDocument";
@@ -469,6 +475,28 @@ async function envoyerAvecResend(params: {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = obtenirAdresseIp(request);
+
+  const limiteIp = verifierLimiteRequetes({
+    cle: `email-document:ip:${ip}`,
+    limite: 40,
+    fenetreMs: 15 * 60 * 1000,
+  });
+
+  if (!limiteIp.autorise) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "Trop de tentatives d’envoi de documents. Réessaie dans quelques minutes.",
+      },
+      {
+        status: 429,
+        headers: entetesLimiteRequetes(limiteIp),
+      }
+    );
+  }
+
   const supabaseAdmin = creerSupabaseAdmin();
 
   let historiqueBase: {
@@ -507,6 +535,30 @@ export async function POST(request: NextRequest) {
           error: "Utilisateur non connecté.",
         },
         { status: 401 }
+      );
+    }
+
+    const limiteUtilisateur =
+      verifierLimiteRequetes({
+        cle: `email-document:user:${user.id}`,
+        limite: 25,
+        fenetreMs: 60 * 60 * 1000,
+      });
+
+    if (!limiteUtilisateur.autorise) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "La limite horaire d’envoi de documents est atteinte. Réessaie plus tard.",
+        },
+        {
+          status: 429,
+          headers:
+            entetesLimiteRequetes(
+              limiteUtilisateur
+            ),
+        }
       );
     }
 

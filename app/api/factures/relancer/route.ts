@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  entetesLimiteRequetes,
+  obtenirAdresseIp,
+  verifierLimiteRequetes,
+} from "@/lib/securite/limiteurRequetes";
+
 import { genererPdfDocument } from "@/lib/documents/genererPdfDocument";
 
 export const runtime = "nodejs";
@@ -248,6 +254,28 @@ async function envoyerAvecResend(params: {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = obtenirAdresseIp(request);
+
+  const limiteIp = verifierLimiteRequetes({
+    cle: `relance-facture:ip:${ip}`,
+    limite: 30,
+    fenetreMs: 15 * 60 * 1000,
+  });
+
+  if (!limiteIp.autorise) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "Trop de tentatives de relance. Réessaie dans quelques minutes.",
+      },
+      {
+        status: 429,
+        headers: entetesLimiteRequetes(limiteIp),
+      }
+    );
+  }
+
   const supabaseAdmin = creerSupabaseAdmin();
 
   try {
@@ -276,6 +304,30 @@ export async function POST(request: NextRequest) {
           error: "Utilisateur non connecté.",
         },
         { status: 401 }
+      );
+    }
+
+    const limiteUtilisateur =
+      verifierLimiteRequetes({
+        cle: `relance-facture:user:${user.id}`,
+        limite: 20,
+        fenetreMs: 60 * 60 * 1000,
+      });
+
+    if (!limiteUtilisateur.autorise) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "La limite horaire de relances est atteinte. Réessaie plus tard.",
+        },
+        {
+          status: 429,
+          headers:
+            entetesLimiteRequetes(
+              limiteUtilisateur
+            ),
+        }
       );
     }
 

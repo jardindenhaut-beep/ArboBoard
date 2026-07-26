@@ -13,6 +13,12 @@ import {
   Resend,
 } from "resend";
 import {
+  entetesLimiteRequetes,
+  obtenirAdresseIp,
+  verifierLimiteRequetes,
+} from "@/lib/securite/limiteurRequetes";
+
+import {
   chargerParametresEntrepriseDocument,
 } from "@/lib/documents/chargerParametresEntreprise";
 import {
@@ -665,6 +671,36 @@ async function ajouterUrlSigneePhoto({
 export async function POST(
   request: NextRequest
 ) {
+  const ip =
+    obtenirAdresseIp(request);
+
+  const limiteIp =
+    verifierLimiteRequetes({
+      cle: `email-pv:ip:${ip}`,
+      limite: 30,
+      fenetreMs:
+        15 * 60 * 1000,
+    });
+
+  if (!limiteIp.autorise) {
+    return NextResponse.json(
+      {
+        succes: false,
+        error:
+          "Trop de tentatives d’envoi de PV. Réessaie dans quelques minutes.",
+        erreur:
+          "Trop de tentatives d’envoi de PV. Réessaie dans quelques minutes.",
+      },
+      {
+        status: 429,
+        headers:
+          entetesLimiteRequetes(
+            limiteIp
+          ),
+      }
+    );
+  }
+
   const supabaseUrl =
     process.env
       .NEXT_PUBLIC_SUPABASE_URL;
@@ -778,6 +814,35 @@ export async function POST(
     return reponseErreur(
       "Session invalide. Veuillez vous reconnecter.",
       401
+    );
+  }
+
+  const limiteUtilisateur =
+    verifierLimiteRequetes({
+      cle: `email-pv:user:${user.id}`,
+      limite: 15,
+      fenetreMs:
+        60 * 60 * 1000,
+    });
+
+  if (
+    !limiteUtilisateur.autorise
+  ) {
+    return NextResponse.json(
+      {
+        succes: false,
+        error:
+          "La limite horaire d’envoi de PV est atteinte. Réessaie plus tard.",
+        erreur:
+          "La limite horaire d’envoi de PV est atteinte. Réessaie plus tard.",
+      },
+      {
+        status: 429,
+        headers:
+          entetesLimiteRequetes(
+            limiteUtilisateur
+          ),
+      }
     );
   }
 

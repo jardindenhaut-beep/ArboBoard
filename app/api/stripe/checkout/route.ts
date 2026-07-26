@@ -82,34 +82,18 @@ async function lireCorpsCheckout(request: Request) {
   };
 }
 
-export async function GET(request: Request) {
-  try {
-    return NextResponse.json({
+export async function GET() {
+  return NextResponse.json(
+    {
       success: true,
       message: "API Stripe Checkout active.",
-      hasStripeKey: Boolean(
-        process.env.STRIPE_SECRET_KEY
-      ),
-      hasSupabaseUrl: Boolean(
-        process.env.NEXT_PUBLIC_SUPABASE_URL
-      ),
-      hasServiceRole: Boolean(
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-      ),
-      siteUrl: obtenirUrlSite(request),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Configuration de l’URL du site invalide.",
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store",
       },
-      { status: 500 }
-    );
-  }
+    }
+  );
 }
 
 export async function POST(request: Request) {
@@ -148,27 +132,37 @@ export async function POST(request: Request) {
       !serviceRoleKey ||
       !stripeSecretKey
     ) {
+      console.error(
+        "Configuration Stripe Checkout incomplète.",
+        {
+          hasSupabaseUrl: Boolean(supabaseUrl),
+          hasServiceRoleKey: Boolean(
+            serviceRoleKey
+          ),
+          hasStripeSecretKey: Boolean(
+            stripeSecretKey
+          ),
+        }
+      );
+
       return NextResponse.json(
         {
           error:
-            "Configuration manquante. Vérifie NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY et STRIPE_SECRET_KEY dans .env.local.",
-          debug: {
-            hasSupabaseUrl: Boolean(supabaseUrl),
-            hasServiceRoleKey: Boolean(serviceRoleKey),
-            hasStripeSecretKey: Boolean(
-              stripeSecretKey
-            ),
-          },
+            "Le service de paiement est temporairement indisponible.",
         },
         { status: 500 }
       );
     }
 
     if (stripeSecretKey.includes("A_REMPLACER")) {
+      console.error(
+        "STRIPE_SECRET_KEY n’est pas configurée."
+      );
+
       return NextResponse.json(
         {
           error:
-            "Clé Stripe non configurée. Remplace STRIPE_SECRET_KEY dans .env.local.",
+            "Le service de paiement est temporairement indisponible.",
         },
         { status: 500 }
       );
@@ -255,10 +249,14 @@ export async function POST(request: Request) {
     } = await supabaseAdmin.auth.getUser(token);
 
     if (erreurUser || !user) {
+      console.error(
+        "Échec de validation de session Stripe Checkout :",
+        erreurUser
+      );
+
       return NextResponse.json(
         {
           error: "Session invalide. Reconnecte-toi.",
-          detail: erreurUser?.message,
         },
         { status: 401 }
       );
@@ -295,10 +293,14 @@ export async function POST(request: Request) {
         .maybeSingle();
 
     if (erreurProfil || !profil) {
+      console.error(
+        "Profil Stripe Checkout introuvable :",
+        erreurProfil
+      );
+
       return NextResponse.json(
         {
           error: "Profil utilisateur introuvable.",
-          detail: erreurProfil?.message,
         },
         { status: 403 }
       );
@@ -336,10 +338,14 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (erreurEntreprise || !entreprise) {
+      console.error(
+        "Entreprise Stripe Checkout introuvable :",
+        erreurEntreprise
+      );
+
       return NextResponse.json(
         {
           error: "Entreprise introuvable.",
-          detail: erreurEntreprise?.message,
         },
         { status: 404 }
       );
@@ -356,11 +362,17 @@ export async function POST(request: Request) {
         .maybeSingle();
 
     if (erreurPlan || !plan) {
+      console.error(
+        "Plan Stripe Checkout introuvable :",
+        {
+          planCode,
+          erreur: erreurPlan,
+        }
+      );
+
       return NextResponse.json(
         {
           error: "Plan introuvable.",
-          detail: erreurPlan?.message,
-          planCode,
         },
         { status: 404 }
       );
@@ -405,11 +417,15 @@ export async function POST(request: Request) {
       !cgvPubliees?.version_publie ||
       !cgvPubliees?.titre_publie
     ) {
+      console.error(
+        "CGV publiées indisponibles pour Stripe Checkout :",
+        erreurCgv
+      );
+
       return NextResponse.json(
         {
           error:
             "Les Conditions générales de vente publiées sont indisponibles.",
-          detail: erreurCgv?.message,
         },
         { status: 503 }
       );
@@ -450,12 +466,15 @@ export async function POST(request: Request) {
         .eq("id", entreprise.id);
 
       if (erreurEnregistrementCustomer) {
+        console.error(
+          "Enregistrement du client Stripe impossible :",
+          erreurEnregistrementCustomer
+        );
+
         return NextResponse.json(
           {
             error:
-              "Le client Stripe a été créé, mais son identifiant n’a pas pu être enregistré.",
-            detail:
-              erreurEnregistrementCustomer.message,
+              "Le service de paiement est temporairement indisponible.",
           },
           { status: 500 }
         );
@@ -491,12 +510,15 @@ export async function POST(request: Request) {
       });
 
     if (erreurAcceptationCgv) {
+      console.error(
+        "Enregistrement de l’acceptation des CGV impossible :",
+        erreurAcceptationCgv
+      );
+
       return NextResponse.json(
         {
           error:
             "L’acceptation des CGV n’a pas pu être enregistrée.",
-          detail:
-            erreurAcceptationCgv.message,
         },
         { status: 500 }
       );
@@ -540,12 +562,15 @@ export async function POST(request: Request) {
       .eq("id", entreprise.id);
 
     if (erreurEnregistrementSession) {
+      console.error(
+        "Enregistrement de la session Stripe impossible :",
+        erreurEnregistrementSession
+      );
+
       return NextResponse.json(
         {
           error:
-            "La session Stripe a été créée, mais elle n’a pas pu être enregistrée.",
-          detail:
-            erreurEnregistrementSession.message,
+            "La session de paiement n’a pas pu être finalisée.",
         },
         { status: 500 }
       );
@@ -554,15 +579,17 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       url: session.url,
-      sessionId: session.id,
     });
   } catch (error) {
+    console.error(
+      "Erreur Stripe Checkout :",
+      error
+    );
+
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Erreur inconnue lors de la création du paiement Stripe.",
+          "Impossible de créer la session de paiement pour le moment.",
       },
       { status: 500 }
     );

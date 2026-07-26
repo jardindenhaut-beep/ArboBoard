@@ -44,7 +44,10 @@ export async function POST(request: NextRequest) {
       : "";
 
     if (!token) {
-      return reponseErreur("Session expirée. Veuillez vous reconnecter.", 401);
+      return reponseErreur(
+        "Session expirée. Veuillez vous reconnecter.",
+        401
+      );
     }
 
     const body = await request.json().catch(() => null);
@@ -60,7 +63,10 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.auth.getUser(token);
 
     if (userError || !userData?.user?.id) {
-      return reponseErreur("Session invalide. Veuillez vous reconnecter.", 401);
+      return reponseErreur(
+        "Session invalide. Veuillez vous reconnecter.",
+        401
+      );
     }
 
     const { data: profil, error: profilError } = await supabaseAdmin
@@ -71,38 +77,57 @@ export async function POST(request: NextRequest) {
 
     if (profilError) {
       console.error("Erreur profil :", profilError);
-      return reponseErreur("Impossible de vérifier votre profil.", 500);
+
+      return reponseErreur(
+        "Impossible de vérifier votre profil.",
+        500
+      );
     }
 
     if (!profil?.entreprise_id) {
-      return reponseErreur("Entreprise introuvable pour ce compte.", 403);
+      return reponseErreur(
+        "Entreprise introuvable pour ce compte.",
+        403
+      );
     }
 
-    if (profil.role !== "chef" || profil.statut !== "actif") {
+    if (
+      profil.role !== "chef" ||
+      profil.statut !== "actif"
+    ) {
       return reponseErreur("Accès refusé.", 403);
     }
 
-    const { data: resultat, error: rpcError } = await supabaseAdmin.rpc(
-      "transformer_devis_en_facture",
-      {
-        p_entreprise_id: profil.entreprise_id,
-        p_devis_id: devisId,
-      }
-    );
+    const { data: resultat, error: rpcError } =
+      await supabaseAdmin.rpc(
+        "transformer_devis_en_facture",
+        {
+          p_entreprise_id: profil.entreprise_id,
+          p_devis_id: devisId,
+        }
+      );
 
     if (rpcError) {
-      console.error("Erreur transformation devis en facture :", rpcError);
+      console.error(
+        "Erreur transformation devis en facture :",
+        rpcError
+      );
 
       return reponseErreur(
-        rpcError.message || "Impossible de transformer le devis en facture.",
+        "Impossible de transformer le devis en facture.",
         400
       );
     }
 
-    const factureCreee = Array.isArray(resultat) ? resultat[0] : resultat;
+    const factureCreee = Array.isArray(resultat)
+      ? resultat[0]
+      : resultat;
 
     if (!factureCreee?.facture_id) {
-      return reponseErreur("La facture n’a pas pu être créée.", 500);
+      return reponseErreur(
+        "La facture n’a pas pu être créée.",
+        500
+      );
     }
 
     return NextResponse.json({
@@ -111,11 +136,14 @@ export async function POST(request: NextRequest) {
       numero: factureCreee.numero,
       message: `Facture ${factureCreee.numero || ""} créée avec succès.`,
     });
-  } catch (error: any) {
-    console.error("Erreur API transformer devis en facture :", error);
+  } catch (error) {
+    console.error(
+      "Erreur API transformer devis en facture :",
+      error
+    );
 
     return reponseErreur(
-      error?.message || "Erreur serveur lors de la transformation.",
+      "Erreur serveur lors de la transformation.",
       500
     );
   }

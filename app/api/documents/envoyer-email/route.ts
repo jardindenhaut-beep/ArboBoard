@@ -564,7 +564,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, role, statut, entreprise_id, email, nom, prenom")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -647,7 +647,7 @@ export async function POST(request: NextRequest) {
 
     const { data: entreprise, error: entrepriseError } = await supabaseAdmin
       .from("entreprises_abonnees")
-      .select("*")
+      .select("id, nom_entreprise, nom, raison_sociale, forme_juridique, adresse, code_postal, ville, telephone, email, email_contact, siret, numero_tva, numero_tva_intracommunautaire, logo_url, assurance_professionnelle, mentions_legales, conditions_generales_devis, conditions_generales_factures")
       .eq("id", entrepriseId)
       .maybeSingle();
 
@@ -665,7 +665,7 @@ export async function POST(request: NextRequest) {
 
     const { data: parametresData } = await supabaseAdmin
       .from("entreprise_parametres")
-      .select("*")
+      .select("email_objet_devis, email_message_devis, email_objet_facture, email_message_facture, email_copie_entreprise, email_copie_adresse, design_couleur_principale, design_couleur_secondaire, design_modele_document, design_lignes_compactes, design_disposition_entete, design_style_tableau, design_taille_logo, design_position_logo, design_afficher_adresse, design_afficher_contact, design_afficher_siret, design_afficher_tva, design_afficher_assurance, design_position_totaux, design_pied_page")
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
 
@@ -679,7 +679,7 @@ export async function POST(request: NextRequest) {
     if (typeDemande === "devis") {
       const { data, error } = await supabaseAdmin
         .from("devis")
-        .select("*")
+        .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_devis, date_validite, statut, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc")
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
@@ -700,7 +700,7 @@ export async function POST(request: NextRequest) {
 
       const { data: lignesData, error: lignesError } = await supabaseAdmin
         .from("devis_lignes")
-        .select("*")
+        .select("id, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, total_ttc, ordre")
         .eq("devis_id", documentId)
         .eq("entreprise_id", entrepriseId)
         .order("ordre", { ascending: true });
@@ -712,7 +712,7 @@ export async function POST(request: NextRequest) {
     } else {
       const { data, error } = await supabaseAdmin
         .from("factures")
-        .select("*")
+        .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_facture, date_echeance, statut, type_facture, est_avoir, facture_origine_id, motif_avoir, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc, montant_paye, reste_a_payer")
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
@@ -738,7 +738,7 @@ export async function POST(request: NextRequest) {
 
       const { data: lignesData, error: lignesError } = await supabaseAdmin
         .from("factures_lignes")
-        .select("*")
+        .select("id, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, total_ttc, ordre")
         .eq("facture_id", documentId)
         .eq("entreprise_id", entrepriseId)
         .order("ordre", { ascending: true });
@@ -766,7 +766,7 @@ export async function POST(request: NextRequest) {
     if (document.client_id) {
       const { data: clientData, error: clientError } = await supabaseAdmin
         .from("clients")
-        .select("*")
+        .select("id, type_client, prenom, nom, entreprise, adresse, code_postal, ville, email, telephone")
         .eq("id", document.client_id)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();

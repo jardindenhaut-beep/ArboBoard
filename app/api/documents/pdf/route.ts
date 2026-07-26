@@ -77,11 +77,16 @@ export async function POST(request: NextRequest) {
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, role, statut, entreprise_id")
       .eq("id", user.id)
       .maybeSingle();
 
     if (profilError || !profil) {
+      console.error(
+        "Profil utilisateur introuvable pour génération PDF :",
+        profilError
+      );
+
       return NextResponse.json(
         {
           success: false,
@@ -145,11 +150,40 @@ export async function POST(request: NextRequest) {
 
     const { data: entreprise, error: entrepriseError } = await supabaseAdmin
       .from("entreprises_abonnees")
-      .select("*")
+      .select(
+        [
+          "id",
+          "nom_entreprise",
+          "nom",
+          "raison_sociale",
+          "forme_juridique",
+          "adresse",
+          "code_postal",
+          "ville",
+          "telephone",
+          "email",
+          "email_contact",
+          "siret",
+          "numero_tva",
+          "numero_tva_intracommunautaire",
+          "logo_url",
+          "assurance_professionnelle",
+          "mentions_legales",
+          "conditions_generales_devis",
+          "conditions_generales_factures",
+        ].join(", ")
+      )
       .eq("id", entrepriseId)
       .maybeSingle();
 
-    if (entrepriseError) throw entrepriseError;
+    if (entrepriseError) {
+      console.error(
+        "Erreur lecture entreprise pour génération PDF :",
+        entrepriseError
+      );
+
+      throw new Error("Impossible de charger les informations de l’entreprise.");
+    }
 
     if (!entreprise) {
       return NextResponse.json(
@@ -161,20 +195,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let document: any = null;
-    let lignes: any[] = [];
+    let document: Record<string, any> | null = null;
+    let lignes: Array<Record<string, any>> = [];
     let typeDocumentFinal: TypeDocumentPdf = typeDemande as TypeDocumentPdf;
-    let factureOrigine: any = null;
+    let factureOrigine: Record<string, any> | null = null;
 
     if (typeDemande === "devis") {
       const { data, error } = await supabaseAdmin
         .from("devis")
-        .select("*")
+        .select(
+          [
+            "id",
+            "entreprise_id",
+            "client_id",
+            "numero",
+            "client_nom",
+            "objet",
+            "description",
+            "date_devis",
+            "date_validite",
+            "statut",
+            "adresse_chantier",
+            "code_postal_chantier",
+            "ville_chantier",
+            "notes_chantier",
+            "conditions",
+            "total_ht",
+            "total_tva",
+            "total_ttc",
+          ].join(", ")
+        )
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erreur lecture devis pour génération PDF :", error);
+        throw new Error("Impossible de charger le devis.");
+      }
 
       if (!data) {
         return NextResponse.json(
@@ -191,23 +249,73 @@ export async function POST(request: NextRequest) {
 
       const { data: lignesData, error: lignesError } = await supabaseAdmin
         .from("devis_lignes")
-        .select("*")
+        .select(
+          [
+            "id",
+            "designation",
+            "description",
+            "quantite",
+            "unite",
+            "prix_unitaire_ht",
+            "tva",
+            "total_ht",
+            "total_ttc",
+            "ordre",
+          ].join(", ")
+        )
         .eq("devis_id", documentId)
         .eq("entreprise_id", entrepriseId)
         .order("ordre", { ascending: true });
 
-      if (lignesError) throw lignesError;
+      if (lignesError) {
+        console.error(
+          "Erreur lecture lignes devis pour génération PDF :",
+          lignesError
+        );
+
+        throw new Error("Impossible de charger les lignes du devis.");
+      }
 
       lignes = lignesData || [];
     } else {
       const { data, error } = await supabaseAdmin
         .from("factures")
-        .select("*")
+        .select(
+          [
+            "id",
+            "entreprise_id",
+            "client_id",
+            "numero",
+            "client_nom",
+            "objet",
+            "description",
+            "date_facture",
+            "date_echeance",
+            "statut",
+            "type_facture",
+            "est_avoir",
+            "facture_origine_id",
+            "motif_avoir",
+            "adresse_chantier",
+            "code_postal_chantier",
+            "ville_chantier",
+            "notes_chantier",
+            "conditions",
+            "total_ht",
+            "total_tva",
+            "total_ttc",
+            "montant_paye",
+            "reste_a_payer",
+          ].join(", ")
+        )
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Erreur lecture facture pour génération PDF :", error);
+        throw new Error("Impossible de charger la facture.");
+      }
 
       if (!data) {
         return NextResponse.json(
@@ -222,7 +330,8 @@ export async function POST(request: NextRequest) {
       document = data;
 
       const estAvoir =
-        !!document.est_avoir || String(document.type_facture || "") === "avoir";
+        Boolean(document.est_avoir) ||
+        String(document.type_facture || "") === "avoir";
 
       typeDocumentFinal = estAvoir ? "avoir" : "facture";
 
@@ -242,12 +351,32 @@ export async function POST(request: NextRequest) {
 
       const { data: lignesData, error: lignesError } = await supabaseAdmin
         .from("factures_lignes")
-        .select("*")
+        .select(
+          [
+            "id",
+            "designation",
+            "description",
+            "quantite",
+            "unite",
+            "prix_unitaire_ht",
+            "tva",
+            "total_ht",
+            "total_ttc",
+            "ordre",
+          ].join(", ")
+        )
         .eq("facture_id", documentId)
         .eq("entreprise_id", entrepriseId)
         .order("ordre", { ascending: true });
 
-      if (lignesError) throw lignesError;
+      if (lignesError) {
+        console.error(
+          "Erreur lecture lignes facture pour génération PDF :",
+          lignesError
+        );
+
+        throw new Error("Impossible de charger les lignes de la facture.");
+      }
 
       lignes = lignesData || [];
 
@@ -259,23 +388,46 @@ export async function POST(request: NextRequest) {
           .eq("entreprise_id", entrepriseId)
           .maybeSingle();
 
-        if (origineError) throw origineError;
+        if (origineError) {
+          console.error(
+            "Erreur lecture facture d’origine pour génération PDF :",
+            origineError
+          );
+
+          throw new Error("Impossible de charger la facture d’origine.");
+        }
 
         factureOrigine = origineData || null;
       }
     }
 
-    let client: any = null;
+    let client: Record<string, any> | null = null;
 
     if (document.client_id) {
       const { data: clientData, error: clientError } = await supabaseAdmin
         .from("clients")
-        .select("*")
+        .select(
+          [
+            "id",
+            "type_client",
+            "prenom",
+            "nom",
+            "entreprise",
+            "adresse",
+            "code_postal",
+            "ville",
+            "email",
+            "telephone",
+          ].join(", ")
+        )
         .eq("id", document.client_id)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
 
-      if (clientError) throw clientError;
+      if (clientError) {
+        console.error("Erreur lecture client pour génération PDF :", clientError);
+        throw new Error("Impossible de charger les informations du client.");
+      }
 
       client = clientData || null;
     }
@@ -301,17 +453,16 @@ export async function POST(request: NextRequest) {
         ),
         "Content-Length": String(pieceJointePdf.buffer.byteLength),
         "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Erreur génération PDF document :", error);
 
     return NextResponse.json(
       {
         success: false,
-        error:
-          error?.message ||
-          "Une erreur est survenue pendant la génération du PDF.",
+        error: "Une erreur est survenue pendant la génération du PDF.",
       },
       { status: 500 }
     );

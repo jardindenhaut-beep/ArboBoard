@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, role, statut, entreprise_id, email, nom, prenom")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -395,7 +395,7 @@ export async function POST(request: NextRequest) {
 
     const { data: entreprise, error: entrepriseError } = await supabaseAdmin
       .from("entreprises_abonnees")
-      .select("*")
+      .select("id, nom_entreprise, nom, raison_sociale, forme_juridique, adresse, code_postal, ville, telephone, email, email_contact, siret, numero_tva, numero_tva_intracommunautaire, logo_url, assurance_professionnelle, mentions_legales, conditions_generales_devis, conditions_generales_factures")
       .eq("id", entrepriseId)
       .maybeSingle();
 
@@ -413,7 +413,7 @@ export async function POST(request: NextRequest) {
 
     const { data: facture, error: factureError } = await supabaseAdmin
       .from("factures")
-      .select("*")
+      .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_facture, date_echeance, statut, type_facture, est_avoir, facture_origine_id, motif_avoir, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc, montant_paye, reste_a_payer")
       .eq("id", factureId)
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
@@ -469,7 +469,7 @@ export async function POST(request: NextRequest) {
     if (facture.client_id) {
       const { data: clientData, error: clientError } = await supabaseAdmin
         .from("clients")
-        .select("*")
+        .select("id, type_client, prenom, nom, entreprise, adresse, code_postal, ville, email, telephone")
         .eq("id", facture.client_id)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
@@ -481,7 +481,7 @@ export async function POST(request: NextRequest) {
 
     const { data: lignesData, error: lignesError } = await supabaseAdmin
       .from("factures_lignes")
-      .select("*")
+      .select("id, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, total_ttc, ordre")
       .eq("facture_id", factureId)
       .eq("entreprise_id", entrepriseId)
       .order("ordre", { ascending: true });

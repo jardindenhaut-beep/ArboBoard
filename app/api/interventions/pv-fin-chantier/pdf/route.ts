@@ -350,7 +350,7 @@ async function chargerPv({
   if (pvIdCible) {
     return supabaseAdmin
       .from("pv_fin_chantier")
-      .select("*")
+      .select("id, entreprise_id, fiche_id, client_email, client_present, chantier_termine, reserves, commentaire_client, commentaire_entreprise, signataire_client_nom, signature_client, signataire_entreprise_nom, signature_entreprise, reserves_client, nom_signataire_client, signature_client_data_url, signe_client_at, nom_signataire_entreprise, signature_entreprise_data_url, signe_entreprise_at, envoye_client_at, envoye_client_email, created_at, updated_at")
       .eq("entreprise_id", entrepriseId)
       .eq("fiche_id", ficheId)
       .eq("id", pvIdCible)
@@ -359,7 +359,7 @@ async function chargerPv({
 
   return supabaseAdmin
     .from("pv_fin_chantier")
-    .select("*")
+    .select("id, entreprise_id, fiche_id, client_email, client_present, chantier_termine, reserves, commentaire_client, commentaire_entreprise, signataire_client_nom, signature_client, signataire_entreprise_nom, signature_entreprise, reserves_client, nom_signataire_client, signature_client_data_url, signe_client_at, nom_signataire_entreprise, signature_entreprise_data_url, signe_entreprise_at, envoye_client_at, envoye_client_email, created_at, updated_at")
     .eq("entreprise_id", entrepriseId)
     .eq("fiche_id", ficheId)
     .order("created_at", { ascending: false })
@@ -481,7 +481,7 @@ export async function POST(request: Request) {
     const { data: ficheDataBrute, error: erreurFiche } =
       await supabaseAdmin
         .from("fiches_intervention")
-        .select("*")
+        .select("id, numero, client_id, client_nom, titre, type_intervention, date_prevue, date_intervention, heure_debut_prevue, heure_fin_prevue, heure_debut_reelle, heure_fin_reelle, adresse_chantier, code_postal_chantier, ville_chantier, adresse, code_postal, ville, notes_chantier, travaux_prevus, materiel_prevu, consignes_securite, salarie_id, pv_fin_chantier_id")
         .eq("id", ficheId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
@@ -566,21 +566,21 @@ export async function POST(request: Request) {
 
         supabaseAdmin
           .from("fiches_intervention_elements")
-          .select("*")
+          .select("id, nom, categorie, icone, quantite_prevue, quantite_reelle, unite, commentaire_chef, commentaire_salarie, ordre")
           .eq("entreprise_id", entrepriseId)
           .eq("fiche_id", ficheId)
           .order("ordre", { ascending: true }),
 
         supabaseAdmin
           .from("fiches_intervention_photos")
-          .select("*")
+          .select("id, categorie, commentaire, created_at, url, storage_path")
           .eq("entreprise_id", entrepriseId)
           .eq("fiche_id", ficheId)
           .order("created_at", { ascending: true }),
 
         supabaseAdmin
           .from("fiches_intervention_salaries")
-          .select("*")
+          .select("id, salarie_id, salarie_nom, role_chantier, heure_arrivee_prevue, heure_depart_prevue, heure_arrivee_reelle, heure_depart_reelle, created_at")
           .eq("entreprise_id", entrepriseId)
           .eq("fiche_id", ficheId)
           .order("created_at", { ascending: true }),

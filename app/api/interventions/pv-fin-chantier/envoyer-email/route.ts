@@ -1564,8 +1564,7 @@ ${nomEntreprise}`;
     });
 
     return reponseErreur(
-      messageErreur ||
-        "Impossible de générer ou d’envoyer le PV de fin de chantier.",
+      "Impossible de générer ou d’envoyer le PV de fin de chantier.",
       500
     );
   }

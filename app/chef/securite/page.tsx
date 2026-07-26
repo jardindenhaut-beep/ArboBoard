@@ -197,6 +197,19 @@ const BLOCS: BlocConformite[] = [
     ],
   },
   {
+    id: "acceptations-contractuelles",
+    titre: "Acceptations contractuelles",
+    description:
+      "Preuves d’acceptation des CGU, de la Politique de confidentialité et des CGV.",
+    emoji: "✍️",
+    statut: "Actif",
+    details: [
+      "Version exacte du document acceptée par l’utilisateur.",
+      "Horodatage serveur de l’inscription ou de la souscription.",
+      "Historique en lecture seule et exportable au format CSV.",
+    ],
+  },
+  {
     id: "journal",
     titre: "Journal d’activité",
     description:
@@ -930,6 +943,15 @@ export default function SecuriteChefPage() {
                 className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
                 Gérer mes consentements
+              </Link>
+            ) : null}
+
+            {bloc.id === "acceptations-contractuelles" ? (
+              <Link
+                href="/chef/securite/acceptations-contractuelles"
+                className="mt-5 inline-flex rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-800"
+              >
+                Voir les acceptations
               </Link>
             ) : null}
 

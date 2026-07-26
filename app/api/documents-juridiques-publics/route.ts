@@ -79,6 +79,7 @@ function statutSansAcceptation(
 export async function GET(request: NextRequest) {
   try {
     const jeton = obtenirJeton(request);
+
     if (!jeton) {
       return NextResponse.json(
         { erreur: "Authentification requise." },
@@ -113,6 +114,7 @@ export async function GET(request: NextRequest) {
     }
 
     const profilType = profil as ProfilUtilisateur;
+
     if (
       profilType.statut &&
       normaliser(profilType.statut) !== "actif"
@@ -123,37 +125,66 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [documentsResultat, profilsResultat, acceptationsResultat] =
-      await Promise.all([
-        supabaseAdmin
-          .from("documents_juridiques_plateforme")
-          .select("type_document, titre_publie, version_publie, publie_at")
-          .in("type_document", [...TYPES_DOCUMENTS_JURIDIQUES])
-          .order("type_document"),
-        supabaseAdmin
-          .from("profils_utilisateurs")
-          .select("id")
-          .eq("entreprise_id", profilType.entreprise_id)
-          .eq("statut", "actif"),
-        supabaseAdmin
-          .from("acceptations_contractuelles")
-          .select("utilisateur_id, type_document, version_document")
-          .eq("entreprise_id", profilType.entreprise_id)
-          .in("type_document", [
-            "politique_confidentialite",
-            "cgu",
-            "cgv",
-          ]),
-      ]);
+    const [
+      documentsResultat,
+      profilsResultat,
+      acceptationsResultat,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("documents_juridiques_plateforme")
+        .select(
+          "type_document, titre_publie, version_publie, publie_at"
+        )
+        .in(
+          "type_document",
+          [...TYPES_DOCUMENTS_JURIDIQUES]
+        )
+        .order("type_document"),
+      supabaseAdmin
+        .from("profils_utilisateurs")
+        .select("id")
+        .eq(
+          "entreprise_id",
+          profilType.entreprise_id
+        )
+        .eq("statut", "actif"),
+      supabaseAdmin
+        .from("acceptations_contractuelles")
+        .select(
+          "utilisateur_id, type_document, version_document"
+        )
+        .eq(
+          "entreprise_id",
+          profilType.entreprise_id
+        )
+        .in("type_document", [
+          "politique_confidentialite",
+          "cgu",
+          "cgv",
+        ]),
+    ]);
 
-    if (documentsResultat.error) throw documentsResultat.error;
-    if (profilsResultat.error) throw profilsResultat.error;
-    if (acceptationsResultat.error) throw acceptationsResultat.error;
+    if (documentsResultat.error) {
+      throw documentsResultat.error;
+    }
 
-    const documents = (documentsResultat.data || []) as DocumentJuridiqueBrut[];
+    if (profilsResultat.error) {
+      throw profilsResultat.error;
+    }
+
+    if (acceptationsResultat.error) {
+      throw acceptationsResultat.error;
+    }
+
+    const documents =
+      (documentsResultat.data || []) as DocumentJuridiqueBrut[];
+
     const utilisateursActifs = new Set(
-      (profilsResultat.data || []).map((element) => element.id)
+      (profilsResultat.data || []).map(
+        (element) => element.id
+      )
     );
+
     const acceptations =
       (acceptationsResultat.data || []) as AcceptationBrute[];
 
@@ -167,17 +198,25 @@ export async function GET(request: NextRequest) {
 
         if (
           !publie ||
-          !estTypeDocumentAvecAcceptation(document.type_document)
+          !estTypeDocumentAvecAcceptation(
+            document.type_document
+          )
         ) {
-          return statutSansAcceptation(document, publie);
+          return statutSansAcceptation(
+            document,
+            publie
+          );
         }
 
         const version = document.version_publie || "";
-        const acceptationsVersion = acceptations.filter(
-          (acceptation) =>
-            acceptation.type_document === document.type_document &&
-            acceptation.version_document === version
-        );
+
+        const acceptationsVersion =
+          acceptations.filter(
+            (acceptation) =>
+              acceptation.type_document ===
+                document.type_document &&
+              acceptation.version_document === version
+          );
 
         if (document.type_document === "cgv") {
           return {
@@ -191,18 +230,27 @@ export async function GET(request: NextRequest) {
             utilisateurs_concernes: 0,
             utilisateurs_a_jour: 0,
             utilisateurs_a_mettre_a_jour: 0,
-            entreprise_a_jour: acceptationsVersion.length > 0,
+            entreprise_a_jour:
+              acceptationsVersion.length > 0,
           };
         }
 
         const utilisateursAJour = new Set(
           acceptationsVersion
-            .map((acceptation) => acceptation.utilisateur_id)
-            .filter((utilisateurId) => utilisateursActifs.has(utilisateurId))
+            .map(
+              (acceptation) =>
+                acceptation.utilisateur_id
+            )
+            .filter((utilisateurId) =>
+              utilisateursActifs.has(utilisateurId)
+            )
         );
 
-        const nombreUtilisateurs = utilisateursActifs.size;
-        const nombreAJour = utilisateursAJour.size;
+        const nombreUtilisateurs =
+          utilisateursActifs.size;
+
+        const nombreAJour =
+          utilisateursAJour.size;
 
         return {
           type_document: document.type_document,
@@ -212,43 +260,54 @@ export async function GET(request: NextRequest) {
           publie: true,
           acceptation_requise: true,
           portee_acceptation: "utilisateur",
-          utilisateurs_concernes: nombreUtilisateurs,
+          utilisateurs_concernes:
+            nombreUtilisateurs,
           utilisateurs_a_jour: nombreAJour,
-          utilisateurs_a_mettre_a_jour: Math.max(
-            0,
-            nombreUtilisateurs - nombreAJour
-          ),
-          entreprise_a_jour: nombreUtilisateurs === nombreAJour,
+          utilisateurs_a_mettre_a_jour:
+            Math.max(
+              0,
+              nombreUtilisateurs - nombreAJour
+            ),
+          entreprise_a_jour:
+            nombreUtilisateurs === nombreAJour,
         };
       }
     );
 
-    const utilisateursAMettreAJour = statuts.reduce(
-      (total, document) =>
-        total + document.utilisateurs_a_mettre_a_jour,
-      0
-    );
+    const utilisateursAMettreAJour =
+      statuts.reduce(
+        (total, document) =>
+          total +
+          document.utilisateurs_a_mettre_a_jour,
+        0
+      );
 
     const cgv = statuts.find(
-      (document) => document.type_document === "cgv"
+      (document) =>
+        document.type_document === "cgv"
     );
 
     return NextResponse.json({
       documents: statuts,
       synthese_acceptations: {
-        utilisateurs_actifs: utilisateursActifs.size,
-        utilisateurs_a_mettre_a_jour: utilisateursAMettreAJour,
-        cgv_entreprise_a_jour: cgv?.entreprise_a_jour ?? null,
+        utilisateurs_actifs:
+          utilisateursActifs.size,
+        utilisateurs_a_mettre_a_jour:
+          utilisateursAMettreAJour,
+        cgv_entreprise_a_jour:
+          cgv?.entreprise_a_jour ?? null,
       },
     });
   } catch (error) {
-    console.error("Erreur lecture statuts juridiques :", error);
+    console.error(
+      "Erreur lecture statuts juridiques :",
+      error
+    );
+
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les documents juridiques.",
+          "Impossible de charger les documents juridiques.",
       },
       { status: 500 }
     );

@@ -7,6 +7,7 @@ type FrequenceAbonnement = "mensuel" | "annuel";
 type BodyCheckout = {
   plan?: unknown;
   frequence?: unknown;
+  acceptation_cgv?: unknown;
 };
 
 function obtenirUrlSite(request: Request) {
@@ -71,6 +72,8 @@ async function lireCorpsCheckout(request: Request) {
   return {
     planCode: normaliserPlan(body.plan),
     frequence: normaliserFrequence(body.frequence),
+    acceptationCgv:
+      body.acceptation_cgv === true,
   };
 }
 
@@ -168,11 +171,14 @@ export async function POST(request: Request) {
 
     let planCode: string;
     let frequence: FrequenceAbonnement;
+    let acceptationCgv: boolean;
 
     try {
       const corps = await lireCorpsCheckout(request);
       planCode = corps.planCode;
       frequence = corps.frequence;
+      acceptationCgv =
+        corps.acceptationCgv;
     } catch (error) {
       return NextResponse.json(
         {
@@ -180,6 +186,16 @@ export async function POST(request: Request) {
             error instanceof Error
               ? error.message
               : "Requête d’abonnement invalide.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!acceptationCgv) {
+      return NextResponse.json(
+        {
+          error:
+            "Vous devez accepter les Conditions générales de vente avant de poursuivre.",
         },
         { status: 400 }
       );
@@ -320,6 +336,36 @@ export async function POST(request: Request) {
       );
     }
 
+    const {
+      data: cgvPubliees,
+      error: erreurCgv,
+    } = await supabaseAdmin
+      .from(
+        "documents_juridiques_plateforme"
+      )
+      .select(
+        "titre_publie, version_publie, publie_at"
+      )
+      .eq("type_document", "cgv")
+      .not("version_publie", "is", null)
+      .not("publie_at", "is", null)
+      .maybeSingle();
+
+    if (
+      erreurCgv ||
+      !cgvPubliees?.version_publie ||
+      !cgvPubliees?.titre_publie
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Les Conditions générales de vente publiées sont indisponibles.",
+          detail: erreurCgv?.message,
+        },
+        { status: 503 }
+      );
+    }
+
     const stripe = new Stripe(stripeSecretKey);
 
     let customerId =
@@ -365,6 +411,46 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
+    }
+
+    const userAgent =
+      request.headers
+        .get("user-agent")
+        ?.slice(0, 500) || null;
+
+    const {
+      error: erreurAcceptationCgv,
+    } = await supabaseAdmin
+      .from(
+        "acceptations_contractuelles"
+      )
+      .insert({
+        utilisateur_id: user.id,
+        entreprise_id: entreprise.id,
+        type_document: "cgv",
+        version_document:
+          cgvPubliees.version_publie,
+        titre_document:
+          cgvPubliees.titre_publie,
+        contexte: "souscription",
+        source: "stripe_checkout",
+        user_agent: userAgent,
+        details: {
+          plan: plan.code,
+          frequence,
+        },
+      });
+
+    if (erreurAcceptationCgv) {
+      return NextResponse.json(
+        {
+          error:
+            "L’acceptation des CGV n’a pas pu être enregistrée.",
+          detail:
+            erreurAcceptationCgv.message,
+        },
+        { status: 500 }
+      );
     }
 
     const session =

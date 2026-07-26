@@ -1,81 +1,249 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+
+type DocumentPublie = {
+  titre?: string | null;
+  version?: string | null;
+  publie_at?: string | null;
+};
+
+type ReponseVersionsJuridiques = {
+  documents?: {
+    cgu?: DocumentPublie;
+    politique_confidentialite?: DocumentPublie;
+  };
+  erreur?: string;
+};
 
 export default function InscriptionPage() {
   const router = useRouter();
 
-  const [nomEntreprise, setNomEntreprise] = useState("");
+  const [nomEntreprise, setNomEntreprise] =
+    useState("");
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
-  const [telephone, setTelephone] = useState("");
+  const [telephone, setTelephone] =
+    useState("");
   const [email, setEmail] = useState("");
-  const [motDePasse, setMotDePasse] = useState("");
-  const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
+  const [motDePasse, setMotDePasse] =
+    useState("");
+  const [
+    confirmationMotDePasse,
+    setConfirmationMotDePasse,
+  ] = useState("");
 
-  const [chargement, setChargement] = useState(false);
-  const [message, setMessage] = useState("");
+  const [acceptationCgu, setAcceptationCgu] =
+    useState(false);
+  const [
+    acceptationConfidentialite,
+    setAcceptationConfidentialite,
+  ] = useState(false);
+
+  const [versionCgu, setVersionCgu] =
+    useState("");
+  const [
+    versionConfidentialite,
+    setVersionConfidentialite,
+  ] = useState("");
+  const [
+    chargementDocuments,
+    setChargementDocuments,
+  ] = useState(true);
+
+  const [chargement, setChargement] =
+    useState(false);
+  const [message, setMessage] =
+    useState("");
+
+  useEffect(() => {
+    let actif = true;
+
+    async function chargerVersions() {
+      try {
+        setChargementDocuments(true);
+
+        const reponse = await fetch(
+          "/api/juridique/versions",
+          {
+            cache: "no-store",
+          }
+        );
+
+        const donnees =
+          (await reponse.json()) as ReponseVersionsJuridiques;
+
+        if (!reponse.ok) {
+          throw new Error(
+            donnees.erreur ||
+              "Impossible de charger les documents juridiques."
+          );
+        }
+
+        const cgu =
+          donnees.documents?.cgu?.version;
+        const confidentialite =
+          donnees.documents
+            ?.politique_confidentialite
+            ?.version;
+
+        if (!cgu || !confidentialite) {
+          throw new Error(
+            "Les CGU ou la Politique de confidentialité ne sont pas encore publiées."
+          );
+        }
+
+        if (!actif) return;
+
+        setVersionCgu(cgu);
+        setVersionConfidentialite(
+          confidentialite
+        );
+      } catch (error) {
+        if (!actif) return;
+
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Impossible de charger les documents juridiques."
+        );
+      } finally {
+        if (actif) {
+          setChargementDocuments(false);
+        }
+      }
+    }
+
+    void chargerVersions();
+
+    return () => {
+      actif = false;
+    };
+  }, []);
 
   async function creerCompte() {
     setChargement(true);
     setMessage("");
 
     if (!nomEntreprise.trim()) {
-      setMessage("Merci de renseigner le nom de l'entreprise.");
+      setMessage(
+        "Merci de renseigner le nom de l'entreprise."
+      );
       setChargement(false);
       return;
     }
 
     if (!prenom.trim() || !nom.trim()) {
-      setMessage("Merci de renseigner ton prénom et ton nom.");
+      setMessage(
+        "Merci de renseigner ton prénom et ton nom."
+      );
       setChargement(false);
       return;
     }
 
     if (!email.trim()) {
-      setMessage("Merci de renseigner ton email.");
+      setMessage(
+        "Merci de renseigner ton email."
+      );
       setChargement(false);
       return;
     }
 
     if (motDePasse.length < 8) {
-      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
+      setMessage(
+        "Le mot de passe doit contenir au moins 8 caractères."
+      );
       setChargement(false);
       return;
     }
 
-    if (motDePasse !== confirmationMotDePasse) {
-      setMessage("Les deux mots de passe ne correspondent pas.");
+    if (
+      motDePasse !==
+      confirmationMotDePasse
+    ) {
+      setMessage(
+        "Les deux mots de passe ne correspondent pas."
+      );
       setChargement(false);
       return;
     }
 
-    const { data: inscriptionData, error: erreurInscription } =
-  await supabase.auth.signUp({
-    email: email.trim(),
-    password: motDePasse,
-    options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`,
-      data: {
-        nom_entreprise: nomEntreprise.trim(),
-        prenom: prenom.trim(),
-        nom: nom.trim(),
-        telephone: telephone.trim(),
+    if (
+      !versionCgu ||
+      !versionConfidentialite
+    ) {
+      setMessage(
+        "Les documents juridiques publiés sont indisponibles. Actualise la page avant de recommencer."
+      );
+      setChargement(false);
+      return;
+    }
+
+    if (!acceptationCgu) {
+      setMessage(
+        "Tu dois accepter les Conditions générales d’utilisation."
+      );
+      setChargement(false);
+      return;
+    }
+
+    if (!acceptationConfidentialite) {
+      setMessage(
+        "Tu dois confirmer avoir lu la Politique de confidentialité."
+      );
+      setChargement(false);
+      return;
+    }
+
+    const {
+      data: inscriptionData,
+      error: erreurInscription,
+    } = await supabase.auth.signUp({
+      email: email.trim(),
+      password: motDePasse,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          inscription_arboboard: true,
+          nom_entreprise:
+            nomEntreprise.trim(),
+          prenom: prenom.trim(),
+          nom: nom.trim(),
+          telephone: telephone.trim(),
+          acceptation_cgu: true,
+          version_cgu: versionCgu,
+          acceptation_confidentialite:
+            true,
+          version_confidentialite:
+            versionConfidentialite,
+          user_agent:
+            window.navigator.userAgent.slice(
+              0,
+              500
+            ),
+        },
       },
-    },
-  });
+    });
 
     if (erreurInscription) {
-      setMessage(erreurInscription.message || "Erreur lors de l'inscription.");
+      setMessage(
+        erreurInscription.message ||
+          "Erreur lors de l'inscription."
+      );
       setChargement(false);
       return;
     }
 
     if (!inscriptionData.user) {
-      setMessage("Impossible de créer le compte utilisateur.");
+      setMessage(
+        "Impossible de créer le compte utilisateur."
+      );
       setChargement(false);
       return;
     }
@@ -88,16 +256,19 @@ export default function InscriptionPage() {
       return;
     }
 
-    const { error: erreurCreationSaas } = await supabase.rpc(
-      "creer_compte_saas",
-      {
-        p_nom_entreprise: nomEntreprise.trim(),
-        p_email: email.trim(),
-        p_nom: nom.trim(),
-        p_prenom: prenom.trim(),
-        p_telephone: telephone.trim(),
-      }
-    );
+    const { error: erreurCreationSaas } =
+      await supabase.rpc(
+        "creer_compte_saas",
+        {
+          p_nom_entreprise:
+            nomEntreprise.trim(),
+          p_email: email.trim(),
+          p_nom: nom.trim(),
+          p_prenom: prenom.trim(),
+          p_telephone:
+            telephone.trim(),
+        }
+      );
 
     if (erreurCreationSaas) {
       setMessage(
@@ -108,12 +279,20 @@ export default function InscriptionPage() {
       return;
     }
 
-    setMessage("Compte entreprise créé avec succès.");
+    setMessage(
+      "Compte entreprise créé avec succès."
+    );
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       router.push("/chef/dashboard");
     }, 800);
   }
+
+  const formulaireBloque =
+    chargement ||
+    chargementDocuments ||
+    !versionCgu ||
+    !versionConfidentialite;
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -150,7 +329,11 @@ export default function InscriptionPage() {
 
               <input
                 value={nomEntreprise}
-                onChange={(e) => setNomEntreprise(e.target.value)}
+                onChange={(event) =>
+                  setNomEntreprise(
+                    event.target.value
+                  )
+                }
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                 placeholder="Exemple : Jardin d'en haut"
               />
@@ -164,7 +347,11 @@ export default function InscriptionPage() {
 
                 <input
                   value={prenom}
-                  onChange={(e) => setPrenom(e.target.value)}
+                  onChange={(event) =>
+                    setPrenom(
+                      event.target.value
+                    )
+                  }
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="Prénom"
                 />
@@ -177,7 +364,11 @@ export default function InscriptionPage() {
 
                 <input
                   value={nom}
-                  onChange={(e) => setNom(e.target.value)}
+                  onChange={(event) =>
+                    setNom(
+                      event.target.value
+                    )
+                  }
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="Nom"
                 />
@@ -193,7 +384,11 @@ export default function InscriptionPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) =>
+                    setEmail(
+                      event.target.value
+                    )
+                  }
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="contact@entreprise.fr"
                 />
@@ -206,7 +401,11 @@ export default function InscriptionPage() {
 
                 <input
                   value={telephone}
-                  onChange={(e) => setTelephone(e.target.value)}
+                  onChange={(event) =>
+                    setTelephone(
+                      event.target.value
+                    )
+                  }
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="07 00 00 00 00"
                 />
@@ -222,7 +421,11 @@ export default function InscriptionPage() {
                 <input
                   type="password"
                   value={motDePasse}
-                  onChange={(e) => setMotDePasse(e.target.value)}
+                  onChange={(event) =>
+                    setMotDePasse(
+                      event.target.value
+                    )
+                  }
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="8 caractères minimum"
                 />
@@ -235,11 +438,19 @@ export default function InscriptionPage() {
 
                 <input
                   type="password"
-                  value={confirmationMotDePasse}
-                  onChange={(e) => setConfirmationMotDePasse(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      creerCompte();
+                  value={
+                    confirmationMotDePasse
+                  }
+                  onChange={(event) =>
+                    setConfirmationMotDePasse(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter"
+                    ) {
+                      void creerCompte();
                     }
                   }}
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
@@ -248,19 +459,93 @@ export default function InscriptionPage() {
               </div>
             </div>
 
-            <button type="button"
-              onClick={creerCompte}
-              disabled={chargement}
-              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+            <section className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-bold text-slate-900">
+                Documents obligatoires
+              </p>
+
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acceptationCgu}
+                  onChange={(event) =>
+                    setAcceptationCgu(
+                      event.target.checked
+                    )
+                  }
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  J’accepte les{" "}
+                  <Link
+                    href="/cgu"
+                    target="_blank"
+                    className="font-semibold text-slate-950 underline"
+                  >
+                    Conditions générales d’utilisation
+                  </Link>
+                  {versionCgu
+                    ? ` (version ${versionCgu})`
+                    : ""}.
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={
+                    acceptationConfidentialite
+                  }
+                  onChange={(event) =>
+                    setAcceptationConfidentialite(
+                      event.target.checked
+                    )
+                  }
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                />
+                <span className="text-sm leading-6 text-slate-700">
+                  Je confirme avoir lu la{" "}
+                  <Link
+                    href="/politique-confidentialite"
+                    target="_blank"
+                    className="font-semibold text-slate-950 underline"
+                  >
+                    Politique de confidentialité
+                  </Link>
+                  {versionConfidentialite
+                    ? ` (version ${versionConfidentialite})`
+                    : ""}.
+                </span>
+              </label>
+
+              {chargementDocuments ? (
+                <p className="text-xs text-slate-500">
+                  Chargement des versions publiées…
+                </p>
+              ) : null}
+            </section>
+
+            <button
+              type="button"
+              onClick={() =>
+                void creerCompte()
+              }
+              disabled={formulaireBloque}
+              className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {chargement ? "Création du compte..." : "Créer mon espace"}
+              {chargement
+                ? "Création du compte..."
+                : "Créer mon espace"}
             </button>
 
-            {message && (
-              <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+            {message ? (
+              <p
+                role="status"
+                className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+              >
                 {message}
               </p>
-            )}
+            ) : null}
 
             <p className="text-center text-sm text-slate-500">
               Déjà un compte ?{" "}

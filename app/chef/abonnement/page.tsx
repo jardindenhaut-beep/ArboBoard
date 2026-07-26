@@ -78,6 +78,8 @@ export default function AbonnementChefPage() {
   const [message, setMessage] = useState("");
   const [typeMessage, setTypeMessage] =
     useState<TypeMessage>("information");
+  const [acceptationCgv, setAcceptationCgv] =
+    useState(false);
 
   const chargerPage = useCallback(
     async (chargementInitial = false) => {
@@ -233,6 +235,14 @@ export default function AbonnementChefPage() {
   }
 
   async function choisirPlan(plan: string) {
+    if (!acceptationCgv) {
+      setMessage(
+        "Vous devez accepter les Conditions générales de vente avant de choisir un plan."
+      );
+      setTypeMessage("avertissement");
+      return;
+    }
+
     setSelection(true);
     setPlanEnSelection(plan);
     setMessage("Ouverture du paiement sécurisé Stripe…");
@@ -263,6 +273,7 @@ export default function AbonnementChefPage() {
         body: JSON.stringify({
           plan,
           frequence: "mensuel",
+          acceptation_cgv: true,
         }),
       });
 
@@ -539,6 +550,7 @@ export default function AbonnementChefPage() {
   function boutonDesactive(plan: PlanAbonnement) {
     return (
       selection ||
+      !acceptationCgv ||
       (planAbonnement === plan.code && statutAbonnement === "actif")
     );
   }
@@ -884,6 +896,54 @@ export default function AbonnementChefPage() {
                   ? "—"
                   : `${joursEssai} jour${joursEssai === 1 ? "" : "s"}`}
               </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
+              📄
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-violet-950">
+                Conditions de souscription
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-violet-800">
+                Avant d’ouvrir le paiement Stripe, vous devez accepter
+                les Conditions générales de vente actuellement publiées.
+                Cette acceptation est enregistrée avec sa version et son
+                horodatage.
+              </p>
+
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-violet-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={acceptationCgv}
+                  onChange={(event) => {
+                    setAcceptationCgv(
+                      event.target.checked
+                    );
+                    setMessage("");
+                  }}
+                  disabled={selection}
+                  className="mt-1 h-4 w-4 rounded border-violet-300"
+                />
+
+                <span className="text-sm leading-6 text-slate-700">
+                  J’accepte les{" "}
+                  <Link
+                    href="/cgv"
+                    target="_blank"
+                    className="font-bold text-violet-800 underline"
+                  >
+                    Conditions générales de vente
+                  </Link>{" "}
+                  applicables à l’abonnement sélectionné.
+                </span>
+              </label>
             </div>
           </div>
         </section>

@@ -261,10 +261,14 @@ export async function POST(request: Request) {
       .eq("statut", "actif");
 
     if (erreurComptage) {
+      console.error(
+        "Erreur comptage utilisateurs actifs :",
+        erreurComptage
+      );
+
       return NextResponse.json(
         {
           error:
-            erreurComptage.message ||
             "Impossible de vérifier le nombre d’utilisateurs actifs.",
         },
         { status: 500 }
@@ -416,10 +420,14 @@ export async function POST(request: Request) {
         erreurInvitation ||
         !invitation.user
       ) {
+        console.error(
+          "Erreur invitation salarié :",
+          erreurInvitation
+        );
+
         return NextResponse.json(
           {
             error:
-              erreurInvitation?.message ||
               "Impossible d’envoyer l’invitation.",
           },
           { status: 400 }
@@ -450,10 +458,14 @@ export async function POST(request: Request) {
         );
 
     if (erreurProfilSalarie) {
+      console.error(
+        "Erreur création ou mise à jour du profil salarié :",
+        erreurProfilSalarie
+      );
+
       return NextResponse.json(
         {
           error:
-            erreurProfilSalarie.message ||
             "Le profil salarié n’a pas pu être créé.",
         },
         { status: 500 }
@@ -500,10 +512,14 @@ export async function POST(request: Request) {
           );
 
       if (erreurMiseAJourSalarie) {
+        console.error(
+          "Erreur liaison fiche salarié et compte utilisateur :",
+          erreurMiseAJourSalarie
+        );
+
         return NextResponse.json(
           {
             error:
-              erreurMiseAJourSalarie.message ||
               "Le compte a été créé, mais la fiche salarié n’a pas pu être liée.",
           },
           { status: 500 }
@@ -524,13 +540,16 @@ export async function POST(request: Request) {
         nombreUtilisateurs || 0,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Erreur inconnue lors de la création du compte salarié.";
+    console.error(
+      "Erreur création du compte salarié :",
+      error
+    );
 
     return NextResponse.json(
-      { error: message },
+      {
+        error:
+          "Une erreur est survenue pendant la création du compte salarié.",
+      },
       { status: 500 }
     );
   }

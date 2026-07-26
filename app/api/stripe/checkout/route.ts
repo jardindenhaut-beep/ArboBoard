@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import {
+  entetesLimiteRequetes,
+  obtenirAdresseIp,
+  verifierLimiteRequetes,
+} from "@/lib/securite/limiteurRequetes";
 
 type FrequenceAbonnement = "mensuel" | "annuel";
 
@@ -108,6 +113,27 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const ip = obtenirAdresseIp(request);
+
+  const limiteIp = verifierLimiteRequetes({
+    cle: `stripe-checkout:ip:${ip}`,
+    limite: 20,
+    fenetreMs: 10 * 60 * 1000,
+  });
+
+  if (!limiteIp.autorise) {
+    return NextResponse.json(
+      {
+        error:
+          "Trop de tentatives de paiement. Réessaie dans quelques minutes.",
+      },
+      {
+        status: 429,
+        headers: entetesLimiteRequetes(limiteIp),
+      }
+    );
+  }
+
   try {
     const supabaseUrl =
       process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -235,6 +261,29 @@ export async function POST(request: Request) {
           detail: erreurUser?.message,
         },
         { status: 401 }
+      );
+    }
+
+    const limiteUtilisateur =
+      verifierLimiteRequetes({
+        cle: `stripe-checkout:user:${user.id}`,
+        limite: 8,
+        fenetreMs: 10 * 60 * 1000,
+      });
+
+    if (!limiteUtilisateur.autorise) {
+      return NextResponse.json(
+        {
+          error:
+            "Trop de créations de sessions de paiement. Réessaie dans quelques minutes.",
+        },
+        {
+          status: 429,
+          headers:
+            entetesLimiteRequetes(
+              limiteUtilisateur
+            ),
+        }
       );
     }
 

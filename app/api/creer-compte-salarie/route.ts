@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  entetesLimiteRequetes,
+  obtenirAdresseIp,
+  verifierLimiteRequetes,
+} from "@/lib/securite/limiteurRequetes";
 
 type BodyCreationSalarie = {
   salarieId?: string;
@@ -56,6 +61,27 @@ function normaliserTelephone(
 }
 
 export async function POST(request: Request) {
+  const ip = obtenirAdresseIp(request);
+
+  const limiteIp = verifierLimiteRequetes({
+    cle: `creation-salarie:ip:${ip}`,
+    limite: 30,
+    fenetreMs: 15 * 60 * 1000,
+  });
+
+  if (!limiteIp.autorise) {
+    return NextResponse.json(
+      {
+        error:
+          "Trop de tentatives de création d’accès salarié. Réessaie dans quelques minutes.",
+      },
+      {
+        status: 429,
+        headers: entetesLimiteRequetes(limiteIp),
+      }
+    );
+  }
+
   try {
     const supabaseUrl =
       process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -107,6 +133,27 @@ export async function POST(request: Request) {
             "Session chef invalide. Reconnectez-vous.",
         },
         { status: 401 }
+      );
+    }
+
+    const limiteChef = verifierLimiteRequetes({
+      cle: `creation-salarie:chef:${user.id}`,
+      limite: 12,
+      fenetreMs: 60 * 60 * 1000,
+    });
+
+    if (!limiteChef.autorise) {
+      return NextResponse.json(
+        {
+          error:
+            "Trop de créations ou d’invitations ont été demandées. Réessaie plus tard.",
+        },
+        {
+          status: 429,
+          headers: entetesLimiteRequetes(
+            limiteChef
+          ),
+        }
       );
     }
 

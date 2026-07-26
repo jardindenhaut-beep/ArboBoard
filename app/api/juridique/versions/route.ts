@@ -19,10 +19,14 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
+      console.error(
+        "Configuration Supabase serveur incomplète pour les versions juridiques."
+      );
+
       return NextResponse.json(
         {
           erreur:
-            "Configuration Supabase serveur incomplète.",
+            "Impossible de charger les versions juridiques.",
         },
         { status: 500 }
       );
@@ -49,7 +53,9 @@ export async function GET() {
       .not("version_publie", "is", null)
       .not("publie_at", "is", null);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const documents = Object.fromEntries(
       (data || []).map((document) => [
@@ -72,12 +78,15 @@ export async function GET() {
       }
     );
   } catch (error) {
+    console.error(
+      "Erreur chargement des versions juridiques :",
+      error
+    );
+
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les versions juridiques.",
+          "Impossible de charger les versions juridiques.",
       },
       { status: 500 }
     );

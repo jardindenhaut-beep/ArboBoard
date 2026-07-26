@@ -5,22 +5,29 @@ const URL_SITE = "https://arboboard.fr";
 
 export const metadata: Metadata = {
   metadataBase: new URL(URL_SITE),
+
   title: {
-    default: "Arboboard — Logiciel de gestion pour paysagistes et élagueurs",
+    default:
+      "Arboboard — Logiciel de gestion pour paysagistes et élagueurs",
     template: "%s | Arboboard",
   },
+
   description:
     "Arboboard centralise les clients, devis, factures, fiches d’intervention, équipes et plannings des entreprises du paysage.",
+
   applicationName: "Arboboard",
+
   authors: [
     {
       name: "Arboboard",
       url: URL_SITE,
     },
   ],
+
   creator: "Arboboard",
   publisher: "Arboboard",
   category: "Logiciel de gestion",
+
   keywords: [
     "logiciel paysagiste",
     "logiciel élagueur",
@@ -31,9 +38,11 @@ export const metadata: Metadata = {
     "fiches d’intervention",
     "Arboboard",
   ],
+
   alternates: {
     canonical: "/",
   },
+
   openGraph: {
     type: "website",
     locale: "fr_FR",
@@ -44,6 +53,7 @@ export const metadata: Metadata = {
     description:
       "Clients, devis, factures, fiches d’intervention, équipes et plannings réunis dans un seul espace professionnel.",
   },
+
   twitter: {
     card: "summary",
     title:
@@ -51,6 +61,7 @@ export const metadata: Metadata = {
     description:
       "Clients, devis, factures, fiches d’intervention, équipes et plannings réunis dans un seul espace professionnel.",
   },
+
   robots: {
     index: true,
     follow: true,

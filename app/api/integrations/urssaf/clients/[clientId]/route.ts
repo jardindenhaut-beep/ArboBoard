@@ -883,7 +883,7 @@ async function chargerDossierEtIntegration({
   ] = await Promise.all([
     supabaseAdmin
       .from("clients_urssaf_tp")
-      .select("*")
+      .select("id, entreprise_id, client_id, donnees_chiffrees, iban_suffixe, bic_suffixe, urssaf_id_client, statut_inscription, statut_transmission_code, statut_transmission_etat, statut_transmission_description, consentement_transmission_at, consentement_version, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
       .eq("entreprise_id", entrepriseId)
       .eq("client_id", clientId)
       .maybeSingle(),
@@ -1197,7 +1197,7 @@ export async function POST(
           })
           .eq("id", dossier.id)
           .eq("entreprise_id", entrepriseId)
-          .select("*")
+          .select("id, entreprise_id, client_id, donnees_chiffrees, iban_suffixe, bic_suffixe, urssaf_id_client, statut_inscription, statut_transmission_code, statut_transmission_etat, statut_transmission_description, consentement_transmission_at, consentement_version, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
           .single();
 
       if (error) throw error;
@@ -1354,7 +1354,7 @@ export async function POST(
         .upsert(baseEnregistrement, {
           onConflict: "client_id",
         })
-        .select("*")
+        .select("id, entreprise_id, client_id, donnees_chiffrees, iban_suffixe, bic_suffixe, urssaf_id_client, statut_inscription, statut_transmission_code, statut_transmission_etat, statut_transmission_description, consentement_transmission_at, consentement_version, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
         .single();
 
     if (error) throw error;
@@ -1455,7 +1455,7 @@ export async function POST(
         })
         .eq("id", dossierEnregistre.id)
         .eq("entreprise_id", entrepriseId)
-        .select("*")
+        .select("id, entreprise_id, client_id, donnees_chiffrees, iban_suffixe, bic_suffixe, urssaf_id_client, statut_inscription, statut_transmission_code, statut_transmission_etat, statut_transmission_description, consentement_transmission_at, consentement_version, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
         .single();
 
     if (majError) throw majError;

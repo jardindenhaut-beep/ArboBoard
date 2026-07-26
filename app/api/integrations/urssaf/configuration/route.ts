@@ -458,7 +458,7 @@ export async function POST(request: NextRequest) {
       error: configurationError,
     } = await supabaseAdmin
       .from("integrations_urssaf_tp")
-      .select("*")
+      .select("id, entreprise_id, numero_sap, client_id_chiffre, client_secret_chiffre, client_id_suffixe, scope_oauth, actif, statut, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
 

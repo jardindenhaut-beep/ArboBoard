@@ -430,7 +430,7 @@ async function preparerDonnees({
       .from(
         "entreprises_abonnees"
       )
-      .select("*")
+      .select("id, nom_entreprise, adresse, code_postal, ville, telephone, email_contact, siret")
       .eq("id", entrepriseId)
       .maybeSingle(),
 
@@ -438,7 +438,7 @@ async function preparerDonnees({
       .from(
         "entreprise_parametres"
       )
-      .select("*")
+      .select("entreprise_id, nom_entreprise, adresse, code_postal, ville, telephone, email, siret")
       .eq(
         "entreprise_id",
         entrepriseId
@@ -1051,7 +1051,7 @@ export async function GET(
         .from(
           "attestations_fiscales_sap"
         )
-        .select("*")
+        .select("id, entreprise_id, client_id, annee, numero, statut, organisme_snapshot, beneficiaire_snapshot, factures_snapshot, interventions_snapshot, nature_services, compte_debite_masque, montant_factures_ttc, montant_acquitte_client, montant_cesu_prefinance, numero_declaration_sap, date_enregistrement_sap, signataire_nom, signataire_qualite, date_emission, notes, generee_at, creee_par, created_at, updated_at")
         .eq(
           "entreprise_id",
           entrepriseId
@@ -1457,7 +1457,7 @@ export async function POST(
             "entreprise_id,client_id,annee",
         }
       )
-      .select("*")
+      .select("id, entreprise_id, client_id, annee, numero, statut, organisme_snapshot, beneficiaire_snapshot, factures_snapshot, interventions_snapshot, nature_services, compte_debite_masque, montant_factures_ttc, montant_acquitte_client, montant_cesu_prefinance, numero_declaration_sap, date_enregistrement_sap, signataire_nom, signataire_qualite, date_emission, notes, generee_at, creee_par, created_at, updated_at")
       .single();
 
     if (error) {

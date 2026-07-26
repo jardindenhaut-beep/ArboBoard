@@ -712,7 +712,7 @@ async function chargerContexteFacture({
       .from(
         "demandes_paiement_urssaf"
       )
-      .select("*")
+      .select("id, entreprise_id, facture_id, client_id, urssaf_id_demande_paiement, numero_facture, date_facture, date_debut_emploi, date_fin_emploi, montant_facture_ht, montant_facture_tva, montant_facture_ttc, montant_acompte, date_versement_acompte, statut_local, statut_urssaf_code, statut_urssaf_libelle, info_rejet, info_virement, erreurs_urssaf, transmis_at, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
       .eq("facture_id", factureId)
       .eq(
         "entreprise_id",
@@ -754,7 +754,7 @@ async function chargerContexteFacture({
         .from(
           "demandes_paiement_urssaf_lignes"
         )
-        .select("*")
+        .select("id, entreprise_id, demande_id, facture_ligne_id, designation_snapshot, code_nature, code_activite, quantite, unite, montant_unitaire_ttc, montant_prestation_ht, montant_prestation_tva, montant_prestation_ttc, complement1, ordre, created_at, updated_at")
         .eq("demande_id", demande.id)
         .eq(
           "entreprise_id",
@@ -1321,7 +1321,7 @@ async function enregistrerDemandeEtLignes({
       .upsert(enregistrement, {
         onConflict: "facture_id",
       })
-      .select("*")
+      .select("id, entreprise_id, facture_id, client_id, urssaf_id_demande_paiement, numero_facture, date_facture, date_debut_emploi, date_fin_emploi, montant_facture_ht, montant_facture_tva, montant_facture_ttc, montant_acompte, date_versement_acompte, statut_local, statut_urssaf_code, statut_urssaf_libelle, info_rejet, info_virement, erreurs_urssaf, transmis_at, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
       .single();
 
   if (error) throw error;
@@ -1705,7 +1705,7 @@ export async function POST(
             "entreprise_id",
             entrepriseId
           )
-          .select("*")
+          .select("id, entreprise_id, facture_id, client_id, urssaf_id_demande_paiement, numero_facture, date_facture, date_debut_emploi, date_fin_emploi, montant_facture_ht, montant_facture_tva, montant_facture_ttc, montant_acompte, date_versement_acompte, statut_local, statut_urssaf_code, statut_urssaf_libelle, info_rejet, info_virement, erreurs_urssaf, transmis_at, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
           .single();
 
       if (error) throw error;
@@ -2143,7 +2143,7 @@ export async function POST(
             "entreprise_id",
             entrepriseId
           )
-          .select("*")
+          .select("id, entreprise_id, facture_id, client_id, urssaf_id_demande_paiement, numero_facture, date_facture, date_debut_emploi, date_fin_emploi, montant_facture_ht, montant_facture_tva, montant_facture_ttc, montant_acompte, date_versement_acompte, statut_local, statut_urssaf_code, statut_urssaf_libelle, info_rejet, info_virement, erreurs_urssaf, transmis_at, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
           .single();
 
       if (error) throw error;
@@ -2218,7 +2218,7 @@ export async function POST(
           "entreprise_id",
           entrepriseId
         )
-        .select("*")
+        .select("id, entreprise_id, facture_id, client_id, urssaf_id_demande_paiement, numero_facture, date_facture, date_debut_emploi, date_fin_emploi, montant_facture_ht, montant_facture_tva, montant_facture_ttc, montant_acompte, date_versement_acompte, statut_local, statut_urssaf_code, statut_urssaf_libelle, info_rejet, info_virement, erreurs_urssaf, transmis_at, derniere_tentative_at, derniere_verification_at, dernier_code_http, dernier_message, created_at, updated_at")
         .single();
 
     if (error) throw error;

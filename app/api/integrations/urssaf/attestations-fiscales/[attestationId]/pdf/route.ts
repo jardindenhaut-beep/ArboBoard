@@ -173,7 +173,9 @@ export async function GET(
       .from(
         "attestations_fiscales_sap"
       )
-      .select("*")
+      .select(
+        "id, entreprise_id, numero, annee, statut, organisme_snapshot, beneficiaire_snapshot, factures_snapshot, interventions_snapshot, nature_services, compte_debite_masque, montant_factures_ttc, montant_acquitte_client, montant_cesu_prefinance, numero_declaration_sap, date_enregistrement_sap, signataire_nom, signataire_qualite, date_emission, notes"
+      )
       .eq(
         "id",
         attestationId
@@ -305,6 +307,8 @@ export async function GET(
             `inline; filename="${nom}.pdf"`,
           "Cache-Control":
             "private, no-store, max-age=0",
+          "X-Content-Type-Options":
+            "nosniff",
         },
       }
     );
@@ -317,9 +321,7 @@ export async function GET(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de générer le PDF.",
+          "Impossible de générer le PDF.",
       },
       { status: 500 }
     );

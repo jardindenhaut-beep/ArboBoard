@@ -611,7 +611,10 @@ export async function GET(
     }
 
     return NextResponse.json(
-      { erreur: message },
+      {
+        erreur:
+          "Synchronisation URSSAF impossible.",
+      },
       { status: 500 }
     );
   } finally {

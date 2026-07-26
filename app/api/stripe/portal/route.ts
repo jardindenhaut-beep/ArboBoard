@@ -8,22 +8,17 @@ import {
 } from "@/lib/securite/limiteurRequetes";
 
 export async function GET() {
-  return NextResponse.json({
-    success: true,
-    message: "API Stripe Portal active.",
-    hasStripeKey: Boolean(
-      process.env.STRIPE_SECRET_KEY
-    ),
-    hasSupabaseUrl: Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL
-    ),
-    hasServiceRole: Boolean(
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    ),
-    siteUrl:
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "https://arboboard.fr",
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      message: "API Stripe Portal active.",
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    }
+  );
 }
 
 export async function POST(request: Request) {
@@ -64,19 +59,23 @@ export async function POST(request: Request) {
       !serviceRoleKey ||
       !stripeSecretKey
     ) {
+      console.error(
+        "Configuration Stripe Portal incomplète.",
+        {
+          hasSupabaseUrl: Boolean(supabaseUrl),
+          hasServiceRoleKey: Boolean(
+            serviceRoleKey
+          ),
+          hasStripeSecretKey: Boolean(
+            stripeSecretKey
+          ),
+        }
+      );
+
       return NextResponse.json(
         {
           error:
-            "Configuration manquante. Vérifie NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY et STRIPE_SECRET_KEY.",
-          debug: {
-            hasSupabaseUrl: Boolean(supabaseUrl),
-            hasServiceRoleKey: Boolean(
-              serviceRoleKey
-            ),
-            hasStripeSecretKey: Boolean(
-              stripeSecretKey
-            ),
-          },
+            "Le portail d’abonnement est temporairement indisponible.",
         },
         { status: 500 }
       );
@@ -126,11 +125,15 @@ export async function POST(request: Request) {
     } = await supabaseAdmin.auth.getUser(token);
 
     if (erreurUser || !user) {
+      console.error(
+        "Échec de validation de session Stripe Portal :",
+        erreurUser
+      );
+
       return NextResponse.json(
         {
           error:
             "Session invalide. Reconnecte-toi.",
-          detail: erreurUser?.message,
         },
         { status: 401 }
       );
@@ -171,11 +174,15 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (erreurProfil || !profil) {
+      console.error(
+        "Profil Stripe Portal introuvable :",
+        erreurProfil
+      );
+
       return NextResponse.json(
         {
           error:
             "Profil utilisateur introuvable.",
-          detail: erreurProfil?.message,
         },
         { status: 403 }
       );
@@ -213,10 +220,14 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (erreurEntreprise || !entreprise) {
+      console.error(
+        "Entreprise Stripe Portal introuvable :",
+        erreurEntreprise
+      );
+
       return NextResponse.json(
         {
           error: "Entreprise introuvable.",
-          detail: erreurEntreprise?.message,
         },
         { status: 404 }
       );
@@ -249,13 +260,16 @@ export async function POST(request: Request) {
       url: portalSession.url,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Erreur inconnue lors de l'ouverture du portail Stripe.";
+    console.error(
+      "Erreur Stripe Portal :",
+      error
+    );
 
     return NextResponse.json(
-      { error: message },
+      {
+        error:
+          "Impossible d’ouvrir le portail Stripe pour le moment.",
+      },
       { status: 500 }
     );
   }

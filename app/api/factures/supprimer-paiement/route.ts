@@ -82,10 +82,7 @@ export async function POST(request: NextRequest) {
 
     if (!token) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Token d’authentification manquant.",
-        },
+        { success: false, error: "Token d’authentification manquant." },
         { status: 401 }
       );
     }
@@ -97,10 +94,7 @@ export async function POST(request: NextRequest) {
 
     if (userError || !user?.id) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Utilisateur non connecté.",
-        },
+        { success: false, error: "Utilisateur non connecté." },
         { status: 401 }
       );
     }
@@ -110,26 +104,20 @@ export async function POST(request: NextRequest) {
 
     if (!paiementId) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Identifiant du paiement manquant.",
-        },
+        { success: false, error: "Identifiant du paiement manquant." },
         { status: 400 }
       );
     }
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, role, statut, entreprise_id")
       .eq("id", user.id)
       .maybeSingle();
 
     if (profilError || !profil) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Profil utilisateur introuvable.",
-        },
+        { success: false, error: "Profil utilisateur introuvable." },
         { status: 403 }
       );
     }
@@ -152,17 +140,14 @@ export async function POST(request: NextRequest) {
 
     const { data: paiement, error: paiementError } = await supabaseAdmin
       .from("factures_paiements")
-      .select("*")
+      .select("id, facture_id, entreprise_id")
       .eq("id", paiementId)
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
 
     if (paiementError || !paiement) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Paiement introuvable.",
-        },
+        { success: false, error: "Paiement introuvable." },
         { status: 404 }
       );
     }
@@ -171,27 +156,21 @@ export async function POST(request: NextRequest) {
 
     if (!factureId) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Facture liée au paiement introuvable.",
-        },
+        { success: false, error: "Facture liée au paiement introuvable." },
         { status: 400 }
       );
     }
 
     const { data: facture, error: factureError } = await supabaseAdmin
       .from("factures")
-      .select("*")
+      .select("id, entreprise_id, total_ttc, statut")
       .eq("id", factureId)
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
 
     if (factureError || !facture) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Facture introuvable.",
-        },
+        { success: false, error: "Facture introuvable." },
         { status: 404 }
       );
     }
@@ -231,7 +210,9 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", factureId)
       .eq("entreprise_id", entrepriseId)
-      .select("*")
+      .select(
+        "id, entreprise_id, numero, statut, total_ttc, montant_paye, reste_a_payer, updated_at"
+      )
       .single();
 
     if (updateError) {

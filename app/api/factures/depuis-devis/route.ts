@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function creerSupabaseAdmin() {
+function creerSupabaseAdmin(): any {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -14,7 +14,7 @@ function creerSupabaseAdmin() {
       persistSession: false,
       autoRefreshToken: false,
     },
-  });
+  }) as any;
 }
 
 function nettoyerTexte(valeur: unknown) {
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, role, statut, entreprise_id")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
 
     const { data: entreprise, error: entrepriseError } = await supabaseAdmin
       .from("entreprises_abonnees")
-      .select("*")
+      .select("id")
       .eq("id", entrepriseId)
       .maybeSingle();
 
@@ -237,9 +237,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: devis, error: devisError } = await supabaseAdmin
+    const { data: devis, error: devisError }: any = await supabaseAdmin
       .from("devis")
-      .select("*")
+      .select(
+        [
+          "id",
+          "entreprise_id",
+          "client_id",
+          "client_nom",
+          "numero",
+          "objet",
+          "description",
+          "statut",
+          "total_ht",
+          "total_tva",
+          "total_ttc",
+          "conditions",
+        ].join(", ")
+      )
       .eq("id", devisId)
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
@@ -290,9 +305,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: lignesDevis, error: lignesError } = await supabaseAdmin
+    const { data: lignesDevis, error: lignesError }: any = await supabaseAdmin
       .from("devis_lignes")
-      .select("*")
+      .select(
+        "id, devis_id, entreprise_id, ordre, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, total_tva, total_ttc"
+      )
       .eq("entreprise_id", entrepriseId)
       .eq("devis_id", devisId)
       .order("ordre", { ascending: true });
@@ -313,9 +330,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: parametres } = await supabaseAdmin
+    const { data: parametres }: any = await supabaseAdmin
       .from("entreprise_parametres")
-      .select("*")
+      .select("delai_paiement_jours, prefixe_facture, conditions_factures")
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
 
@@ -373,10 +390,12 @@ export async function POST(request: NextRequest) {
       ),
     };
 
-    const { data: factureCreee, error: factureError } = await supabaseAdmin
+    const { data: factureCreee, error: factureError }: any = await supabaseAdmin
       .from("factures")
       .insert(payloadFacture)
-      .select("*")
+      .select(
+        "id, entreprise_id, client_id, client_nom, devis_id, numero, objet, description, type_facture, statut, date_facture, date_echeance, total_ht, total_tva, total_ttc, montant_paye, reste_a_payer, notes_internes, conditions, created_at, updated_at"
+      )
       .single();
 
     if (factureError || !factureCreee?.id) {

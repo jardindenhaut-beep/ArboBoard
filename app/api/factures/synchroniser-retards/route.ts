@@ -30,10 +30,7 @@ export async function POST(request: NextRequest) {
 
     if (!token) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Token d’authentification manquant.",
-        },
+        { success: false, error: "Token d’authentification manquant." },
         { status: 401 }
       );
     }
@@ -45,26 +42,20 @@ export async function POST(request: NextRequest) {
 
     if (userError || !user?.id) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Utilisateur non connecté.",
-        },
+        { success: false, error: "Utilisateur non connecté." },
         { status: 401 }
       );
     }
 
     const { data: profil, error: profilError } = await supabaseAdmin
       .from("profils_utilisateurs")
-      .select("*")
+      .select("id, role, statut, entreprise_id")
       .eq("id", user.id)
       .maybeSingle();
 
     if (profilError || !profil) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Profil utilisateur introuvable.",
-        },
+        { success: false, error: "Profil utilisateur introuvable." },
         { status: 403 }
       );
     }
@@ -114,9 +105,7 @@ export async function POST(request: NextRequest) {
 
     const { error: updateError } = await supabaseAdmin
       .from("factures")
-      .update({
-        statut: "en_retard",
-      })
+      .update({ statut: "en_retard" })
       .eq("entreprise_id", entrepriseId)
       .in("id", ids);
 

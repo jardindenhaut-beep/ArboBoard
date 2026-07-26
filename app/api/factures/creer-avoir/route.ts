@@ -263,7 +263,34 @@ export async function POST(request: NextRequest) {
 
     const { data: factureOrigine, error: factureError } = await supabaseAdmin
       .from("factures")
-      .select("*")
+      .select(
+        [
+          "id",
+          "entreprise_id",
+          "client_id",
+          "devis_id",
+          "numero",
+          "statut",
+          "type_facture",
+          "est_avoir",
+          "facture_origine_id",
+          "motif_avoir",
+          "avoir_annule_facture",
+          "date_creation_avoir",
+          "date_facture",
+          "date_echeance",
+          "objet",
+          "description",
+          "total_ht",
+          "total_tva",
+          "total_ttc",
+          "montant_paye",
+          "reste_a_payer",
+          "conditions",
+          "created_at",
+          "updated_at",
+        ].join(", ")
+      )
       .eq("id", factureId)
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
@@ -326,7 +353,9 @@ export async function POST(request: NextRequest) {
 
     const { data: lignesOrigine, error: lignesError } = await supabaseAdmin
       .from("factures_lignes")
-      .select("*")
+      .select(
+        "id, facture_id, entreprise_id, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, ordre, created_at, updated_at"
+      )
       .eq("facture_id", factureId)
       .eq("entreprise_id", entrepriseId)
       .order("ordre", { ascending: true });
@@ -399,7 +428,34 @@ export async function POST(request: NextRequest) {
     const { data: avoirCree, error: creationAvoirError } = await supabaseAdmin
       .from("factures")
       .insert(payloadAvoir as any)
-      .select("*")
+      .select(
+        [
+          "id",
+          "entreprise_id",
+          "client_id",
+          "devis_id",
+          "numero",
+          "statut",
+          "type_facture",
+          "est_avoir",
+          "facture_origine_id",
+          "motif_avoir",
+          "avoir_annule_facture",
+          "date_creation_avoir",
+          "date_facture",
+          "date_echeance",
+          "objet",
+          "description",
+          "total_ht",
+          "total_tva",
+          "total_ttc",
+          "montant_paye",
+          "reste_a_payer",
+          "conditions",
+          "created_at",
+          "updated_at",
+        ].join(", ")
+      )
       .single();
 
     if (creationAvoirError) throw creationAvoirError;
@@ -432,7 +488,34 @@ export async function POST(request: NextRequest) {
 
     const { data: avoirFinal, error: relectureAvoirError } = await supabaseAdmin
       .from("factures")
-      .select("*")
+      .select(
+        [
+          "id",
+          "entreprise_id",
+          "client_id",
+          "devis_id",
+          "numero",
+          "statut",
+          "type_facture",
+          "est_avoir",
+          "facture_origine_id",
+          "motif_avoir",
+          "avoir_annule_facture",
+          "date_creation_avoir",
+          "date_facture",
+          "date_echeance",
+          "objet",
+          "description",
+          "total_ht",
+          "total_tva",
+          "total_ttc",
+          "montant_paye",
+          "reste_a_payer",
+          "conditions",
+          "created_at",
+          "updated_at",
+        ].join(", ")
+      )
       .eq("id", avoirCree.id)
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();

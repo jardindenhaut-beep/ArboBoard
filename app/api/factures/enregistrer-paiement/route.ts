@@ -1087,7 +1087,9 @@ export async function POST(
             ? maintenant
             : null,
       })
-      .select("*")
+      .select(
+        "id, entreprise_id, facture_id, montant, mode_paiement, reference_paiement, note, date_paiement, enregistre_par, source_paiement, demande_paiement_urssaf_id, rapprochement_urssaf_at, created_at"
+      )
       .single();
 
     if (
@@ -1145,7 +1147,9 @@ export async function POST(
         "entreprise_id",
         entrepriseId
       )
-      .select("*")
+      .select(
+        "id, entreprise_id, numero, statut, total_ttc, montant_paye, reste_a_payer, updated_at"
+      )
       .single();
 
     if (updateError) {

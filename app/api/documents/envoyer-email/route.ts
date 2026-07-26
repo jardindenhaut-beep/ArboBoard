@@ -951,7 +951,6 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error:
-          error?.message ||
           "Une erreur est survenue pendant l’envoi du document par email.",
       },
       { status: 500 }

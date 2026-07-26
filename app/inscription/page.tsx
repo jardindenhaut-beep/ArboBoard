@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 import {
   useEffect,
   useState,
@@ -295,8 +296,8 @@ export default function InscriptionPage() {
     !versionConfidentialite;
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-12">
+    <main className="flex min-h-screen flex-col bg-slate-100">
+      <div className="mx-auto flex w-full flex-1 max-w-2xl flex-col justify-center px-6 py-12">
         <div className="mb-6 text-center">
           <Link
             href="/"
@@ -559,6 +560,8 @@ export default function InscriptionPage() {
           </div>
         </div>
       </div>
+
+      <PiedDePagePublic compact />
     </main>
   );
 }

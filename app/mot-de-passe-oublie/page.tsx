@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function MotDePasseOubliePage() {
@@ -19,15 +20,19 @@ export default function MotDePasseOubliePage() {
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      }
-    );
+    const { error } =
+      await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        }
+      );
 
     if (error) {
-      setMessage(error.message || "Impossible d'envoyer le lien de récupération.");
+      setMessage(
+        error.message ||
+          "Impossible d'envoyer le lien de récupération."
+      );
       setChargement(false);
       return;
     }
@@ -40,8 +45,8 @@ export default function MotDePasseOubliePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
+    <main className="flex min-h-screen flex-col bg-slate-100">
+      <div className="mx-auto flex w-full flex-1 max-w-xl flex-col justify-center px-6 py-12">
         <div className="mb-6 text-center">
           <Link
             href="/"
@@ -75,10 +80,12 @@ export default function MotDePasseOubliePage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    envoyerLien();
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void envoyerLien();
                   }
                 }}
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
@@ -86,19 +93,25 @@ export default function MotDePasseOubliePage() {
               />
             </div>
 
-            <button type="button"
-              onClick={envoyerLien}
+            <button
+              type="button"
+              onClick={() => void envoyerLien()}
               disabled={chargement}
               className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
             >
-              {chargement ? "Envoi en cours..." : "Envoyer le lien"}
+              {chargement
+                ? "Envoi en cours..."
+                : "Envoyer le lien"}
             </button>
 
-            {message && (
-              <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+            {message ? (
+              <p
+                role="status"
+                className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+              >
                 {message}
               </p>
-            )}
+            ) : null}
 
             <div className="grid gap-2 text-center text-sm text-slate-500">
               <Link
@@ -118,6 +131,8 @@ export default function MotDePasseOubliePage() {
           </div>
         </div>
       </div>
+
+      <PiedDePagePublic compact />
     </main>
   );
 }

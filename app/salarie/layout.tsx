@@ -11,6 +11,7 @@ import {
   abonnementEstBloque,
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
+import AcceptationsObligatoires from "@/components/juridique/AcceptationsObligatoires";
 
 type ContexteEntreprise = {
   profil: any;
@@ -337,6 +338,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      <AcceptationsObligatoires />
       <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-slate-200 bg-white lg:flex lg:flex-col">
         <div className="border-b border-slate-200 p-5">
           <Link href="/salarie/dashboard" className="flex items-center gap-3">

@@ -17,6 +17,7 @@ import {
   abonnementEstBloque,
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
+import AcceptationsObligatoires from "@/components/juridique/AcceptationsObligatoires";
 
 type ResultatContexteEntreprise = Awaited<
   ReturnType<typeof chargerContexteEntreprise>
@@ -693,6 +694,7 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      <AcceptationsObligatoires />
       <aside className="fixed left-0 top-0 hidden h-screen w-72 flex-col border-r border-slate-200 bg-white shadow-sm lg:flex">
         <div className="border-b border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-white p-5">
           <Link

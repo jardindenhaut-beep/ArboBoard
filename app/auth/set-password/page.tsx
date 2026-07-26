@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function SetPasswordPage() {
@@ -11,10 +12,13 @@ export default function SetPasswordPage() {
   const [confirmation, setConfirmation] = useState("");
   const [chargement, setChargement] = useState(true);
   const [sauvegarde, setSauvegarde] = useState(false);
-  const [message, setMessage] = useState("Préparation de ton compte...");
+  const [message, setMessage] = useState(
+    "Préparation de ton compte..."
+  );
 
   useEffect(() => {
-    preparerSessionInvitation();
+    void preparerSessionInvitation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function preparerSessionInvitation() {
@@ -25,7 +29,8 @@ export default function SetPasswordPage() {
     const code = url.searchParams.get("code");
 
     if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { error } =
+        await supabase.auth.exchangeCodeForSession(code);
 
       if (error) {
         setMessage(
@@ -49,7 +54,9 @@ export default function SetPasswordPage() {
       return;
     }
 
-    setMessage("Invitation validée. Choisis maintenant ton mot de passe.");
+    setMessage(
+      "Invitation validée. Choisis maintenant ton mot de passe."
+    );
     setChargement(false);
   }
 
@@ -58,13 +65,29 @@ export default function SetPasswordPage() {
     setMessage("");
 
     if (motDePasse.length < 8) {
-      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
+      setMessage(
+        "Le mot de passe doit contenir au moins 8 caractères."
+      );
       setSauvegarde(false);
       return;
     }
 
     if (motDePasse !== confirmation) {
-      setMessage("Les deux mots de passe ne correspondent pas.");
+      setMessage(
+        "Les deux mots de passe ne correspondent pas."
+      );
+      setSauvegarde(false);
+      return;
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      setMessage(
+        "Session absente. Le lien est expiré ou déjà utilisé. Demande une nouvelle invitation."
+      );
       setSauvegarde(false);
       return;
     }
@@ -74,21 +97,29 @@ export default function SetPasswordPage() {
     });
 
     if (error) {
-      setMessage(error.message || "Impossible d'enregistrer le mot de passe.");
+      setMessage(
+        error.message ||
+          "Impossible d'enregistrer le mot de passe."
+      );
       setSauvegarde(false);
       return;
     }
 
-    setMessage("Mot de passe créé. Redirection vers ton espace salarié...");
+    setMotDePasse("");
+    setConfirmation("");
 
-    setTimeout(() => {
+    setMessage(
+      "Mot de passe créé. Redirection vers ton espace salarié..."
+    );
+
+    window.setTimeout(() => {
       router.push("/salarie/dashboard");
     }, 800);
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
+    <main className="flex min-h-screen flex-col bg-slate-100">
+      <div className="mx-auto flex w-full flex-1 max-w-xl flex-col justify-center px-6 py-12">
         <div className="rounded-3xl bg-white p-8 shadow-sm">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
@@ -105,7 +136,10 @@ export default function SetPasswordPage() {
           </div>
 
           {chargement ? (
-            <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+            <p
+              role="status"
+              className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+            >
               {message}
             </p>
           ) : (
@@ -118,7 +152,10 @@ export default function SetPasswordPage() {
                 <input
                   type="password"
                   value={motDePasse}
-                  onChange={(e) => setMotDePasse(e.target.value)}
+                  onChange={(event) =>
+                    setMotDePasse(event.target.value)
+                  }
+                  autoComplete="new-password"
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="8 caractères minimum"
                 />
@@ -132,34 +169,47 @@ export default function SetPasswordPage() {
                 <input
                   type="password"
                   value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      enregistrerMotDePasse();
+                  onChange={(event) =>
+                    setConfirmation(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      void enregistrerMotDePasse();
                     }
                   }}
+                  autoComplete="new-password"
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="Confirmer"
                 />
               </div>
 
-              <button type="button"
-                onClick={enregistrerMotDePasse}
+              <button
+                type="button"
+                onClick={() =>
+                  void enregistrerMotDePasse()
+                }
                 disabled={sauvegarde}
                 className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {sauvegarde ? "Enregistrement..." : "Créer mon mot de passe"}
+                {sauvegarde
+                  ? "Enregistrement..."
+                  : "Créer mon mot de passe"}
               </button>
 
-              {message && (
-                <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+              {message ? (
+                <p
+                  role="status"
+                  className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+                >
                   {message}
                 </p>
-              )}
+              ) : null}
             </div>
           )}
         </div>
       </div>
+
+      <PiedDePagePublic compact />
     </main>
   );
 }

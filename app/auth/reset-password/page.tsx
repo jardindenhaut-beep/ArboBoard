@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfilUtilisateur = {
@@ -22,7 +23,8 @@ export default function ResetPasswordPage() {
   );
 
   useEffect(() => {
-    preparerSessionRecovery();
+    void preparerSessionRecovery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function preparerSessionRecovery() {
@@ -30,7 +32,6 @@ export default function ResetPasswordPage() {
     setMessage("Validation du lien de récupération...");
 
     const url = new URL(window.location.href);
-
     const code = url.searchParams.get("code");
 
     const hash = window.location.hash.replace("#", "");
@@ -40,7 +41,8 @@ export default function ResetPasswordPage() {
     const refreshToken = hashParams.get("refresh_token");
 
     if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { error } =
+        await supabase.auth.exchangeCodeForSession(code);
 
       if (error) {
         setMessage(
@@ -71,7 +73,7 @@ export default function ResetPasswordPage() {
 
       await supabase.auth.signOut();
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         router.push("/connexion");
       }, 1200);
 
@@ -92,7 +94,9 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    setMessage("Lien validé. Choisis maintenant ton nouveau mot de passe.");
+    setMessage(
+      "Lien validé. Choisis maintenant ton nouveau mot de passe."
+    );
     setChargement(false);
   }
 
@@ -119,13 +123,17 @@ export default function ResetPasswordPage() {
     setMessage("");
 
     if (motDePasse.length < 8) {
-      setMessage("Le mot de passe doit contenir au moins 8 caractères.");
+      setMessage(
+        "Le mot de passe doit contenir au moins 8 caractères."
+      );
       setSauvegarde(false);
       return;
     }
 
     if (motDePasse !== confirmation) {
-      setMessage("Les deux mots de passe ne correspondent pas.");
+      setMessage(
+        "Les deux mots de passe ne correspondent pas."
+      );
       setSauvegarde(false);
       return;
     }
@@ -150,7 +158,8 @@ export default function ResetPasswordPage() {
 
     if (error) {
       setMessage(
-        error.message || "Impossible d'enregistrer le nouveau mot de passe."
+        error.message ||
+          "Impossible d'enregistrer le nouveau mot de passe."
       );
       setSauvegarde(false);
       return;
@@ -160,7 +169,9 @@ export default function ResetPasswordPage() {
     setConfirmation("");
 
     const redirection =
-      profil?.role === "salarie" ? "/connexion/salarie" : "/connexion";
+      profil?.role === "salarie"
+        ? "/connexion/salarie"
+        : "/connexion";
 
     setMessage(
       "Mot de passe modifié avec succès. Reconnecte-toi avec ton nouveau mot de passe."
@@ -168,14 +179,14 @@ export default function ResetPasswordPage() {
 
     await supabase.auth.signOut();
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       router.push(redirection);
     }, 1200);
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
+    <main className="flex min-h-screen flex-col bg-slate-100">
+      <div className="mx-auto flex w-full flex-1 max-w-xl flex-col justify-center px-6 py-12">
         <div className="rounded-3xl bg-white p-8 shadow-sm">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
@@ -192,7 +203,10 @@ export default function ResetPasswordPage() {
           </div>
 
           {chargement ? (
-            <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+            <p
+              role="status"
+              className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+            >
               {message}
             </p>
           ) : (
@@ -205,7 +219,10 @@ export default function ResetPasswordPage() {
                 <input
                   type="password"
                   value={motDePasse}
-                  onChange={(e) => setMotDePasse(e.target.value)}
+                  onChange={(event) =>
+                    setMotDePasse(event.target.value)
+                  }
+                  autoComplete="new-password"
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="8 caractères minimum"
                 />
@@ -219,19 +236,23 @@ export default function ResetPasswordPage() {
                 <input
                   type="password"
                   value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      enregistrerMotDePasse();
+                  onChange={(event) =>
+                    setConfirmation(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      void enregistrerMotDePasse();
                     }
                   }}
+                  autoComplete="new-password"
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-900"
                   placeholder="Confirmer"
                 />
               </div>
 
-              <button type="button"
-                onClick={enregistrerMotDePasse}
+              <button
+                type="button"
+                onClick={() => void enregistrerMotDePasse()}
                 disabled={sauvegarde}
                 className="rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
               >
@@ -240,15 +261,20 @@ export default function ResetPasswordPage() {
                   : "Enregistrer le nouveau mot de passe"}
               </button>
 
-              {message && (
-                <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+              {message ? (
+                <p
+                  role="status"
+                  className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700"
+                >
                   {message}
                 </p>
-              )}
+              ) : null}
             </div>
           )}
         </div>
       </div>
+
+      <PiedDePagePublic compact />
     </main>
   );
 }

@@ -256,7 +256,7 @@ export async function GET(request: NextRequest) {
 
     let requete = supabaseAdmin
       .from("demandes_rgpd")
-      .select("*")
+      .select("id, entreprise_id, utilisateur_id, type_demande, statut, commentaire_utilisateur, reponse_interne, source, recue_at, echeance_reponse, prolongee_jusqu_au, motif_prolongation, prise_en_charge_at, terminee_at, annulee_at, traitee_par, created_at, updated_at")
       .order("created_at", { ascending: false })
       .limit(500);
 
@@ -381,9 +381,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les demandes RGPD.",
+          "Impossible de charger les demandes RGPD.",
       },
       { status: 500 }
     );
@@ -473,9 +471,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de mettre à jour la demande.",
+          "Impossible de mettre à jour la demande.",
       },
       { status: 500 }
     );

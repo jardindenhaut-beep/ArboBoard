@@ -259,7 +259,9 @@ export async function GET(
       .from(
         "acceptations_contractuelles"
       )
-      .select("*")
+      .select(
+        "id, utilisateur_id, entreprise_id, type_document, version_document, titre_document, contexte, source, details, user_agent, acceptee_at"
+      )
       .eq(
         "entreprise_id",
         profilType.entreprise_id
@@ -417,9 +419,7 @@ export async function GET(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les acceptations contractuelles.",
+          "Impossible de charger les acceptations contractuelles.",
       },
       { status: 500 }
     );

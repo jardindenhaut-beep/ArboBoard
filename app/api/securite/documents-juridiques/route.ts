@@ -296,7 +296,7 @@ export async function GET(
         .from(
           "documents_juridiques_plateforme"
         )
-        .select("*")
+        .select("id, type_document, titre_publie, contenu_publie, version_publiee, titre_brouillon, contenu_brouillon, version_brouillon, publie_at, publie_par, updated_by, created_at, updated_at")
         .in("type_document", [
           ...TYPES_DOCUMENTS_JURIDIQUES,
         ])
@@ -318,9 +318,7 @@ export async function GET(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les documents.",
+          "Impossible de charger les documents.",
       },
       { status: 500 }
     );
@@ -437,7 +435,7 @@ export async function PUT(
           "type_document",
           corps.type_document
         )
-        .select("*")
+        .select("id, type_document, titre_publie, contenu_publie, version_publiee, titre_brouillon, contenu_brouillon, version_brouillon, publie_at, publie_par, updated_by, created_at, updated_at")
         .single();
 
     if (error) throw error;
@@ -456,9 +454,7 @@ export async function PUT(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’enregistrer le brouillon.",
+          "Impossible d’enregistrer le brouillon.",
       },
       { status: 500 }
     );
@@ -530,9 +526,7 @@ export async function POST(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de publier le document.",
+          "Impossible de publier le document.",
       },
       { status: 500 }
     );

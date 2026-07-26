@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 
 export default function HomePage() {
   return (
@@ -6,7 +7,9 @@ export default function HomePage() {
       <section className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-10">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">🌱 Arboboard</h1>
+            <h1 className="text-2xl font-bold text-slate-900">
+              🌱 Arboboard
+            </h1>
             <p className="text-sm text-slate-500">
               Logiciel SaaS pour paysagistes et élagueurs
             </p>
@@ -47,9 +50,9 @@ export default function HomePage() {
             </h2>
 
             <p className="mt-6 max-w-xl text-lg text-slate-600">
-              Arboboard centralise vos clients, devis, factures, chantiers,
-              salariés, plannings et demandes internes dans une seule application
-              simple à utiliser.
+              Arboboard centralise vos clients, devis, factures, fiches
+              d’intervention, salariés, plannings et demandes internes
+              dans une seule application simple à utiliser.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -70,18 +73,30 @@ export default function HomePage() {
 
             <div className="mt-8 grid gap-3 text-sm text-slate-600 sm:grid-cols-3">
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <p className="font-semibold text-slate-900">Devis & factures</p>
-                <p className="mt-1">PDF, TVA, acomptes, avoirs.</p>
+                <p className="font-semibold text-slate-900">
+                  Devis & factures
+                </p>
+                <p className="mt-1">
+                  PDF, TVA, acomptes, avoirs.
+                </p>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <p className="font-semibold text-slate-900">Planning équipe</p>
-                <p className="mt-1">Interventions et affectations.</p>
+                <p className="font-semibold text-slate-900">
+                  Planning équipe
+                </p>
+                <p className="mt-1">
+                  Interventions et affectations.
+                </p>
               </div>
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <p className="font-semibold text-slate-900">Espace salarié</p>
-                <p className="mt-1">Demandes, planning et profil.</p>
+                <p className="font-semibold text-slate-900">
+                  Espace salarié
+                </p>
+                <p className="mt-1">
+                  Demandes, planning et profil.
+                </p>
               </div>
             </div>
           </div>
@@ -97,8 +112,8 @@ export default function HomePage() {
                   Gestion commerciale
                 </h4>
                 <p className="mt-2 text-sm text-slate-600">
-                  Clients, chantiers, devis professionnels, factures conformes,
-                  suivi des statuts et documents PDF.
+                  Clients, fiches d’intervention, devis professionnels,
+                  factures conformes, suivi des statuts et documents PDF.
                 </p>
               </div>
 
@@ -107,8 +122,8 @@ export default function HomePage() {
                   Organisation terrain
                 </h4>
                 <p className="mt-2 text-sm text-slate-600">
-                  Planning d’interventions, salariés affectés, demandes internes,
-                  notes et suivi des interventions.
+                  Planning d’interventions, salariés affectés, demandes
+                  internes, notes et suivi des interventions.
                 </p>
               </div>
 
@@ -117,13 +132,15 @@ export default function HomePage() {
                   Abonnement SaaS
                 </h4>
                 <p className="mt-2 text-sm text-slate-600">
-                  Plans Essentiel, Pro et Expert avec paiement Stripe et gestion
-                  des accès par entreprise.
+                  Plans Essentiel, Pro et Expert avec paiement Stripe et
+                  gestion des accès par entreprise.
                 </p>
               </div>
 
               <div className="rounded-2xl bg-slate-900 p-5 text-white">
-                <h4 className="font-semibold">Objectif</h4>
+                <h4 className="font-semibold">
+                  Objectif
+                </h4>
                 <p className="mt-2 text-sm text-slate-300">
                   Faire gagner du temps aux professionnels du paysage sur
                   l’administratif, l’organisation et le suivi de leur activité.
@@ -132,11 +149,9 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-
-        <footer className="border-t border-slate-200 py-6 text-center text-sm text-slate-500">
-          Arboboard — L’application de gestion pour paysagistes et élagueurs.
-        </footer>
       </section>
+
+      <PiedDePagePublic />
     </main>
   );
 }

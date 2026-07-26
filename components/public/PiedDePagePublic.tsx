@@ -102,6 +102,12 @@ export default function PiedDePagePublic({
               >
                 Se connecter
               </Link>
+              <Link
+                href="/connexion/salarie"
+                className="block text-sm text-slate-400 transition hover:text-white"
+              >
+                Espace salarié
+              </Link>
               <a
                 href="mailto:contact@arboboard.fr"
                 className="block text-sm text-slate-400 transition hover:text-white"

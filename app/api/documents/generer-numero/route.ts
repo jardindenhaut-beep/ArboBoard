@@ -23,9 +23,9 @@ function creerSupabaseAdmin() {
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseAdmin = creerSupabaseAdmin();
-
   try {
+    const supabaseAdmin = creerSupabaseAdmin();
+
     const authorization = request.headers.get("authorization") || "";
     const token = authorization.replace("Bearer ", "").trim();
 
@@ -61,6 +61,11 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profilError || !profil) {
+      console.error(
+        "Erreur lecture profil pour génération de numéro :",
+        profilError
+      );
+
       return NextResponse.json(
         {
           success: false,
@@ -112,7 +117,20 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    if (rpcError) throw rpcError;
+    if (rpcError) {
+      console.error(
+        "Erreur RPC génération numéro document :",
+        rpcError
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Impossible de générer le numéro du document.",
+        },
+        { status: 500 }
+      );
+    }
 
     if (!numero) {
       return NextResponse.json(
@@ -129,14 +147,13 @@ export async function POST(request: NextRequest) {
       typeDocument,
       numero,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Erreur génération numéro document :", error);
 
     return NextResponse.json(
       {
         success: false,
         error:
-          error?.message ||
           "Une erreur est survenue pendant la génération du numéro.",
       },
       { status: 500 }

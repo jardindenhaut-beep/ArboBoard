@@ -575,9 +575,7 @@ Cordialement.`;
     return NextResponse.json(
       {
         success: false,
-        error:
-          error?.message ||
-          "Une erreur est survenue pendant l’envoi de la relance.",
+        error: "Une erreur est survenue pendant l’envoi de la relance.",
       },
       { status: 500 }
     );

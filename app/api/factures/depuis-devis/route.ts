@@ -448,9 +448,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error?.message ||
-          "Une erreur est survenue pendant la création de la facture.",
+        error: "Une erreur est survenue pendant la création de la facture.",
       },
       { status: 500 }
     );

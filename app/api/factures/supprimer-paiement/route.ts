@@ -236,9 +236,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error?.message ||
-          "Une erreur est survenue pendant la suppression du paiement.",
+        error: "Une erreur est survenue pendant la suppression du paiement.",
       },
       { status: 500 }
     );

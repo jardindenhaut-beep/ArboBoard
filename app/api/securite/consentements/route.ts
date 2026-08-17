@@ -211,10 +211,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les consentements.",
+        erreur: "Impossible de charger les consentements.",
       },
       { status: 500 }
     );
@@ -303,9 +300,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’enregistrer le consentement.",
+          "Impossible d’enregistrer le consentement.",
       },
       { status: 500 }
     );

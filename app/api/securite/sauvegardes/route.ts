@@ -183,9 +183,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger l’historique des sauvegardes.",
+          "Impossible de charger l’historique des sauvegardes.",
       },
       { status: 500 }
     );
@@ -363,7 +361,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { erreur: message },
+      {
+        erreur:
+          "Impossible de générer la sauvegarde.",
+      },
       { status: 500 }
     );
   }

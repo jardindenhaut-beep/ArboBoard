@@ -298,9 +298,7 @@ export async function GET(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de vérifier les documents à accepter.",
+          "Impossible de vérifier les documents à accepter.",
       },
       { status: 500 }
     );
@@ -482,9 +480,7 @@ export async function POST(
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’enregistrer l’acceptation.",
+          "Impossible d’enregistrer l’acceptation.",
       },
       { status: 500 }
     );

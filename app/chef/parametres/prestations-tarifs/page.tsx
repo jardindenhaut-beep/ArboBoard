@@ -498,6 +498,19 @@ export default function PrestationsTarifsPage() {
     }
   }
 
+  function nombrePrestationsCategorie(categorieId: string) {
+    return prestations.filter(
+      (prestation) => prestation.categorie_id === categorieId
+    ).length;
+  }
+
+  function nombrePrestationsActivesCategorie(categorieId: string) {
+    return prestations.filter(
+      (prestation) =>
+        prestation.categorie_id === categorieId && prestation.actif
+    ).length;
+  }
+
   function nouvelleCategorie() {
     setCategorieEdition(null);
     setFormCategorie(FORM_CATEGORIE_VIDE);
@@ -563,13 +576,26 @@ export default function PrestationsTarifsPage() {
         if (error) throw error;
       }
 
+      const prefixeModifie =
+        Boolean(categorieEdition) &&
+        categorieEdition?.prefixe_code !== prefixe;
+
+      const ancienPrefixe = categorieEdition?.prefixe_code || "";
+
       await chargerDonnees(entrepriseId);
       nouvelleCategorie();
-      setMessageSucces(
-        categorieEdition
-          ? "La catégorie a été modifiée."
-          : "La catégorie a été créée."
-      );
+
+      if (prefixeModifie) {
+        setMessageSucces(
+          `La catégorie a été modifiée. Les codes déjà attribués en ${ancienPrefixe} restent inchangés ; les nouvelles prestations utiliseront ${prefixe}.`
+        );
+      } else {
+        setMessageSucces(
+          categorieEdition
+            ? "La catégorie a été modifiée."
+            : "La catégorie a été créée."
+        );
+      }
     } catch (error) {
       console.error("Erreur enregistrement catégorie :", error);
       setMessageErreur(
@@ -585,18 +611,43 @@ export default function PrestationsTarifsPage() {
   async function basculerCategorie(categorie: Categorie) {
     if (!entrepriseId) return;
 
-    const { error } = await supabase
-      .from("prestations_categories")
-      .update({ actif: !categorie.actif })
-      .eq("id", categorie.id)
-      .eq("entreprise_id", entrepriseId);
-
-    if (error) {
-      setMessageErreur(error.message);
+    if (
+      categorie.actif &&
+      nombrePrestationsActivesCategorie(categorie.id) > 0
+    ) {
+      setMessageErreur(
+        `Impossible d’archiver ${categorie.nom} : ${nombrePrestationsActivesCategorie(
+          categorie.id
+        )} prestation(s) active(s) utilisent encore cette catégorie. Archivez-les ou changez leur catégorie d’abord.`
+      );
       return;
     }
 
-    await chargerDonnees(entrepriseId);
+    try {
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const { error } = await supabase
+        .from("prestations_categories")
+        .update({ actif: !categorie.actif })
+        .eq("id", categorie.id)
+        .eq("entreprise_id", entrepriseId);
+
+      if (error) throw error;
+
+      await chargerDonnees(entrepriseId);
+
+      setMessageSucces(
+        categorie.actif
+          ? `${categorie.nom} a été archivée.`
+          : `${categorie.nom} a été réactivée.`
+      );
+    } catch (error) {
+      console.error("Erreur statut catégorie :", error);
+      setMessageErreur(
+        "Impossible de modifier le statut de la catégorie."
+      );
+    }
   }
 
   if (chargement) {
@@ -1026,6 +1077,25 @@ export default function PrestationsTarifsPage() {
                   />
                 </div>
 
+                {categorieEdition &&
+                formCategorie.prefixe_code.trim().toUpperCase() !==
+                  categorieEdition.prefixe_code ? (
+                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-sm font-bold text-amber-900">
+                      Changement de préfixe
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">
+                      {nombrePrestationsCategorie(categorieEdition.id) > 0
+                        ? `${nombrePrestationsCategorie(
+                            categorieEdition.id
+                          )} prestation(s) possèdent déjà un code en ${categorieEdition.prefixe_code}. Ces codes resteront inchangés. Seules les nouvelles prestations utiliseront ${formCategorie.prefixe_code
+                            .trim()
+                            .toUpperCase() || "le nouveau préfixe"}.`
+                        : `Aucune prestation n’utilise encore ${categorieEdition.prefixe_code}. Les prochaines utiliseront le nouveau préfixe.`}
+                    </p>
+                  </div>
+                ) : null}
+
                 <input
                   value={formCategorie.description}
                   onChange={(event) =>
@@ -1061,11 +1131,29 @@ export default function PrestationsTarifsPage() {
                     key={categorie.id}
                     className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div>
-                      <span className="rounded-lg bg-slate-950 px-2.5 py-1 text-xs font-black text-white">
-                        {categorie.prefixe_code}
-                      </span>{" "}
-                      <strong>{categorie.nom}</strong>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-lg bg-slate-950 px-2.5 py-1 text-xs font-black text-white">
+                          {categorie.prefixe_code}
+                        </span>
+                        <strong className="text-slate-950">
+                          {categorie.nom}
+                        </strong>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                          {nombrePrestationsCategorie(categorie.id)} prestation(s)
+                        </span>
+                        {!categorie.actif ? (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                            Archivée
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {categorie.description ? (
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          {categorie.description}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex gap-2">
                       <button

@@ -801,6 +801,36 @@ export default function PageParametresChef() {
         </div>
       ) : null}
 
+      <Link
+        href="/chef/parametres/prestations-tarifs"
+        className="group block overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+      >
+        <div className="h-1.5 bg-emerald-600" />
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+              🧮
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                Base métier
+              </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">
+                Prestations & tarifs
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                Gérez vos codes prestations, tarifs de référence, coûts réels et
+                marges avant leur utilisation dans les devis et factures.
+              </p>
+            </div>
+          </div>
+
+          <span className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-emerald-700">
+            Ouvrir la base →
+          </span>
+        </div>
+      </Link>
+
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <CarteParametres

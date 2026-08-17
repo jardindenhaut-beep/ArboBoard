@@ -214,9 +214,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de générer l’export personnel.",
+          "Impossible de générer l’export personnel.",
       },
       { status: 500 }
     );

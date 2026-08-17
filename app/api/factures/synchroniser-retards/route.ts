@@ -129,7 +129,6 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error:
-          error?.message ||
           "Une erreur est survenue pendant la synchronisation des retards.",
       },
       { status: 500 }

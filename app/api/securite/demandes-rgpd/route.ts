@@ -32,9 +32,7 @@ function creerSupabaseAdmin() {
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRole) {
-    throw new Error(
-      "Configuration Supabase serveur incomplète."
-    );
+    throw new Error("Configuration Supabase serveur incomplète.");
   }
 
   return createClient(url, serviceRole, {
@@ -64,9 +62,7 @@ function normaliser(valeur: string | null | undefined) {
     .toLowerCase();
 }
 
-function estTypeDemande(
-  valeur: unknown
-): valeur is TypeDemande {
+function estTypeDemande(valeur: unknown): valeur is TypeDemande {
   return (
     typeof valeur === "string" &&
     TYPES_DEMANDE.includes(valeur as TypeDemande)
@@ -107,12 +103,11 @@ async function authentifier(request: NextRequest) {
     };
   }
 
-  const { data: profil, error: profilError } =
-    await supabaseAdmin
-      .from("profils_utilisateurs")
-      .select("id, entreprise_id, statut")
-      .eq("id", user.id)
-      .single();
+  const { data: profil, error: profilError } = await supabaseAdmin
+    .from("profils_utilisateurs")
+    .select("id, entreprise_id, statut")
+    .eq("id", user.id)
+    .single();
 
   if (profilError || !profil?.entreprise_id) {
     return {
@@ -184,10 +179,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les demandes.",
+        erreur: "Impossible de charger les demandes.",
       },
       { status: 500 }
     );
@@ -227,8 +219,7 @@ export async function POST(request: NextRequest) {
         p_entreprise_id: profil.entreprise_id,
         p_utilisateur_id: profil.id,
         p_type_demande: corps.type_demande,
-        p_commentaire_utilisateur:
-          commentaire || null,
+        p_commentaire_utilisateur: commentaire || null,
         p_source: "espace_compte",
       }
     );
@@ -245,17 +236,17 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Erreur création demande RGPD :", error);
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de créer la demande.";
-
-    const statut =
-      message.includes("déjà en cours") ? 409 : 500;
+    const dejaEnCours =
+      error instanceof Error &&
+      error.message.includes("déjà en cours");
 
     return NextResponse.json(
-      { erreur: message },
-      { status: statut }
+      {
+        erreur: dejaEnCours
+          ? "Une demande de ce type est déjà en cours."
+          : "Impossible de créer la demande.",
+      },
+      { status: dejaEnCours ? 409 : 500 }
     );
   }
 }
@@ -307,10 +298,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json(
       {
-        erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’annuler la demande.",
+        erreur: "Impossible d’annuler la demande.",
       },
       { status: 500 }
     );

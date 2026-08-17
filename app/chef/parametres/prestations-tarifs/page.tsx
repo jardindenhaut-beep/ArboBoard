@@ -26,6 +26,7 @@ type Prestation = {
   unite_reference: string;
   prix_vente_ht: number;
   taux_tva: number;
+  objectif_taux_marque_pct: number;
   prix_vente_ttc: number;
   cout_main_oeuvre_ht: number;
   cout_materiel_ht: number;
@@ -38,6 +39,8 @@ type Prestation = {
   marge_brute_ht: number;
   taux_marge_pct: number | null;
   taux_marque_pct: number | null;
+  prix_conseille_ht: number;
+  ecart_prix_conseille_ht: number;
   actif: boolean;
   ordre: number;
   categorie?: Categorie | null;
@@ -50,6 +53,7 @@ type FormPrestation = {
   unite_reference: string;
   prix_vente_ht: number;
   taux_tva: number;
+  objectif_taux_marque_pct: number;
   cout_main_oeuvre_ht: number;
   cout_materiel_ht: number;
   cout_fournitures_ht: number;
@@ -65,17 +69,6 @@ type FormCategorie = {
   description: string;
 };
 
-const UNITES = [
-  ["heure", "Heure"],
-  ["jour", "Journée"],
-  ["forfait", "Forfait"],
-  ["unite", "Unité"],
-  ["m2", "m²"],
-  ["ml", "Mètre linéaire"],
-  ["m3", "m³"],
-  ["passage", "Passage"],
-  ["tonne", "Tonne"],
-] as const;
 
 const FORM_PRESTATION_VIDE: FormPrestation = {
   categorie_id: "",
@@ -84,6 +77,7 @@ const FORM_PRESTATION_VIDE: FormPrestation = {
   unite_reference: "heure",
   prix_vente_ht: 0,
   taux_tva: 20,
+  objectif_taux_marque_pct: 35,
   cout_main_oeuvre_ht: 0,
   cout_materiel_ht: 0,
   cout_fournitures_ht: 0,
@@ -234,7 +228,7 @@ export default function PrestationsTarifsPage() {
       supabase
         .from("prestations_tarifs")
         .select(
-          "id, entreprise_id, categorie_id, code, designation, description, unite_reference, prix_vente_ht, taux_tva, prix_vente_ttc, cout_main_oeuvre_ht, cout_materiel_ht, cout_fournitures_ht, cout_deplacement_ht, cout_evacuation_ht, cout_sous_traitance_ht, autres_couts_ht, cout_reel_ht, marge_brute_ht, taux_marge_pct, taux_marque_pct, actif, ordre"
+          "id, entreprise_id, categorie_id, code, designation, description, unite_reference, prix_vente_ht, taux_tva, prix_vente_ttc, cout_main_oeuvre_ht, cout_materiel_ht, cout_fournitures_ht, cout_deplacement_ht, cout_evacuation_ht, cout_sous_traitance_ht, autres_couts_ht, cout_reel_ht, marge_brute_ht, taux_marge_pct, taux_marque_pct, objectif_taux_marque_pct, prix_conseille_ht, ecart_prix_conseille_ht, actif, ordre"
         )
         .eq("entreprise_id", id)
         .order("ordre", { ascending: true })
@@ -322,11 +316,19 @@ export default function PrestationsTarifsPage() {
     const prixHt = nombre(formPrestation.prix_vente_ht);
     const prixTtc = prixHt * (1 + nombre(formPrestation.taux_tva) / 100);
     const marge = prixHt - coutReel;
+    const objectifMarque = Math.min(99.99, Math.max(0, nombre(formPrestation.objectif_taux_marque_pct)));
+    const prixConseille =
+      coutReel > 0 && objectifMarque < 100
+        ? coutReel / (1 - objectifMarque / 100)
+        : 0;
+    const ecartPrixConseille = prixHt - prixConseille;
 
     return {
       coutReel,
       prixTtc,
       marge,
+      prixConseille,
+      ecartPrixConseille,
       tauxMarge: coutReel > 0 ? (marge / coutReel) * 100 : null,
       tauxMarque: prixHt > 0 ? (marge / prixHt) * 100 : null,
     };
@@ -352,9 +354,10 @@ export default function PrestationsTarifsPage() {
       categorie_id: prestation.categorie_id,
       designation: prestation.designation,
       description: prestation.description || "",
-      unite_reference: prestation.unite_reference || "heure",
+      unite_reference: "heure",
       prix_vente_ht: nombre(prestation.prix_vente_ht),
       taux_tva: nombre(prestation.taux_tva),
+      objectif_taux_marque_pct: nombre(prestation.objectif_taux_marque_pct),
       cout_main_oeuvre_ht: nombre(prestation.cout_main_oeuvre_ht),
       cout_materiel_ht: nombre(prestation.cout_materiel_ht),
       cout_fournitures_ht: nombre(prestation.cout_fournitures_ht),
@@ -381,6 +384,14 @@ export default function PrestationsTarifsPage() {
       return;
     }
 
+    if (
+      formPrestation.objectif_taux_marque_pct < 0 ||
+      formPrestation.objectif_taux_marque_pct >= 100
+    ) {
+      setMessageErreur("L’objectif de marge doit être compris entre 0 et 99,99 %.");
+      return;
+    }
+
     try {
       setEnregistrement(true);
       setMessageErreur("");
@@ -391,9 +402,10 @@ export default function PrestationsTarifsPage() {
         categorie_id: formPrestation.categorie_id,
         designation: formPrestation.designation.trim(),
         description: formPrestation.description.trim() || null,
-        unite_reference: formPrestation.unite_reference,
+        unite_reference: "heure",
         prix_vente_ht: nombre(formPrestation.prix_vente_ht),
         taux_tva: nombre(formPrestation.taux_tva),
+        objectif_taux_marque_pct: Math.min(99.99, Math.max(0, nombre(formPrestation.objectif_taux_marque_pct))),
         cout_main_oeuvre_ht: nombre(formPrestation.cout_main_oeuvre_ht),
         cout_materiel_ht: nombre(formPrestation.cout_materiel_ht),
         cout_fournitures_ht: nombre(formPrestation.cout_fournitures_ht),
@@ -755,13 +767,18 @@ export default function PrestationsTarifsPage() {
                     </p>
                   )}
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    <MiniValeur label="Tarif HT" valeur={formatEuro(prestation.prix_vente_ht)} />
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <MiniValeur label="Tarif HT / h" valeur={formatEuro(prestation.prix_vente_ht)} />
                     <MiniValeur label="Tarif TTC" valeur={formatEuro(prestation.prix_vente_ttc)} />
-                    <MiniValeur label="Coût réel" valeur={formatEuro(prestation.cout_reel_ht)} />
+                    <MiniValeur label="Coût réel / h" valeur={formatEuro(prestation.cout_reel_ht)} />
+                    <MiniValeur label="Prix conseillé HT" valeur={formatEuro(prestation.prix_conseille_ht)} />
                     <MiniValeur label="Marge brute" valeur={formatEuro(prestation.marge_brute_ht)} />
                     <MiniValeur label="Taux de marque" valeur={formatPourcentage(prestation.taux_marque_pct)} />
                   </div>
+
+                  <p className="mt-3 text-xs font-medium text-slate-400">
+                    Référence horaire · Objectif de marque {formatPourcentage(prestation.objectif_taux_marque_pct)} · Écart au prix conseillé {prestation.ecart_prix_conseille_ht >= 0 ? "+" : ""}{formatEuro(prestation.ecart_prix_conseille_ht)}
+                  </p>
                 </div>
 
                 <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-52 xl:grid-cols-1">
@@ -835,23 +852,15 @@ export default function PrestationsTarifsPage() {
                         </select>
                       </label>
 
-                      <label>
-                        <span className="text-sm font-medium text-slate-700">Unité de référence</span>
-                        <select
-                          value={formPrestation.unite_reference}
-                          onChange={(event) =>
-                            setFormPrestation((ancien) => ({
-                              ...ancien,
-                              unite_reference: event.target.value,
-                            }))
-                          }
-                          className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2.5"
-                        >
-                          {UNITES.map(([valeur, label]) => (
-                            <option key={valeur} value={valeur}>{label}</option>
-                          ))}
-                        </select>
-                      </label>
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">Tarif de référence</span>
+                        <div className="mt-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-bold text-emerald-800">
+                          €/heure
+                        </div>
+                        <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                          L’unité de la base tarifaire reste horaire. Le forfait, m², ml, passage, etc. sera choisi dans le devis ou la facture.
+                        </p>
+                      </div>
                     </div>
 
                     <label className="mt-4 block">
@@ -886,9 +895,9 @@ export default function PrestationsTarifsPage() {
 
                   <section className="rounded-3xl border border-slate-200 p-5">
                     <h3 className="font-black text-slate-950">Tarif de référence</h3>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
                       <ChampMontant
-                        label="Prix de vente HT"
+                        label="Prix de vente HT / heure"
                         valeur={formPrestation.prix_vente_ht}
                         onChange={(valeur) =>
                           setFormPrestation((ancien) => ({ ...ancien, prix_vente_ht: valeur }))
@@ -899,6 +908,13 @@ export default function PrestationsTarifsPage() {
                         valeur={formPrestation.taux_tva}
                         onChange={(valeur) =>
                           setFormPrestation((ancien) => ({ ...ancien, taux_tva: valeur }))
+                        }
+                      />
+                      <ChampNombre
+                        label="Objectif de marge"
+                        valeur={formPrestation.objectif_taux_marque_pct}
+                        onChange={(valeur) =>
+                          setFormPrestation((ancien) => ({ ...ancien, objectif_taux_marque_pct: valeur }))
                         }
                       />
                     </div>
@@ -936,9 +952,15 @@ export default function PrestationsTarifsPage() {
                   <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
                     <p className="text-xs font-bold uppercase text-emerald-600">Calcul instantané</p>
                     <div className="mt-4 space-y-3">
-                      <ResumeCalcul label="Prix HT" valeur={formatEuro(formPrestation.prix_vente_ht)} />
-                      <ResumeCalcul label="Prix TTC" valeur={formatEuro(calculFormulaire.prixTtc)} />
-                      <ResumeCalcul label="Besoin réel HT" valeur={formatEuro(calculFormulaire.coutReel)} />
+                      <ResumeCalcul label="Prix HT / heure" valeur={formatEuro(formPrestation.prix_vente_ht)} />
+                      <ResumeCalcul label="Prix TTC / heure" valeur={formatEuro(calculFormulaire.prixTtc)} />
+                      <ResumeCalcul label="Besoin réel HT / heure" valeur={formatEuro(calculFormulaire.coutReel)} />
+                      <ResumeCalcul label="Objectif de marque" valeur={formatPourcentage(formPrestation.objectif_taux_marque_pct)} />
+                      <ResumeCalcul label="Prix HT conseillé" valeur={formatEuro(calculFormulaire.prixConseille)} />
+                      <ResumeCalcul
+                        label="Écart au conseillé"
+                        valeur={`${calculFormulaire.ecartPrixConseille >= 0 ? "+" : ""}${formatEuro(calculFormulaire.ecartPrixConseille)}`}
+                      />
                       <ResumeCalcul label="Marge brute HT" valeur={formatEuro(calculFormulaire.marge)} />
                       <ResumeCalcul label="Taux de marge" valeur={formatPourcentage(calculFormulaire.tauxMarge)} />
                       <ResumeCalcul label="Taux de marque" valeur={formatPourcentage(calculFormulaire.tauxMarque)} />

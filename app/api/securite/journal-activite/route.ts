@@ -269,10 +269,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger le journal d’activité.",
+        erreur: "Impossible de charger le journal d’activité.",
       },
       { status: 500 }
     );
@@ -349,10 +346,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        erreur:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’enregistrer l’événement.",
+        erreur: "Impossible d’enregistrer l’événement.",
       },
       { status: 500 }
     );

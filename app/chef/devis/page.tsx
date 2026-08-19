@@ -11,7 +11,6 @@ import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDoc
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
 import BoutonCreerFicheInterventionDepuisDevis from "@/components/devis/BoutonCreerFicheInterventionDepuisDevis";
-import FichesInterventionLieesDevis from "@/components/devis/FichesInterventionLieesDevis";
 
 type Client = {
   id: string;
@@ -37,6 +36,19 @@ type FactureLiee = {
   statut?: string | null;
 };
 
+type FicheInterventionLiee = {
+  id: string;
+  devis_id: string | null;
+  numero?: string | null;
+  titre?: string | null;
+  type_intervention?: string | null;
+  statut?: string | null;
+  date_prevue?: string | null;
+  date_intervention?: string | null;
+  client_nom?: string | null;
+  created_at?: string | null;
+};
+
 type Devis = {
   id: string;
   entreprise_id: string;
@@ -60,6 +72,7 @@ type Devis = {
   updated_at?: string | null;
   client?: Client | null;
   facture_liee?: FactureLiee | null;
+  fiches_liees?: FicheInterventionLiee[];
 };
 
 type LigneDevisForm = {
@@ -326,6 +339,48 @@ function dateDepassee(date?: string | null) {
   }
 }
 
+function libelleStatutFiche(statut?: string | null) {
+  if (statut === "planifiee") return "Planifiée";
+  if (statut === "en_cours") return "En cours";
+  if (statut === "terminee") return "Terminée";
+  if (statut === "annulee") return "Annulée";
+  if (statut === "archivee") return "Archivée";
+  return "Brouillon";
+}
+
+function classeStatutFiche(statut?: string | null) {
+  if (statut === "planifiee") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (statut === "en_cours") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (statut === "terminee") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (statut === "annulee") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (statut === "archivee") {
+    return "border-slate-200 bg-slate-100 text-slate-600";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function titreFicheLiee(fiche: FicheInterventionLiee) {
+  return (
+    fiche.titre ||
+    fiche.type_intervention ||
+    fiche.numero ||
+    "Fiche d’intervention"
+  );
+}
+
 function ContenuPageDevis() {
   const searchParams = useSearchParams();
   const devisSelectionneId = searchParams.get("devisId");
@@ -396,6 +451,7 @@ function ContenuPageDevis() {
         { data: clientsData, error: clientsError },
         { data: devisData, error: devisError },
         { data: facturesData, error: facturesError },
+        { data: fichesData, error: fichesError },
       ] = await Promise.all([
         supabase
           .from("clients")
@@ -416,11 +472,22 @@ function ContenuPageDevis() {
           .eq("entreprise_id", profil.entreprise_id)
           .not("devis_id", "is", null)
           .or("est_avoir.is.false,est_avoir.is.null"),
+
+        supabase
+          .from("fiches_intervention")
+          .select(
+            "id, devis_id, numero, titre, type_intervention, statut, date_prevue, date_intervention, client_nom, created_at"
+          )
+          .eq("entreprise_id", profil.entreprise_id)
+          .not("devis_id", "is", null)
+          .order("date_prevue", { ascending: true })
+          .order("created_at", { ascending: false }),
       ]);
 
       if (clientsError) throw clientsError;
       if (devisError) throw devisError;
       if (facturesError) throw facturesError;
+      if (fichesError) throw fichesError;
 
       const listeClients = (clientsData || []) as Client[];
       const mapClients = new Map(
@@ -435,10 +502,29 @@ function ContenuPageDevis() {
           .map((facture) => [facture.devis_id as string, facture])
       );
 
+      const listeFichesLiees =
+        (fichesData || []) as FicheInterventionLiee[];
+
+      const mapFichesParDevis = new Map<
+        string,
+        FicheInterventionLiee[]
+      >();
+
+      for (const fiche of listeFichesLiees) {
+        if (!fiche.devis_id) continue;
+
+        const listeExistante =
+          mapFichesParDevis.get(fiche.devis_id) || [];
+
+        listeExistante.push(fiche);
+        mapFichesParDevis.set(fiche.devis_id, listeExistante);
+      }
+
       const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
         ...item,
         client: item.client_id ? mapClients.get(item.client_id) || null : null,
         facture_liee: mapFacturesParDevis.get(item.id) || null,
+        fiches_liees: mapFichesParDevis.get(item.id) || [],
       }));
 
       setClients(listeClients);
@@ -1181,6 +1267,7 @@ function ContenuPageDevis() {
               const client = item.client || null;
               const emailClient = client?.email || "";
               const adresseChantier = adresseChantierTexte(item);
+              const fichesLiees = item.fiches_liees || [];
               const validiteDepassee =
                 dateDepassee(item.date_validite) &&
                 item.statut !== "accepte" &&
@@ -1223,9 +1310,17 @@ Cordialement.`;
                                 {libelleStatut(item.statut)}
                               </span>
 
-                              {devisSelectionneId === item.id && (
+                              {fichesLiees.length > 0 && (
                                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                                  Devis lié à la fiche
+                                  {fichesLiees.length === 1
+                                    ? "1 fiche liée"
+                                    : `${fichesLiees.length} fiches liées`}
+                                </span>
+                              )}
+
+                              {devisSelectionneId === item.id && (
+                                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                                  Devis sélectionné
                                 </span>
                               )}
 
@@ -1364,10 +1459,51 @@ Cordialement.`;
                               factureLiee={item.facture_liee || null}
                             />
 
-                            <FichesInterventionLieesDevis
-                              entrepriseId={entrepriseId}
-                              devisId={item.id}
-                            />
+                            {fichesLiees.length > 0 ? (
+                              <div className="grid gap-2">
+                                {fichesLiees.map((fiche) => (
+                                  <Link
+                                    key={fiche.id}
+                                    href={`/chef/interventions/${fiche.id}`}
+                                    className="rounded-xl border border-emerald-200 bg-white px-3 py-3 transition hover:bg-emerald-50"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-xs font-black text-emerald-800">
+                                          {titreFicheLiee(fiche)}
+                                        </p>
+
+                                        <p className="mt-1 text-[11px] text-slate-500">
+                                          {fiche.numero
+                                            ? `${fiche.numero} · `
+                                            : ""}
+                                          {formatDate(
+                                            fiche.date_prevue ||
+                                              fiche.date_intervention
+                                          )}
+                                        </p>
+                                      </div>
+
+                                      <span
+                                        className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${classeStatutFiche(
+                                          fiche.statut
+                                        )}`}
+                                      >
+                                        {libelleStatutFiche(fiche.statut)}
+                                      </span>
+                                    </div>
+
+                                    <p className="mt-2 text-[11px] font-semibold text-emerald-700">
+                                      Ouvrir la fiche →
+                                    </p>
+                                  </Link>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2.5 text-center text-[11px] font-medium text-slate-400">
+                                Aucune fiche d’intervention liée à ce devis
+                              </div>
+                            )}
 
                             {item.facture_liee && (
                               <Link

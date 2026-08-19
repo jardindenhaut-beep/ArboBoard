@@ -194,6 +194,20 @@ type FormulaireCreation = {
   notes_internes: string;
 };
 
+type EtapeCreation = 1 | 2 | 3;
+
+type OngletElementsCreation =
+  | "travaux"
+  | "materiel"
+  | "materiaux"
+  | "consignes";
+
+type AffectationCreation = {
+  role_chantier: string;
+  heure_arrivee_prevue: string;
+  heure_depart_prevue: string;
+};
+
 const FORMULAIRE_VIDE: FormulaireCreation = {
   devis_id: "",
   type_intervention_id: "",
@@ -398,6 +412,12 @@ export default function FichesInterventionPage() {
   );
 
   const [modalCreationOuverte, setModalCreationOuverte] = useState(false);
+  const [etapeCreation, setEtapeCreation] = useState<EtapeCreation>(1);
+  const [ongletElementsCreation, setOngletElementsCreation] =
+    useState<OngletElementsCreation>("travaux");
+  const [affectationsCreation, setAffectationsCreation] = useState<
+    Record<string, AffectationCreation>
+  >({});
 
   const [formulaire, setFormulaire] =
     useState<FormulaireCreation>(FORMULAIRE_VIDE);
@@ -769,6 +789,9 @@ export default function FichesInterventionPage() {
   }
 
   function ouvrirCreation() {
+    setEtapeCreation(1);
+    setOngletElementsCreation("travaux");
+    setAffectationsCreation({});
     setFormulaire(FORMULAIRE_VIDE);
     setElementsSelectionnes([]);
     setSalariesSelectionnes([]);
@@ -791,6 +814,9 @@ export default function FichesInterventionPage() {
       return;
     }
 
+    setEtapeCreation(1);
+    setOngletElementsCreation("travaux");
+    setAffectationsCreation({});
     setFormulaire(FORMULAIRE_VIDE);
     setElementsSelectionnes([]);
     setSalariesSelectionnes([]);
@@ -807,15 +833,24 @@ export default function FichesInterventionPage() {
     await selectionnerDevis(devisId);
   }
 
-  function fermerCreation() {
-    if (enregistrement) return;
-
-    setModalCreationOuverte(false);
+  function reinitialiserCreation() {
+    setEtapeCreation(1);
+    setOngletElementsCreation("travaux");
+    setAffectationsCreation({});
     setFormulaire(FORMULAIRE_VIDE);
     setElementsSelectionnes([]);
     setSalariesSelectionnes([]);
     setLignesDevis([]);
     setCreationRapideCategorie(null);
+    setCreationRapideNom("");
+    setCreationRapideIcone("🛠️");
+  }
+
+  function fermerCreation() {
+    if (enregistrement) return;
+
+    setModalCreationOuverte(false);
+    reinitialiserCreation();
   }
 
   function modifierChamp(champ: keyof FormulaireCreation, valeur: string) {
@@ -941,12 +976,54 @@ export default function FichesInterventionPage() {
 
   function basculerSalarie(salarieId: string) {
     setSalariesSelectionnes((anciens) => {
-      if (anciens.includes(salarieId)) {
+      const dejaSelectionne = anciens.includes(salarieId);
+
+      if (dejaSelectionne) {
+        setAffectationsCreation((ancienne) => {
+          const copie = { ...ancienne };
+          delete copie[salarieId];
+          return copie;
+        });
+
         return anciens.filter((id) => id !== salarieId);
       }
 
+      setAffectationsCreation((ancienne) => ({
+        ...ancienne,
+        [salarieId]: {
+          role_chantier: "Intervenant",
+          heure_arrivee_prevue:
+            formulaire.heure_debut_prevue || "08:00",
+          heure_depart_prevue:
+            formulaire.heure_fin_prevue || "17:00",
+        },
+      }));
+
       return [...anciens, salarieId];
     });
+  }
+
+  function modifierAffectationCreation(
+    salarieId: string,
+    champ: keyof AffectationCreation,
+    valeur: string
+  ) {
+    setAffectationsCreation((ancienne) => ({
+      ...ancienne,
+      [salarieId]: {
+        role_chantier:
+          ancienne[salarieId]?.role_chantier || "Intervenant",
+        heure_arrivee_prevue:
+          ancienne[salarieId]?.heure_arrivee_prevue ||
+          formulaire.heure_debut_prevue ||
+          "08:00",
+        heure_depart_prevue:
+          ancienne[salarieId]?.heure_depart_prevue ||
+          formulaire.heure_fin_prevue ||
+          "17:00",
+        [champ]: valeur,
+      },
+    }));
   }
 
   function selectionnerLigneDevisCommeTravail(ligne: DevisLigne) {
@@ -1001,12 +1078,26 @@ export default function FichesInterventionPage() {
       const nouvelArticle = data as ArticleIntervention;
 
       setArticles((anciens) => [...anciens, nouvelArticle]);
-      setElementsSelectionnes((anciens) => [...anciens, nouvelArticle.id]);
+
+      if (creationRapideCategorie === "type_intervention") {
+        setFormulaire((ancien) => ({
+          ...ancien,
+          type_intervention_id: nouvelArticle.id,
+        }));
+      } else {
+        setElementsSelectionnes((anciens) =>
+          Array.from(new Set([...anciens, nouvelArticle.id]))
+        );
+      }
 
       setCreationRapideNom("");
       setCreationRapideIcone("🛠️");
       setCreationRapideCategorie(null);
-      setMessageSucces("Nouvel élément ajouté à la bibliothèque.");
+      setMessageSucces(
+        creationRapideCategorie === "type_intervention"
+          ? "Nouveau type d’intervention ajouté et sélectionné."
+          : "Nouvel élément ajouté à la bibliothèque et sélectionné."
+      );
     } catch (error: any) {
       console.error("Erreur création rapide élément :", error);
       setMessageErreur(
@@ -1022,7 +1113,89 @@ export default function FichesInterventionPage() {
     if (!formulaire.date_prevue) return false;
     if (!formulaire.heure_debut_prevue) return false;
     if (!formulaire.heure_fin_prevue) return false;
+    if (!formulaire.adresse_chantier.trim()) return false;
+    if (!formulaire.code_postal_chantier.trim()) return false;
+    if (!formulaire.ville_chantier.trim()) return false;
     return true;
+  }
+
+  function verifierEtapeInformations() {
+    if (!formulaireValide()) {
+      setMessageErreur(
+        "Complétez le devis, le type d’intervention, le titre, la date, les horaires et l’adresse complète du chantier."
+      );
+      return false;
+    }
+
+    if (
+      formulaire.heure_fin_prevue <=
+      formulaire.heure_debut_prevue
+    ) {
+      setMessageErreur(
+        "L’heure de fin prévue doit être postérieure à l’heure de début."
+      );
+      return false;
+    }
+
+    setMessageErreur("");
+    return true;
+  }
+
+  function verifierEtapeEquipeElements() {
+    if (salariesSelectionnes.length === 0) {
+      setMessageErreur(
+        "Sélectionnez au moins un salarié à affecter à cette fiche d’intervention."
+      );
+      return false;
+    }
+
+    for (const salarieId of salariesSelectionnes) {
+      const affectation = affectationsCreation[salarieId];
+      const heureArrivee =
+        affectation?.heure_arrivee_prevue || formulaire.heure_debut_prevue;
+      const heureDepart =
+        affectation?.heure_depart_prevue || formulaire.heure_fin_prevue;
+
+      if (!heureArrivee || !heureDepart) {
+        setMessageErreur(
+          "Renseignez les horaires prévus de chaque salarié affecté."
+        );
+        return false;
+      }
+
+      if (heureDepart <= heureArrivee) {
+        const salarie = trouverSalarie(salarieId);
+        setMessageErreur(
+          `L’heure de départ prévue de ${nomSalarie(salarie)} doit être postérieure à son heure d’arrivée.`
+        );
+        return false;
+      }
+    }
+
+    setMessageErreur("");
+    return true;
+  }
+
+  function continuerCreation() {
+    if (etapeCreation === 1 && !verifierEtapeInformations()) {
+      return;
+    }
+
+    if (etapeCreation === 2 && !verifierEtapeEquipeElements()) {
+      return;
+    }
+
+    setMessageErreur("");
+    setEtapeCreation((ancienne) =>
+      Math.min(3, ancienne + 1) as EtapeCreation
+    );
+  }
+
+  function revenirCreation() {
+    setMessageErreur("");
+    setEtapeCreation((ancienne) =>
+      Math.max(1, ancienne - 1) as EtapeCreation
+    );
   }
 
   async function enregistrerFiche() {
@@ -1040,6 +1213,10 @@ export default function FichesInterventionPage() {
 
     if (!devisSelectionne) {
       setMessageErreur("Devis sélectionné introuvable.");
+      return;
+    }
+
+    if (!verifierEtapeInformations() || !verifierEtapeEquipeElements()) {
       return;
     }
 
@@ -1090,6 +1267,12 @@ export default function FichesInterventionPage() {
       const salariesAssocies = salariesSelectionnes
         .map((id) => trouverSalarie(id))
         .filter(Boolean) as Salarie[];
+
+      if (salariesAssocies.length !== salariesSelectionnes.length) {
+        throw new Error(
+          "Un salarié sélectionné est introuvable. Revenez à l’étape Équipe et sélectionnez-le de nouveau."
+        );
+      }
 
       const premierSalarie = salariesAssocies[0] || null;
 
@@ -1195,27 +1378,70 @@ export default function FichesInterventionPage() {
         if (erreurElements) throw erreurElements;
       }
 
-      const salariesAInserer = salariesAssocies.map((salarie) => ({
-        entreprise_id: entrepriseId,
-        fiche_id: fiche.id,
-        salarie_id: salarie.id,
-        salarie_nom: nomSalarie(salarie),
-        role_chantier: "Intervenant",
-        heure_arrivee_prevue: formulaire.heure_debut_prevue,
-        heure_depart_prevue: formulaire.heure_fin_prevue,
-      }));
+      const salariesAInserer = salariesAssocies.map((salarie) => {
+        const affectation = affectationsCreation[salarie.id];
 
-      if (salariesAInserer.length > 0) {
-        const { error: erreurSalaries } = await supabase
-          .from("fiches_intervention_salaries")
-          .insert(salariesAInserer);
+        return {
+          entreprise_id: entrepriseId,
+          fiche_id: fiche.id,
+          salarie_id: salarie.id,
+          salarie_nom: nomSalarie(salarie),
+          role_chantier:
+            affectation?.role_chantier || "Intervenant",
+          heure_arrivee_prevue:
+            affectation?.heure_arrivee_prevue ||
+            formulaire.heure_debut_prevue,
+          heure_depart_prevue:
+            affectation?.heure_depart_prevue ||
+            formulaire.heure_fin_prevue,
+        };
+      });
 
-        if (erreurSalaries) throw erreurSalaries;
+      if (salariesAInserer.length === 0) {
+        throw new Error(
+          "Aucun salarié n’a été préparé pour l’affectation. La fiche n’a pas été finalisée."
+        );
+      }
+
+      const {
+        data: affectationsCreees,
+        error: erreurSalaries,
+      } = await supabase
+        .from("fiches_intervention_salaries")
+        .insert(salariesAInserer)
+        .select("id, fiche_id, salarie_id");
+
+      if (erreurSalaries) throw erreurSalaries;
+
+      if (
+        !affectationsCreees ||
+        affectationsCreees.length !== salariesAInserer.length
+      ) {
+        throw new Error(
+          "L’affectation de l’équipe n’a pas été enregistrée correctement. La fiche n’a pas été finalisée."
+        );
+      }
+
+      const idsAffectes = new Set(
+        affectationsCreees
+          .map((item) => String(item.salarie_id || ""))
+          .filter(Boolean)
+      );
+
+      const affectationsCompletes = salariesAInserer.every((item) =>
+        idsAffectes.has(String(item.salarie_id))
+      );
+
+      if (!affectationsCompletes) {
+        throw new Error(
+          "Un salarié sélectionné n’a pas été rattaché à la fiche. Revenez à l’étape Équipe et recommencez."
+        );
       }
 
       await chargerFiches(entrepriseId);
 
-      fermerCreation();
+      setModalCreationOuverte(false);
+      reinitialiserCreation();
 
       setMessageSucces(
         `Fiche d’intervention ${fiche.numero || ""} créée et planifiée.`
@@ -1372,7 +1598,11 @@ export default function FichesInterventionPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-bold text-emerald-950">
-              Créer un nouvel élément
+              {creationRapideCategorie === "type_intervention"
+                ? "Créer un type d’intervention"
+                : creationRapideCategorie === "materiaux"
+                  ? "Créer un matériau"
+                  : "Créer un nouvel élément"}
             </p>
             <p className="mt-1 text-xs text-emerald-700">
               Il sera enregistré dans la bibliothèque et sélectionné sur cette
@@ -1783,683 +2013,1242 @@ export default function FichesInterventionPage() {
       </section>
 
       {modalCreationOuverte && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-2 py-3 backdrop-blur-sm sm:px-4 sm:py-6">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 px-2 py-3 backdrop-blur-sm sm:px-4 sm:py-6">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="titre-modal-creation-fiche"
-            className="flex max-h-[96vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+            className="mx-auto flex w-full max-w-[1500px] flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl sm:max-h-[96vh]"
           >
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white p-4 sm:p-5">
-              <div>
-                <h2
-                  id="titre-modal-creation-fiche"
-                  className="text-xl font-bold text-slate-950"
-                >
-                  Créer une fiche depuis un devis
-                </h2>
+            <div className="shrink-0 border-b border-slate-200 bg-white">
+              <div className="flex items-start justify-between gap-4 px-4 pb-4 pt-4 sm:px-6 sm:pt-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-400">
+                    <span>Interventions</span>
+                    <span>›</span>
+                    <span className="text-emerald-700">
+                      Créer une fiche d’intervention
+                    </span>
+                  </div>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  Le chef prépare la fiche complète avant l’envoi au planning et
-                  aux salariés.
-                </p>
-              </div>
-
-              <button type="button"
-                onClick={fermerCreation}
-                aria-label="Fermer la fenêtre de création"
-                className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
-              >
-                Fermer
-              </button>
-            </div>
-
-            <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto bg-slate-50 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_400px]">
-              <div className="space-y-5">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
+                  <div className="mt-3 flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl text-emerald-700">
                       📄
-                    </div>
-
+                    </span>
                     <div>
-                      <h3 className="font-bold text-slate-950">
-                        1. Sélection du devis
-                      </h3>
-
-                      <p className="text-sm text-slate-500">
-                        La fiche récupère le client, l’adresse chantier et les
-                        informations du devis.
+                      <h2
+                        id="titre-modal-creation-fiche"
+                        className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl"
+                      >
+                        Créer une fiche d’intervention
+                      </h2>
+                      <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                        Préparez le chantier, affectez l’équipe puis validez avant la planification.
                       </p>
                     </div>
                   </div>
+                </div>
 
-                  <select
-                    value={formulaire.devis_id}
-                    onChange={(event) => selectionnerDevis(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  >
-                    <option value="">Sélectionner un devis</option>
-
-                    {devis.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.numero || "Devis sans numéro"} ·{" "}
-                        {item.client_nom || "Client"} ·{" "}
-                        {item.objet || "Sans objet"} ·{" "}
-                        {formatMontant(item.total_ttc)}
-                      </option>
-                    ))}
-                  </select>
-
-                  {devisSelectionne && (
-                    <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                      <p className="font-bold text-emerald-950">
-                        {devisSelectionne.objet || "Devis sélectionné"}
-                      </p>
-
-                      <p className="mt-1 text-sm text-emerald-700">
-                        {devisSelectionne.client_nom || "Client"} ·{" "}
-                        {devisSelectionne.numero || "Sans numéro"} ·{" "}
-                        {formatMontant(devisSelectionne.total_ttc)}
-                      </p>
-                    </div>
-                  )}
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-                      🌳
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-slate-950">
-                        2. Type d’intervention
-                      </h3>
-
-                      <p className="text-sm text-slate-500">
-                        Choisissez le symbole principal de la fiche.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {(articlesParCategorie.type_intervention || []).map(
-                      (article) => {
-                        const actif =
-                          formulaire.type_intervention_id === article.id;
-
-                        return (
-                          <button
-                            key={article.id}
-                            type="button"
-                            onClick={() =>
-                              modifierChamp("type_intervention_id", article.id)
-                            }
-                            className={`rounded-2xl border p-4 text-left transition ${
-                              actif
-                                ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
-                                : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">
-                                {article.icone || "🛠️"}
-                              </span>
-
-                              <div>
-                                <p className="font-bold text-slate-950">
-                                  {article.nom}
-                                </p>
-
-                                {article.description && (
-                                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                                    {article.description}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-xl">
-                      🧾
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-slate-950">
-                        3. Informations chantier
-                      </h3>
-
-                      <p className="text-sm text-slate-500">
-                        Le titre, l’adresse et les notes sont modifiables avant
-                        planification.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-[1fr_180px_180px]">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Titre de la fiche
-                      </label>
-
-                      <input
-                        value={formulaire.titre}
-                        onChange={(event) =>
-                          modifierChamp("titre", event.target.value)
-                        }
-                        placeholder="Ex : Taille de haie, démontage sapin..."
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Date prévue
-                      </label>
-
-                      <input
-                        type="date"
-                        value={formulaire.date_prevue}
-                        onChange={(event) =>
-                          modifierChamp("date_prevue", event.target.value)
-                        }
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Heures prévues
-                      </label>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="time"
-                          value={formulaire.heure_debut_prevue}
-                          onChange={(event) =>
-                            modifierChamp(
-                              "heure_debut_prevue",
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                        />
-
-                        <input
-                          type="time"
-                          value={formulaire.heure_fin_prevue}
-                          onChange={(event) =>
-                            modifierChamp(
-                              "heure_fin_prevue",
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Adresse chantier
-                    </label>
-
-                    <input
-                      value={formulaire.adresse_chantier}
-                      onChange={(event) =>
-                        modifierChamp("adresse_chantier", event.target.value)
-                      }
-                      placeholder="Adresse complète"
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    />
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr]">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Code postal
-                      </label>
-
-                      <input
-                        value={formulaire.code_postal_chantier}
-                        onChange={(event) =>
-                          modifierChamp(
-                            "code_postal_chantier",
-                            event.target.value
-                          )
-                        }
-                        placeholder="03000"
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Ville
-                      </label>
-
-                      <input
-                        value={formulaire.ville_chantier}
-                        onChange={(event) =>
-                          modifierChamp("ville_chantier", event.target.value)
-                        }
-                        placeholder="Ville"
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Notes chantier / accès
-                    </label>
-
-                    <textarea
-                      value={formulaire.notes_chantier}
-                      onChange={(event) =>
-                        modifierChamp("notes_chantier", event.target.value)
-                      }
-                      placeholder="Accès, portail, consignes particulières, client absent..."
-                      rows={3}
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    />
-                  </div>
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-50 text-xl">
-                      👥
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-slate-950">
-                        4. Équipe affectée
-                      </h3>
-
-                      <p className="text-sm text-slate-500">
-                        Sélectionnez les salariés qui verront la fiche côté
-                        salarié.
-                      </p>
-                    </div>
-                  </div>
-
-                  {salaries.length === 0 ? (
-                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                      Aucun salarié actif trouvé.
-                    </p>
-                  ) : (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {salaries.map((salarie) => {
-                        const actif = salariesSelectionnes.includes(salarie.id);
-
-                        return (
-                          <button
-                            key={salarie.id}
-                            type="button"
-                            onClick={() => basculerSalarie(salarie.id)}
-                            className={`rounded-2xl border p-4 text-left transition ${
-                              actif
-                                ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
-                                : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
-                            }`}
-                          >
-                            <p className="font-bold text-slate-950">
-                              {nomSalarie(salarie)}
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              {salarie.email || salarie.telephone || "Salarié"}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-                      📝
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-slate-950">
-                        5. Notes internes chef
-                      </h3>
-
-                      <p className="text-sm text-slate-500">
-                        Informations non visibles client.
-                      </p>
-                    </div>
-                  </div>
-
-                  <textarea
-                    value={formulaire.notes_internes}
-                    onChange={(event) =>
-                      modifierChamp("notes_internes", event.target.value)
-                    }
-                    placeholder="Temps prévu, rappel chef, priorité, matériel spécifique..."
-                    rows={4}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </section>
+                <button
+                  type="button"
+                  onClick={fermerCreation}
+                  aria-label="Fermer la fenêtre de création"
+                  className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                >
+                  ✕
+                </button>
               </div>
 
-              <aside className="space-y-5 xl:sticky xl:top-0 xl:self-start">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-sm font-bold text-slate-950">
-                    Résumé de création
-                  </p>
-
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Devis
-                      </p>
-
-                      <p className="font-semibold text-slate-800">
-                        {devisSelectionne?.numero || "Non sélectionné"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Client
-                      </p>
-
-                      <p className="font-semibold text-slate-800">
-                        {devisSelectionne?.client_nom || "—"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Type
-                      </p>
-
-                      <p className="font-semibold text-slate-800">
-                        {typeSelectionne
-                          ? `${typeSelectionne.icone || ""} ${
-                              typeSelectionne.nom
-                            }`
-                          : "Non sélectionné"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Sélections
-                      </p>
-
-                      <p className="font-semibold text-slate-800">
-                        {elementsSelectionnes.length} élément(s)
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                        Équipe
-                      </p>
-
-                      <p className="font-semibold text-slate-800">
-                        {salariesSelectionnes.length} salarié(s)
-                      </p>
-                    </div>
-                  </div>
-                </section>
-
-                {lignesDevis.length > 0 && (
-                  <section className="rounded-3xl border border-blue-200 bg-blue-50 p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-bold text-blue-950">
-                            Lignes du devis à reprendre
-                          </p>
-
-                          <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700">
-                            {nombreLignesDevisSelectionnees()} / {lignesDevis.length} sélectionnée(s)
-                          </span>
-                        </div>
-
-                        <p className="mt-1 text-sm text-blue-700">
-                          Plusieurs lignes peuvent être cochées en même temps pour créer les tâches de la fiche.
-                        </p>
-                      </div>
-
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={selectionnerToutesLignesDevis}
-                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                        >
-                          Tout sélectionner
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={deselectionnerToutesLignesDevis}
-                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-blue-100"
-                        >
-                          Tout retirer
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-2">
-                      {lignesDevis.map((ligne) => {
-                        const idVirtuel = `ligne-devis-${ligne.id}`;
-                        const actif = elementsSelectionnes.includes(idVirtuel);
-
-                        return (
-                          <button
-                            key={ligne.id}
-                            type="button"
-                            aria-pressed={actif}
-                            onClick={() =>
-                              selectionnerLigneDevisCommeTravail(ligne)
-                            }
-                            className={`flex w-full items-start gap-3 rounded-2xl border p-3 text-left text-sm transition ${
-                              actif
-                                ? "border-blue-500 bg-white ring-4 ring-blue-100"
-                                : "border-blue-100 bg-white/70 hover:border-blue-300 hover:bg-white"
-                            }`}
-                          >
-                            <span
-                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${
-                                actif
-                                  ? "border-blue-600 bg-blue-600 text-white"
-                                  : "border-slate-300 bg-white text-transparent"
-                              }`}
-                            >
-                              ✓
-                            </span>
-
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-semibold text-slate-950">
-                                📄 {ligne.designation || "Ligne du devis"}
-                              </span>
-
-                              <span className="mt-1 block text-xs text-slate-500">
-                                {Number(ligne.quantite || 1)} {ligne.unite || "u"}
-                              </span>
-
-                              {ligne.description && (
-                                <span className="mt-1 block text-xs text-slate-500">
-                                  {ligne.description}
-                                </span>
-                              )}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </section>
-                )}
-
-                {renduCreationRapide()}
-
-                {CATEGORIES_ELEMENTS.map((bloc) => {
-                  const articlesCategorie =
-                    articlesParCategorie[bloc.categorie] || [];
-                  const nombreSelectionne = nombreSelectionneCategorie(
-                    bloc.categorie
-                  );
+              <div className="grid grid-cols-3 border-t border-slate-100 px-4 sm:px-6">
+                {[
+                  [1, "Informations", "Détails du chantier"],
+                  [2, "Équipe & éléments", "Assignation et matériel"],
+                  [3, "Validation", "Vérification finale"],
+                ].map(([numero, titre, sousTitre]) => {
+                  const n = Number(numero) as EtapeCreation;
+                  const active = etapeCreation === n;
+                  const terminee = etapeCreation > n;
 
                   return (
-                    <section
-                      key={bloc.categorie}
-                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => {
+                        if (n === 1 || n < etapeCreation) {
+                          setEtapeCreation(n);
+                          setMessageErreur("");
+                          return;
+                        }
+
+                        if (n === 2 && verifierEtapeInformations()) {
+                          setEtapeCreation(2);
+                          return;
+                        }
+
+                        if (
+                          n === 3 &&
+                          verifierEtapeInformations() &&
+                          verifierEtapeEquipeElements()
+                        ) {
+                          setEtapeCreation(3);
+                        }
+                      }}
+                      className={`relative flex min-w-0 items-center gap-2 border-b-2 px-1 py-4 text-left transition sm:gap-3 sm:px-3 ${
+                        active
+                          ? "border-emerald-600"
+                          : "border-transparent"
+                      }`}
                     >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-bold text-slate-950">
-                              {bloc.icone} {bloc.titre}
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                          active
+                            ? "bg-emerald-600 text-white"
+                            : terminee
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {terminee ? "✓" : n}
+                      </span>
+
+                      <span className="min-w-0">
+                        <span
+                          className={`block truncate text-xs font-black sm:text-sm ${
+                            active ? "text-slate-950" : "text-slate-600"
+                          }`}
+                        >
+                          {titre}
+                        </span>
+                        <span className="hidden truncate text-[11px] text-slate-400 sm:block">
+                          {sousTitre}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <main className="min-w-0 space-y-5">
+                  {etapeCreation === 1 && (
+                    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-200 p-5">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
+                            🗂️
+                          </span>
+                          <div>
+                            <h3 className="font-black text-slate-950">
+                              Informations générales
+                            </h3>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              Renseignez les données principales du chantier.
                             </p>
-
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600">
-                              {nombreSelectionne} / {articlesCategorie.length} sélectionné(s)
-                            </span>
                           </div>
+                        </div>
+                      </div>
 
-                          <p className="mt-1 text-xs text-slate-500">
-                            {bloc.description} Tu peux en sélectionner plusieurs.
-                          </p>
+                      <div className="grid gap-5 p-5 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Devis associé <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={formulaire.devis_id}
+                            onChange={(event) =>
+                              void selectionnerDevis(event.target.value)
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          >
+                            <option value="">Sélectionner un devis</option>
+                            {devis.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.numero || "Sans numéro"} —{" "}
+                                {item.client_nom || "Client"}
+                              </option>
+                            ))}
+                          </select>
                         </div>
 
-                        <div className="flex shrink-0 flex-wrap gap-2">
-                          {articlesCategorie.length > 0 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  selectionnerTousCategorie(bloc.categorie)
-                                }
-                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                              >
-                                Tout sélectionner
-                              </button>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Client <span className="text-red-500">*</span>
+                          </label>
+                          <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
+                            {devisSelectionne?.client_nom ||
+                              "Sélectionné avec le devis"}
+                          </div>
+                        </div>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  deselectionnerCategorie(bloc.categorie)
-                                }
-                                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                              >
-                                Tout retirer
-                              </button>
-                            </>
-                          )}
+                        <div className="sm:col-span-2">
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Titre de la fiche <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            value={formulaire.titre}
+                            onChange={(event) =>
+                              modifierChamp("titre", event.target.value)
+                            }
+                            placeholder="Ex. Élagage d’un chêne — Réduction de couronne"
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
 
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Type d’intervention <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={formulaire.type_intervention_id}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "type_intervention_id",
+                                event.target.value
+                              )
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          >
+                            <option value="">Sélectionner un type</option>
+                            {(articlesParCategorie.type_intervention || []).map(
+                              (article) => (
+                                <option key={article.id} value={article.id}>
+                                  {article.icone || "🌳"} {article.nom}
+                                </option>
+                              )
+                            )}
+                          </select>
                           <button
                             type="button"
                             onClick={() => {
-                              setCreationRapideCategorie(bloc.categorie);
+                              setCreationRapideCategorie("type_intervention");
                               setCreationRapideNom("");
-                              setCreationRapideIcone(bloc.icone);
+                              setCreationRapideIcone("🌳");
                             }}
-                            className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                            className="mt-2 text-xs font-bold text-emerald-700 hover:text-emerald-800"
                           >
-                            + Créer
+                            + Créer un type d’intervention
                           </button>
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Date prévue <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="date"
+                            value={formulaire.date_prevue}
+                            onChange={(event) =>
+                              modifierChamp("date_prevue", event.target.value)
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Heure début prévue <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="time"
+                            value={formulaire.heure_debut_prevue}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "heure_debut_prevue",
+                                event.target.value
+                              )
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Heure fin prévue <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="time"
+                            value={formulaire.heure_fin_prevue}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "heure_fin_prevue",
+                                event.target.value
+                              )
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Adresse du chantier <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            value={formulaire.adresse_chantier}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "adresse_chantier",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Adresse"
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Code postal <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            value={formulaire.code_postal_chantier}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "code_postal_chantier",
+                                event.target.value
+                              )
+                            }
+                            placeholder="03000"
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Ville <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            value={formulaire.ville_chantier}
+                            onChange={(event) =>
+                              modifierChamp("ville_chantier", event.target.value)
+                            }
+                            placeholder="Ville"
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Notes chantier / accès
+                          </label>
+                          <textarea
+                            value={formulaire.notes_chantier}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "notes_chantier",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Accès, portail, stationnement, contraintes particulières…"
+                            rows={3}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Notes internes chef
+                          </label>
+                          <textarea
+                            value={formulaire.notes_internes}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "notes_internes",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Priorité, rappel interne, informations de préparation…"
+                            rows={3}
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+
+                        {creationRapideCategorie === "type_intervention" && (
+                          <div className="sm:col-span-2">
+                            {renduCreationRapide()}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  )}
+
+                  {etapeCreation === 2 && (
+                    <>
+                      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                        <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h3 className="font-black text-slate-950">
+                              👥 Équipe affectée
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Sélectionnez les salariés puis ajustez leur rôle et leurs horaires.
+                            </p>
+                          </div>
+                          <span className="w-fit rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                            {salariesSelectionnes.length} salarié(s)
+                          </span>
+                        </div>
+
+                        <div className="p-5">
+                          {salaries.length === 0 ? (
+                            <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+                              Aucun salarié actif n’est disponible.
+                            </div>
+                          ) : (
+                            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                              {salaries.map((salarie) => {
+                                const actif =
+                                  salariesSelectionnes.includes(salarie.id);
+                                const affectation =
+                                  affectationsCreation[salarie.id];
+
+                                return (
+                                  <div
+                                    key={salarie.id}
+                                    className={`rounded-2xl border p-4 transition ${
+                                      actif
+                                        ? "border-emerald-400 bg-emerald-50/60 ring-2 ring-emerald-100"
+                                        : "border-slate-200 bg-white"
+                                    }`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        basculerSalarie(salarie.id)
+                                      }
+                                      className="flex w-full items-start justify-between gap-3 text-left"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="truncate font-black text-slate-950">
+                                          {nomSalarie(salarie)}
+                                        </p>
+                                        <p className="mt-1 truncate text-xs text-slate-500">
+                                          {salarie.email ||
+                                            salarie.telephone ||
+                                            "Salarié"}
+                                        </p>
+                                      </div>
+                                      <span
+                                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black ${
+                                          actif
+                                            ? "border-emerald-600 bg-emerald-600 text-white"
+                                            : "border-slate-300 bg-white text-transparent"
+                                        }`}
+                                      >
+                                        ✓
+                                      </span>
+                                    </button>
+
+                                    {actif && (
+                                      <div className="mt-4 space-y-3 border-t border-emerald-100 pt-4">
+                                        <div>
+                                          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                            Rôle chantier
+                                          </label>
+                                          <select
+                                            value={
+                                              affectation?.role_chantier ||
+                                              "Intervenant"
+                                            }
+                                            onChange={(event) =>
+                                              modifierAffectationCreation(
+                                                salarie.id,
+                                                "role_chantier",
+                                                event.target.value
+                                              )
+                                            }
+                                            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold outline-none focus:border-emerald-500"
+                                          >
+                                            <option value="Intervenant">Intervenant</option>
+                                            <option value="Chef d’équipe">Chef d’équipe</option>
+                                            <option value="Élagueur grimpeur">Élagueur grimpeur</option>
+                                            <option value="Homme de pied">Homme de pied</option>
+                                            <option value="Paysagiste">Paysagiste</option>
+                                            <option value="Conducteur d’engin">Conducteur d’engin</option>
+                                          </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                              Arrivée
+                                            </label>
+                                            <input
+                                              type="time"
+                                              value={
+                                                affectation?.heure_arrivee_prevue ||
+                                                formulaire.heure_debut_prevue
+                                              }
+                                              onChange={(event) =>
+                                                modifierAffectationCreation(
+                                                  salarie.id,
+                                                  "heure_arrivee_prevue",
+                                                  event.target.value
+                                                )
+                                              }
+                                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs outline-none focus:border-emerald-500"
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                              Départ
+                                            </label>
+                                            <input
+                                              type="time"
+                                              value={
+                                                affectation?.heure_depart_prevue ||
+                                                formulaire.heure_fin_prevue
+                                              }
+                                              onChange={(event) =>
+                                                modifierAffectationCreation(
+                                                  salarie.id,
+                                                  "heure_depart_prevue",
+                                                  event.target.value
+                                                )
+                                              }
+                                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs outline-none focus:border-emerald-500"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b border-slate-200 p-5">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 className="font-black text-slate-950">
+                                📋 Éléments de la fiche
+                              </h3>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Tâches du devis, matériel, matériaux et consignes de chantier.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCreationRapideCategorie(
+                                    ongletElementsCreation === "consignes"
+                                      ? "consigne_securite"
+                                      : ongletElementsCreation
+                                  );
+                                  setCreationRapideNom("");
+                                  setCreationRapideIcone("＋");
+                                }}
+                                className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                              >
+                                + Ajouter un élément
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOngletElementsCreation("materiaux");
+                                  setCreationRapideCategorie("materiaux");
+                                  setCreationRapideNom("");
+                                  setCreationRapideIcone("🪨");
+                                }}
+                                className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                              >
+                                + Créer un matériau
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+                            {[
+                              ["travaux", "Tâches"],
+                              ["materiel", "Matériel"],
+                              ["materiaux", "Matériaux"],
+                              ["consignes", "Consignes"],
+                            ].map(([id, label]) => (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() =>
+                                  setOngletElementsCreation(
+                                    id as OngletElementsCreation
+                                  )
+                                }
+                                className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold transition ${
+                                  ongletElementsCreation === id
+                                    ? "bg-white text-emerald-700 shadow-sm"
+                                    : "text-slate-500 hover:text-slate-900"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 p-5">
+                          {creationRapideCategorie !== "type_intervention" &&
+                            renduCreationRapide()}
+
+                          {ongletElementsCreation === "travaux" &&
+                            lignesDevis.length > 0 && (
+                              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div>
+                                    <p className="font-black text-blue-950">
+                                      Travaux issus du devis
+                                    </p>
+                                    <p className="mt-1 text-xs text-blue-700">
+                                      {nombreLignesDevisSelectionnees()} /{" "}
+                                      {lignesDevis.length} ligne(s) reprise(s)
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={selectionnerToutesLignesDevis}
+                                      className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700"
+                                    >
+                                      Tout sélectionner
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={deselectionnerToutesLignesDevis}
+                                      className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-slate-600"
+                                    >
+                                      Tout retirer
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 divide-y divide-blue-100 overflow-hidden rounded-xl border border-blue-100 bg-white">
+                                  {lignesDevis.map((ligne) => {
+                                    const idVirtuel = `ligne-devis-${ligne.id}`;
+                                    const actif =
+                                      elementsSelectionnes.includes(idVirtuel);
+
+                                    return (
+                                      <button
+                                        key={ligne.id}
+                                        type="button"
+                                        onClick={() =>
+                                          selectionnerLigneDevisCommeTravail(
+                                            ligne
+                                          )
+                                        }
+                                        className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-blue-50/60"
+                                      >
+                                        <span
+                                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-black ${
+                                            actif
+                                              ? "border-blue-600 bg-blue-600 text-white"
+                                              : "border-slate-300 bg-white text-transparent"
+                                          }`}
+                                        >
+                                          ✓
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                          <span className="block text-sm font-bold text-slate-900">
+                                            {ligne.designation ||
+                                              "Ligne du devis"}
+                                          </span>
+                                          <span className="mt-1 block text-xs text-slate-500">
+                                            {Number(ligne.quantite || 1)}{" "}
+                                            {ligne.unite || "u"}
+                                            {ligne.description
+                                              ? ` · ${ligne.description}`
+                                              : ""}
+                                          </span>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                          {(() => {
+                            const categories =
+                              ongletElementsCreation === "consignes"
+                                ? [
+                                    "consigne_securite",
+                                    "consigne_chantier",
+                                  ]
+                                : [ongletElementsCreation];
+
+                            const liste = categories.flatMap(
+                              (categorie) =>
+                                articlesParCategorie[categorie] || []
+                            );
+
+                            if (liste.length === 0) {
+                              return (
+                                <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+                                  Aucun élément enregistré dans cette catégorie.
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                                <div className="hidden grid-cols-[minmax(0,1fr)_130px_100px_minmax(180px,0.8fr)] gap-3 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-wide text-slate-400 md:grid">
+                                  <span>Élément</span>
+                                  <span>Catégorie</span>
+                                  <span>Prévu</span>
+                                  <span>Commentaire chef</span>
+                                </div>
+
+                                <div className="divide-y divide-slate-100">
+                                  {liste.map((article) => {
+                                    const actif =
+                                      elementsSelectionnes.includes(article.id);
+
+                                    return (
+                                      <button
+                                        key={article.id}
+                                        type="button"
+                                        onClick={() =>
+                                          basculerElement(article.id)
+                                        }
+                                        className={`grid w-full gap-2 px-4 py-3 text-left transition md:grid-cols-[minmax(0,1fr)_130px_100px_minmax(180px,0.8fr)] md:items-center md:gap-3 ${
+                                          actif
+                                            ? "bg-emerald-50/70"
+                                            : "bg-white hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <span className="flex min-w-0 items-center gap-3">
+                                          <span
+                                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-black ${
+                                              actif
+                                                ? "border-emerald-600 bg-emerald-600 text-white"
+                                                : "border-slate-300 bg-white text-transparent"
+                                            }`}
+                                          >
+                                            ✓
+                                          </span>
+                                          <span className="text-lg">
+                                            {article.icone || "•"}
+                                          </span>
+                                          <span className="truncate text-sm font-bold text-slate-900">
+                                            {article.nom}
+                                          </span>
+                                        </span>
+
+                                        <span className="text-xs font-semibold text-slate-500">
+                                          {article.categorie
+                                            .replace("consigne_", "")
+                                            .replace("_", " ")}
+                                        </span>
+
+                                        <span className="text-xs font-semibold text-slate-600">
+                                          1 {article.unite || "u"}
+                                        </span>
+
+                                        <span className="text-xs text-slate-500">
+                                          {article.description || "—"}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </section>
+
+                      <section className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <h3 className="font-black text-slate-950">
+                            📷 Photos de préparation
+                          </h3>
+                          <div className="mt-4 flex min-h-32 items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+                            <div>
+                              <p className="text-2xl">📸</p>
+                              <p className="mt-2 text-sm font-bold text-slate-700">
+                                Photos facultatives
+                              </p>
+                              <p className="mt-1 text-xs leading-5 text-slate-500">
+                                Elles pourront être ajoutées dès que la fiche sera créée, depuis l’onglet Photos.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                          <h3 className="font-black text-slate-950">
+                            📝 Commentaire de préparation
+                          </h3>
+                          <textarea
+                            value={formulaire.notes_internes}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "notes_internes",
+                                event.target.value
+                              )
+                            }
+                            rows={5}
+                            placeholder="Accès, préparation, priorité, risque particulier…"
+                            className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                        </div>
+                      </section>
+                    </>
+                  )}
+
+                  {etapeCreation === 3 && (
+                    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-200 p-5">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-emerald-500 text-emerald-700">
+                            ✓
+                          </span>
+                          <div>
+                            <h3 className="font-black text-slate-950">
+                              Validation finale
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Vérifiez les informations avant de créer et planifier la fiche.
+                            </p>
+                          </div>
                         </div>
                       </div>
 
-                      {articlesCategorie.length === 0 ? (
-                        <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                          Aucun élément enregistré dans cette catégorie.
-                        </p>
-                      ) : (
-                        <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-                          {articlesCategorie.map((article) => {
-                            const actif = elementsSelectionnes.includes(
-                              article.id
-                            );
+                      <div className="space-y-4 p-5">
+                        <article className="rounded-2xl border border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                            <h4 className="font-black text-slate-900">
+                              📄 Informations générales
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => setEtapeCreation(1)}
+                              className="text-xs font-bold text-emerald-700"
+                            >
+                              ✎ Modifier
+                            </button>
+                          </div>
+                          <div className="grid gap-4 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                              <p className="text-xs font-semibold text-slate-400">
+                                Client
+                              </p>
+                              <p className="mt-1 font-bold text-slate-800">
+                                {devisSelectionne?.client_nom || "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-400">
+                                Chantier
+                              </p>
+                              <p className="mt-1 font-bold text-slate-800">
+                                {[
+                                  formulaire.adresse_chantier,
+                                  formulaire.code_postal_chantier,
+                                  formulaire.ville_chantier,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-400">
+                                Type
+                              </p>
+                              <p className="mt-1 font-bold text-slate-800">
+                                {typeSelectionne?.nom || "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-400">
+                                Date & horaires
+                              </p>
+                              <p className="mt-1 font-bold text-slate-800">
+                                {formatDate(formulaire.date_prevue)} ·{" "}
+                                {formulaire.heure_debut_prevue} →{" "}
+                                {formulaire.heure_fin_prevue}
+                              </p>
+                            </div>
+                          </div>
+                        </article>
 
-                            return (
-                              <button
-                                key={article.id}
-                                type="button"
-                                aria-pressed={actif}
-                                onClick={() => basculerElement(article.id)}
-                                className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
-                                  actif
-                                    ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-100"
-                                    : "border-slate-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/40"
-                                }`}
+                        <article className="rounded-2xl border border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                            <h4 className="font-black text-slate-900">
+                              👥 Équipe affectée
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => setEtapeCreation(2)}
+                              className="text-xs font-bold text-emerald-700"
+                            >
+                              ✎ Modifier
+                            </button>
+                          </div>
+
+                          <div className="p-4">
+                            {salariesSelectionnes.length === 0 ? (
+                              <p className="text-sm text-slate-500">
+                                Aucun salarié affecté pour le moment.
+                              </p>
+                            ) : (
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {salariesSelectionnes.map((id) => {
+                                  const salarie = trouverSalarie(id);
+                                  const affectation =
+                                    affectationsCreation[id];
+
+                                  return (
+                                    <div
+                                      key={id}
+                                      className="rounded-xl bg-slate-50 px-3 py-3"
+                                    >
+                                      <p className="text-sm font-black text-slate-900">
+                                        {nomSalarie(salarie)}
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-500">
+                                        {affectation?.role_chantier ||
+                                          "Intervenant"}{" "}
+                                        ·{" "}
+                                        {affectation?.heure_arrivee_prevue ||
+                                          formulaire.heure_debut_prevue}{" "}
+                                        →{" "}
+                                        {affectation?.heure_depart_prevue ||
+                                          formulaire.heure_fin_prevue}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </article>
+
+                        <article className="rounded-2xl border border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                            <h4 className="font-black text-slate-900">
+                              📋 Éléments sélectionnés
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => setEtapeCreation(2)}
+                              className="text-xs font-bold text-emerald-700"
+                            >
+                              ✎ Modifier
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 p-4">
+                            {elementsSelectionnes.length === 0 ? (
+                              <p className="text-sm text-slate-500">
+                                Aucun élément supplémentaire sélectionné.
+                              </p>
+                            ) : (
+                              <>
+                                {lignesDevis
+                                  .filter((ligne) =>
+                                    elementsSelectionnes.includes(
+                                      `ligne-devis-${ligne.id}`
+                                    )
+                                  )
+                                  .map((ligne) => (
+                                    <span
+                                      key={`validation-${ligne.id}`}
+                                      className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                                    >
+                                      📄 {ligne.designation || "Travail du devis"}
+                                    </span>
+                                  ))}
+                                {articles
+                                  .filter((article) =>
+                                    elementsSelectionnes.includes(article.id)
+                                  )
+                                  .map((article) => (
+                                    <span
+                                      key={`validation-${article.id}`}
+                                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                                    >
+                                      {article.icone || "•"} {article.nom}
+                                    </span>
+                                  ))}
+                              </>
+                            )}
+                          </div>
+                        </article>
+
+                        <article className="rounded-2xl border border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                            <h4 className="font-black text-slate-900">
+                              📝 Consignes & remarques
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => setEtapeCreation(2)}
+                              className="text-xs font-bold text-emerald-700"
+                            >
+                              ✎ Modifier
+                            </button>
+                          </div>
+
+                          <div className="grid gap-4 p-4 text-sm lg:grid-cols-2">
+                            <div className="rounded-xl bg-slate-50 p-3">
+                              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                Consignes sélectionnées
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {articles.filter(
+                                  (article) =>
+                                    elementsSelectionnes.includes(article.id) &&
+                                    (article.categorie === "consigne_securite" ||
+                                      article.categorie === "consigne_chantier")
+                                ).length === 0 ? (
+                                  <span className="text-xs text-slate-500">
+                                    Aucune consigne particulière sélectionnée.
+                                  </span>
+                                ) : (
+                                  articles
+                                    .filter(
+                                      (article) =>
+                                        elementsSelectionnes.includes(article.id) &&
+                                        (article.categorie === "consigne_securite" ||
+                                          article.categorie === "consigne_chantier")
+                                    )
+                                    .map((article) => (
+                                      <span
+                                        key={`consigne-validation-${article.id}`}
+                                        className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800"
+                                      >
+                                        {article.icone || "⚠️"} {article.nom}
+                                      </span>
+                                    ))
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                  Notes chantier
+                                </p>
+                                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                  {formulaire.notes_chantier || "Aucune note chantier."}
+                                </p>
+                              </div>
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                  Notes internes
+                                </p>
+                                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">
+                                  {formulaire.notes_internes || "Aucune note interne."}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+
+                        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <h4 className="font-black text-slate-900">
+                            Vérifications finales
+                          </h4>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {[
+                              "Devis associé",
+                              "Date et horaires confirmés",
+                              "Adresse complète",
+                              "Équipe vérifiée",
+                              "Matériel / éléments vérifiés",
+                              "Consignes relues",
+                            ].map((item) => (
+                              <div
+                                key={item}
+                                className="flex items-center gap-2 text-sm font-semibold text-slate-700"
                               >
-                                <span
-                                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${
-                                    actif
-                                      ? "border-emerald-600 bg-emerald-600 text-white"
-                                      : "border-slate-300 bg-white text-transparent"
-                                  }`}
-                                >
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs text-emerald-700">
                                   ✓
                                 </span>
+                                {item}
+                              </div>
+                            ))}
+                          </div>
 
-                                <span className="text-xl">
-                                  {article.icone || "•"}
-                                </span>
-
-                                <span className="min-w-0 flex-1">
-                                  <span className="block text-sm font-semibold text-slate-900">
-                                    {article.nom}
-                                  </span>
-
-                                  {article.description && (
-                                    <span className="mt-1 block text-xs text-slate-500">
-                                      {article.description}
-                                    </span>
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                          <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+                            Après création, la fiche sera planifiée et les salariés affectés pourront la retrouver dans leur espace terrain.
+                          </div>
+                        </article>
+                      </div>
                     </section>
-                  );
-                })}
-              </aside>
-            </div>
+                  )}
+                </main>
 
-            <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <p className="text-xs text-slate-500">
-                Les champs devis, type, titre, date et horaires sont obligatoires.
-              </p>
+                <aside className="space-y-4 xl:sticky xl:top-0 xl:self-start">
+                  <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
+                      <span>📄</span>
+                      <h3 className="font-black text-slate-950">Résumé</h3>
+                    </div>
 
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button"
-                onClick={fermerCreation}
-                disabled={enregistrement}
-                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Annuler
-              </button>
+                    <div className="mt-4 space-y-4 text-sm">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-400">
+                          Client
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {devisSelectionne?.client_nom || "Non sélectionné"}
+                        </p>
+                      </div>
 
-              <button type="button"
-                onClick={enregistrerFiche}
-                disabled={enregistrement}
-                className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {enregistrement
-                  ? "Création..."
-                  : "Créer la fiche et planifier"}
-              </button>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-400">
+                          Date prévue
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {formulaire.date_prevue
+                            ? formatDate(formulaire.date_prevue)
+                            : "Non renseignée"}
+                        </p>
+                        {(formulaire.heure_debut_prevue ||
+                          formulaire.heure_fin_prevue) && (
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {formulaire.heure_debut_prevue || "—"} →{" "}
+                            {formulaire.heure_fin_prevue || "—"}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold text-slate-400">
+                          Chantier
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {formulaire.titre || "Non renseigné"}
+                        </p>
+                        {(formulaire.code_postal_chantier ||
+                          formulaire.ville_chantier) && (
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {[
+                              formulaire.code_postal_chantier,
+                              formulaire.ville_chantier,
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold text-slate-400">
+                          Statut
+                        </p>
+                        <span className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700">
+                          Brouillon
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold text-slate-400">
+                          Devis associé
+                        </p>
+                        <p className="mt-1 font-bold text-slate-800">
+                          {devisSelectionne?.numero || "—"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-400">Équipe</p>
+                          <p className="mt-1 text-lg font-black text-slate-900">
+                            {salariesSelectionnes.length}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-400">Éléments</p>
+                          <p className="mt-1 text-lg font-black text-slate-900">
+                            {elementsSelectionnes.length}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-4">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                          <span>Étape {etapeCreation} sur 3</span>
+                          <span>{Math.round((etapeCreation / 3) * 100)}%</span>
+                        </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-emerald-600 transition-all"
+                            style={{
+                              width: `${Math.round(
+                                (etapeCreation / 3) * 100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
+                      <span>💾</span>
+                      <h3 className="font-black text-slate-950">Actions</h3>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {etapeCreation > 1 && (
+                        <button
+                          type="button"
+                          onClick={revenirCreation}
+                          disabled={enregistrement}
+                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          ← Retour
+                        </button>
+                      )}
+
+                      {etapeCreation < 3 ? (
+                        <button
+                          type="button"
+                          onClick={continuerCreation}
+                          disabled={enregistrement}
+                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          Continuer →
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={enregistrerFiche}
+                          disabled={enregistrement}
+                          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {enregistrement
+                            ? "Création…"
+                            : "✓ Créer la fiche d’intervention"}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={fermerCreation}
+                        disabled={enregistrement}
+                        className="w-full rounded-xl px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+
+                    <p className="mt-4 text-center text-[11px] leading-5 text-slate-400">
+                      Les photos avant/après et le PV restent facultatifs et pourront être ajoutés depuis la fiche.
+                    </p>
+                  </section>
+                </aside>
               </div>
             </div>
           </div>

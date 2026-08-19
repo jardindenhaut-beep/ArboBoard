@@ -8,14 +8,6 @@ import { supabase } from "@/lib/supabaseClient";
 import BlocPhotosChantier from "@/components/interventions/BlocPhotosChantier";
 import BlocPvFinChantier from "@/components/interventions/BlocPvFinChantier";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
-import { resoudreSalarieConnecte } from "@/lib/salaries/resoudreSalarieConnecte";
-
-type OngletFicheSalarie =
-  | "resume"
-  | "preparation"
-  | "terrain"
-  | "photos"
-  | "pv";
 
 type FicheIntervention = {
   id: string;
@@ -187,36 +179,6 @@ function nettoyerTexte(valeur: string) {
   return texte.length > 0 ? texte : null;
 }
 
-function formatDate(date: string | null | undefined) {
-  if (!date) return "Non renseignée";
-
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
-  } catch {
-    return date;
-  }
-}
-
-function formatDateHeure(date: string | null | undefined) {
-  if (!date) return "—";
-
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(date));
-  } catch {
-    return date;
-  }
-}
-
 function heureMaintenant() {
   const maintenant = new Date();
   const heures = String(maintenant.getHours()).padStart(2, "0");
@@ -257,34 +219,6 @@ function libelleStatut(statut: string | null | undefined) {
   return "Brouillon";
 }
 
-function badgeStatut(statut: string | null | undefined) {
-  if (statut === "planifiee") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (statut === "en_cours") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (statut === "terminee")
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (statut === "annulee") return "bg-red-50 text-red-700 border-red-200";
-  if (statut === "archivee")
-    return "bg-slate-100 text-slate-600 border-slate-200";
-  return "bg-slate-50 text-slate-700 border-slate-200";
-}
-
-function libelleEtape(statut: string | null | undefined) {
-  if (statut === "valide") return "Validée";
-  if (statut === "en_cours") return "En cours";
-  if (statut === "probleme") return "Problème";
-  if (statut === "a_preparer") return "À préparer";
-  return "En attente";
-}
-
-function classeEtape(statut: string | null | undefined) {
-  if (statut === "valide")
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (statut === "en_cours")
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  if (statut === "probleme") return "border-red-200 bg-red-50 text-red-700";
-  return "border-slate-200 bg-slate-50 text-slate-600";
-}
-
 function nomSalarie(salarie: Salarie | null) {
   if (!salarie) return "";
 
@@ -313,8 +247,6 @@ export default function DetailInterventionSalariePage() {
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
-  const [ongletActif, setOngletActif] =
-    useState<OngletFicheSalarie>("resume");
 
   const [commentairePreparation, setCommentairePreparation] = useState("");
   const [commentaireArrivee, setCommentaireArrivee] = useState("");
@@ -326,69 +258,6 @@ export default function DetailInterventionSalariePage() {
     initialiserPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ficheId]);
-
-  useEffect(() => {
-    if (!entrepriseId || !ficheId || !salarie?.id) {
-      return;
-    }
-
-    const canal = supabase
-      .channel(`fiche-salarie-${ficheId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "fiches_intervention",
-          filter: `id=eq.${ficheId}`,
-        },
-        () => {
-          void chargerFicheComplete(
-            entrepriseId,
-            ficheId,
-            salarie
-          );
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "fiches_intervention_elements",
-          filter: `fiche_id=eq.${ficheId}`,
-        },
-        () => {
-          void chargerFicheComplete(
-            entrepriseId,
-            ficheId,
-            salarie
-          );
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "fiches_intervention_salaries",
-          filter: `fiche_id=eq.${ficheId}`,
-        },
-        () => {
-          void chargerFicheComplete(
-            entrepriseId,
-            ficheId,
-            salarie
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entrepriseId, ficheId, salarie?.id]);
 
   async function initialiserPage() {
     if (!ficheId) {
@@ -477,21 +346,46 @@ export default function DetailInterventionSalariePage() {
     idUtilisateur: string,
     emailProfil: string
   ) {
-    const salarieData =
-      await resoudreSalarieConnecte(
-        idEntreprise,
-        {
-          profilId: idProfil,
-          utilisateurId: idUtilisateur,
-          email: emailProfil,
-        }
-      );
+    let salarieData: Salarie | null = null;
 
-    setSalarie(
-      (salarieData || null) as Salarie | null
+    const identifiants = Array.from(
+      new Set([idProfil, idUtilisateur].filter(Boolean))
     );
 
-    return (salarieData || null) as Salarie | null;
+    for (const identifiant of identifiants) {
+      const { data, error } = await supabase
+        .from("salaries")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .or(
+          `user_id.eq.${identifiant},profil_id.eq.${identifiant}`
+        )
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        salarieData = data as Salarie;
+        break;
+      }
+    }
+
+    if (!salarieData && emailProfil) {
+      const { data, error } = await supabase
+        .from("salaries")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .ilike("email", emailProfil)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        salarieData = data as Salarie;
+      }
+    }
+
+    setSalarie(salarieData);
+
+    return salarieData;
   }
 
   async function chargerFicheComplete(
@@ -707,10 +601,14 @@ export default function DetailInterventionSalariePage() {
   const finValidee = fiche?.etape_fin_statut === "valide";
 
   const peutModifierPreparation =
-    Boolean(affectation) && !ficheEnLectureSeule && !materielValide;
+    Boolean(salarie?.id) &&
+    !accesRefuse &&
+    !ficheEnLectureSeule &&
+    !materielValide;
 
   const peutValiderMateriel =
-    Boolean(affectation) &&
+    Boolean(salarie?.id) &&
+    !accesRefuse &&
     !ficheEnLectureSeule &&
     !materielValide &&
     toutEstPrepare;
@@ -872,7 +770,7 @@ export default function DetailInterventionSalariePage() {
     if (
       !entrepriseId ||
       !fiche ||
-      !affectation ||
+      !salarie?.id ||
       enregistrement
     ) {
       return;
@@ -1130,56 +1028,6 @@ export default function DetailInterventionSalariePage() {
     }
   }
 
-  function renduEtapes() {
-    if (!fiche) return null;
-
-    return (
-      <div className="grid gap-3 md:grid-cols-3">
-        <div
-          className={`rounded-2xl border p-4 ${classeEtape(
-            fiche.etape_materiel_statut
-          )}`}
-        >
-          <p className="text-sm font-bold">1. Matériel chargé</p>
-          <p className="mt-1 text-sm">
-            {libelleEtape(fiche.etape_materiel_statut)}
-          </p>
-          <p className="mt-2 text-xs opacity-80">
-            Validation : {formatDateHeure(fiche.materiel_valide_at)}
-          </p>
-        </div>
-
-        <div
-          className={`rounded-2xl border p-4 ${classeEtape(
-            fiche.etape_arrivee_statut
-          )}`}
-        >
-          <p className="text-sm font-bold">2. Arrivée chantier</p>
-          <p className="mt-1 text-sm">
-            {libelleEtape(fiche.etape_arrivee_statut)}
-          </p>
-          <p className="mt-2 text-xs opacity-80">
-            Validation : {formatDateHeure(fiche.arrivee_validee_at)}
-          </p>
-        </div>
-
-        <div
-          className={`rounded-2xl border p-4 ${classeEtape(
-            fiche.etape_fin_statut
-          )}`}
-        >
-          <p className="text-sm font-bold">3. Fin / PV</p>
-          <p className="mt-1 text-sm">
-            {libelleEtape(fiche.etape_fin_statut)}
-          </p>
-          <p className="mt-2 text-xs opacity-80">
-            Validation : {formatDateHeure(fiche.fin_validee_at)}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   function renduBlocElements(
     categorie: string,
     titre: string,
@@ -1209,56 +1057,111 @@ export default function DetailInterventionSalariePage() {
           </p>
         ) : (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {liste.map((element) => (
-              <div
-                key={element.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-semibold text-slate-950">
-                    {element.icone || "•"} {element.nom}
-                  </p>
+            {liste.map((element) => {
+              const cartePreparationActive =
+                categoriePreparation && peutModifierPreparation;
 
-                  {categoriePreparation && (
-                    <button
-                      type="button"
-                      onClick={() => basculerPreparationElement(element)}
-                      disabled={enregistrement || !peutModifierPreparation}
-                      className={`min-h-10 rounded-full px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
-                        element.coche_prepare
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-white text-slate-600 border border-slate-200"
+              const classeCarte = categoriePreparation
+                ? element.coche_prepare
+                  ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                  : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/40"
+                : "border-slate-200 bg-slate-50";
+
+              return (
+                <div
+                  key={element.id}
+                  role={categoriePreparation ? "button" : undefined}
+                  tabIndex={
+                    categoriePreparation && cartePreparationActive ? 0 : undefined
+                  }
+                  aria-pressed={
+                    categoriePreparation ? Boolean(element.coche_prepare) : undefined
+                  }
+                  onClick={() => {
+                    if (cartePreparationActive) {
+                      void basculerPreparationElement(element);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      !cartePreparationActive ||
+                      (event.key !== "Enter" && event.key !== " ")
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    void basculerPreparationElement(element);
+                  }}
+                  className={`rounded-2xl border p-4 transition-all duration-150 ${classeCarte} ${
+                    categoriePreparation
+                      ? cartePreparationActive
+                        ? "cursor-pointer select-none"
+                        : "cursor-not-allowed opacity-70"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p
+                      className={`font-semibold ${
+                        element.coche_prepare && categoriePreparation
+                          ? "text-emerald-950"
+                          : "text-slate-950"
                       }`}
                     >
-                      {element.coche_prepare ? "Préparé" : "À préparer"}
-                    </button>
+                      {element.icone || "•"} {element.nom}
+                    </p>
+
+                    {categoriePreparation && (
+                      <span
+                        className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-4 py-2 text-xs font-semibold ${
+                          element.coche_prepare
+                            ? "bg-emerald-600 text-white"
+                            : "border border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        {element.coche_prepare ? "✓ Préparé" : "À préparer"}
+                      </span>
+                    )}
+                  </div>
+
+                  <p
+                    className={`mt-2 text-xs ${
+                      element.coche_prepare && categoriePreparation
+                        ? "text-emerald-700"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    Prévu : {Number(element.quantite_prevue || 1)}{" "}
+                    {element.unite || "u"}
+                    {element.quantite_reelle !== null &&
+                    element.quantite_reelle !== undefined
+                      ? ` · Réel : ${Number(element.quantite_reelle)} ${
+                          element.unite || "u"
+                        }`
+                      : ""}
+                  </p>
+
+                  {element.commentaire_chef && (
+                    <p
+                      className={`mt-3 rounded-xl px-3 py-2 text-xs ${
+                        element.coche_prepare && categoriePreparation
+                          ? "bg-white/80 text-emerald-800"
+                          : "bg-white text-slate-600"
+                      }`}
+                    >
+                      Chef : {element.commentaire_chef}
+                    </p>
+                  )}
+
+                  {element.commentaire_salarie && (
+                    <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs text-emerald-800">
+                      Salarié : {element.commentaire_salarie}
+                    </p>
                   )}
                 </div>
-
-                <p className="mt-2 text-xs text-slate-500">
-                  Prévu : {Number(element.quantite_prevue || 1)}{" "}
-                  {element.unite || "u"}
-                  {element.quantite_reelle !== null &&
-                  element.quantite_reelle !== undefined
-                    ? ` · Réel : ${Number(element.quantite_reelle)} ${
-                        element.unite || "u"
-                      }`
-                    : ""}
-                </p>
-
-                {element.commentaire_chef && (
-                  <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-600">
-                    Chef : {element.commentaire_chef}
-                  </p>
-                )}
-
-                {element.commentaire_salarie && (
-                  <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                    Salarié : {element.commentaire_salarie}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -1330,181 +1233,297 @@ export default function DetailInterventionSalariePage() {
     );
   }
 
+
+  const etapeCourante = !materielValide
+    ? 1
+    : !arriveeValidee
+      ? 2
+      : !finValidee
+        ? 3
+        : 4;
+
+  const titreEtapeCourante =
+    etapeCourante === 1
+      ? "Préparation du départ"
+      : etapeCourante === 2
+        ? "Arrivée chantier"
+        : etapeCourante === 3
+          ? "Intervention en cours"
+          : "Fin de chantier / PV";
+
+  const blocsTerrain = BLOCS_ELEMENTS.filter(
+    (bloc) => bloc.categorie !== "materiel" && bloc.categorie !== "materiaux"
+  );
+
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <Link
-            href="/salarie/planning"
-            className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            ← Retour au planning
-          </Link>
+    <div className="mx-auto w-full max-w-6xl space-y-5 pb-10">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <Link
+              href="/salarie/planning"
+              className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              ← Planning
+            </Link>
 
-          <p className="mt-5 text-sm font-medium text-emerald-700">
-            Intervention salarié
-          </p>
-
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            {titreFiche(fiche)}
-          </h1>
-
-          <p className="mt-2 max-w-4xl text-sm text-slate-600">
-            {fiche.client_nom || "Client"} · {adresseFiche(fiche)}
-          </p>
-
-          {fiche.numero && (
-            <p className="mt-1 text-xs font-semibold text-slate-400">
-              Numéro fiche : {fiche.numero}
+            <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">
+              Étape {etapeCourante} sur 4
             </p>
-          )}
-        </div>
+            <h1 className="mt-1 truncate text-2xl font-bold text-slate-950 sm:text-3xl">
+              {titreEtapeCourante}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {fiche.numero ? `${fiche.numero} · ` : ""}
+              {titreFiche(fiche)}
+            </p>
+          </div>
 
-        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={rafraichir}
             disabled={enregistrement}
-            className="min-h-11 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-10 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Actualiser
           </button>
         </div>
-        </div>
 
-        {ficheEnLectureSeule && (
-          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Cette intervention est en lecture seule car elle est {libelleStatut(
-              fiche.statut
-            ).toLowerCase()}.
-          </div>
-        )}
+        <div className="mt-5 grid grid-cols-4 gap-2" aria-label={`Étape ${etapeCourante} sur 4`}>
+          {[1, 2, 3, 4].map((numero) => (
+            <div
+              key={numero}
+              className={`h-2 rounded-full transition-colors ${
+                numero <= etapeCourante ? "bg-emerald-500" : "bg-slate-200"
+              }`}
+            />
+          ))}
+        </div>
       </section>
 
       {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {messageErreur}
         </div>
       )}
 
       {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           {messageSucces}
         </div>
       )}
 
-      <nav className="sticky top-3 z-20 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
-        <div className="flex min-w-max gap-1">
-          {[
-            ["resume", "Résumé", "📋"],
-            ["preparation", "Préparation", "🧰"],
-            ["terrain", "Terrain", "🧭"],
-            ["photos", "Photos", "📷"],
-            ["pv", "Fin / signature", "✍️"],
-          ].map(([valeur, label, icone]) => (
-            <button
-              key={valeur}
-              type="button"
-              onClick={() =>
-                setOngletActif(valeur as OngletFicheSalarie)
-              }
-              className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-                ongletActif === valeur
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <span className="mr-1.5">{icone}</span>
-              {label}
-            </button>
-          ))}
+      {ficheEnLectureSeule && !finValidee && (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Cette intervention est en lecture seule car elle est {libelleStatut(
+            fiche.statut
+          ).toLowerCase()}.
         </div>
-      </nav>
+      )}
 
-      <section
-        className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
-          ongletActif === "resume" ? "grid" : "hidden"
-        }`}
-      >
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Statut
-          </p>
-          <span
-            className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-              fiche.statut
-            )}`}
-          >
-            {libelleStatut(fiche.statut)}
-          </span>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Date prévue
-          </p>
-          <p className="mt-3 text-lg font-bold text-slate-950">
-            {formatDate(fiche.date_prevue || fiche.date_intervention)}
-          </p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Horaires prévus
-          </p>
-          <p className="mt-3 text-lg font-bold text-slate-950">
-            {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)} →{" "}
-            {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
-          </p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Horaires réels
-          </p>
-          <p className="mt-3 text-lg font-bold text-slate-950">
-            {formatHeure(fiche.heure_debut_reelle)} →{" "}
-            {formatHeure(fiche.heure_fin_reelle)}
-          </p>
-        </div>
-      </section>
-
-      <section
-        className={`grid gap-5 ${
-          ongletActif === "resume"
-            ? "xl:grid-cols-[minmax(0,1fr)_360px]"
-            : "grid-cols-1"
-        }`}
-      >
+      {etapeCourante === 1 && (
         <div className="space-y-5">
-          <section
-            className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-              ongletActif === "resume" ? "block" : "hidden"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                📍
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+                  🧰
+                </div>
+                <h2 className="mt-4 text-xl font-bold text-emerald-950">
+                  Préparez tout le matériel avant de partir
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-800">
+                  Tant que cette étape n’est pas validée, les informations chantier,
+                  les travaux, les photos et les étapes suivantes restent masqués.
+                </p>
               </div>
 
-              <div>
-                <h2 className="font-bold text-slate-950">
-                  Informations chantier
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Adresse, accès et consignes utiles.
+              <div className="rounded-2xl bg-white px-4 py-3 text-center shadow-sm">
+                <p className="text-2xl font-black text-emerald-700">
+                  {nombreElementsPrepares}/{nombreElementsPreparables}
+                </p>
+                <p className="text-xs font-semibold text-slate-500">préparés</p>
+              </div>
+            </div>
+          </section>
+
+          {renduBlocElements(
+            "materiel",
+            "Matériel à charger",
+            "🧰",
+            "Touchez une vignette pour confirmer que le matériel est chargé."
+          )}
+
+          {renduBlocElements(
+            "materiaux",
+            "Matériaux / fournitures",
+            "🪨",
+            "Confirmez également les matériaux et fournitures à emporter."
+          )}
+
+          <section className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-6">
+            {!toutEstPrepare && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Il reste {Math.max(0, nombreElementsPreparables - nombreElementsPrepares)} élément(s) à préparer.
+              </div>
+            )}
+
+            <textarea
+              value={commentairePreparation}
+              onChange={(event) => setCommentairePreparation(event.target.value)}
+              rows={3}
+              placeholder="Commentaire de préparation (facultatif)..."
+              disabled={!peutModifierPreparation}
+              className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            />
+
+            <button
+              type="button"
+              onClick={validerMateriel}
+              disabled={enregistrement || !peutValiderMateriel}
+              className="mt-4 min-h-14 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-base font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enregistrement
+                ? "Validation en cours..."
+                : toutEstPrepare
+                  ? "✓ Valider le matériel chargé et continuer"
+                  : "Tout le matériel doit être préparé"}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {etapeCourante === 2 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+              📍
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-blue-950">
+              Rendez-vous sur le chantier
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-blue-800">
+              Le matériel est validé. L’accès aux travaux et au suivi terrain sera
+              débloqué uniquement après l’enregistrement de votre arrivée.
+            </p>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Client
+                </p>
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {fiche.client_nom || "Client"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Horaire prévu
+                </p>
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {formatHeure(
+                    affectation?.heure_arrivee_prevue ||
+                      fiche.heure_debut_prevue ||
+                      fiche.heure_debut
+                  )}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-500">
                 Adresse chantier
               </p>
-              <p className="mt-2 font-bold text-slate-950">
+              <p className="mt-2 text-lg font-bold text-blue-950">
                 {adresseFiche(fiche)}
               </p>
+            </div>
+
+            {fiche.notes_chantier && (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-bold text-amber-950">
+                  Accès / remarque avant arrivée
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm text-amber-800">
+                  {fiche.notes_chantier}
+                </p>
+              </div>
+            )}
+
+            <textarea
+              value={commentaireArrivee}
+              onChange={(event) => setCommentaireArrivee(event.target.value)}
+              rows={3}
+              placeholder="Commentaire d’arrivée (facultatif)..."
+              disabled={!peutValiderArrivee}
+              className="mt-5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            />
+
+            <button
+              type="button"
+              onClick={validerArrivee}
+              disabled={enregistrement || !peutValiderArrivee}
+              className="mt-4 min-h-14 w-full rounded-2xl bg-blue-600 px-5 py-4 text-base font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enregistrement
+                ? "Enregistrement de l’arrivée..."
+                : "📍 Je suis arrivé — enregistrer l’heure"}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {etapeCourante === 3 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+                  🌿
+                </div>
+                <h2 className="mt-4 text-xl font-bold text-emerald-950">
+                  Intervention en cours
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-emerald-800">
+                  Votre arrivée est enregistrée. Les informations techniques du
+                  chantier sont maintenant accessibles.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Arrivée réelle
+                </p>
+                <p className="mt-1 text-xl font-black text-emerald-700">
+                  {formatHeure(
+                    affectation?.heure_arrivee_reelle || fiche.heure_debut_reelle
+                  )}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Client
+                </p>
+                <p className="mt-2 font-bold text-slate-950">
+                  {fiche.client_nom || "Client"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Adresse
+                </p>
+                <p className="mt-2 font-bold text-slate-950">
+                  {adresseFiche(fiche)}
+                </p>
+              </div>
             </div>
 
             {fiche.notes_chantier && (
@@ -1519,10 +1538,8 @@ export default function DetailInterventionSalariePage() {
             )}
 
             {fiche.notes_internes && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-950">
-                  Notes internes chef
-                </p>
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm font-bold text-slate-950">Notes internes</p>
                 <p className="mt-2 whitespace-pre-line text-sm text-slate-600">
                   {fiche.notes_internes}
                 </p>
@@ -1530,169 +1547,70 @@ export default function DetailInterventionSalariePage() {
             )}
           </section>
 
-          <section
-            className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-              ongletActif === "resume" ? "block" : "hidden"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-                🧭
-              </div>
+          {blocsTerrain.map((bloc) =>
+            renduBlocElements(
+              bloc.categorie,
+              bloc.titre,
+              bloc.icone,
+              bloc.description
+            )
+          )}
 
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+                👥
+              </div>
               <div>
-                <h2 className="font-bold text-slate-950">
-                  Suivi terrain en 3 étapes
-                </h2>
+                <h2 className="font-bold text-slate-950">Équipe chantier</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Validez le matériel, votre arrivée et la fin de chantier.
+                  Personnes affectées à cette intervention.
                 </p>
               </div>
             </div>
 
-            <div className="mt-5">{renduEtapes()}</div>
-
-            <ResumeRetourTerrainFiche
-              entrepriseId={entrepriseId}
-              ficheId={fiche.id}
-              problemeSignale={fiche.probleme_signale}
-              descriptionProbleme={fiche.description_probleme}
-              afficherActionsPv={false}
-              autoriserEnvoiClient={false}
-            />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {equipe.map((item) => (
+                <div key={item.id} className="rounded-2xl bg-slate-50 p-4">
+                  <p className="font-bold text-slate-950">
+                    {item.salarie_nom || "Salarié"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.role_chantier || "Intervenant"}
+                  </p>
+                </div>
+              ))}
+            </div>
           </section>
 
-          <section
-            className={`rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm sm:p-5 ${
-              ongletActif === "preparation" ? "block" : "hidden"
-            }`}
-          >
-            <h2 className="font-bold text-emerald-950">
-              Étape 1 — Préparation matériel
-            </h2>
+          <BlocPhotosChantier
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            userId={authUserId || null}
+          />
 
-            <p className="mt-2 text-sm text-emerald-800">
-              Matériel / matériaux préparés : {nombreElementsPrepares} /{" "}
-              {nombreElementsPreparables}
+          <ResumeRetourTerrainFiche
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            problemeSignale={fiche.probleme_signale}
+            descriptionProbleme={fiche.description_probleme}
+            afficherActionsPv={false}
+            autoriserEnvoiClient={false}
+          />
+
+          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm sm:p-6">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+              🏁
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-amber-950">
+              Terminer l’intervention
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-amber-800">
+              À faire uniquement lorsque le chantier est réellement terminé.
+              L’heure de départ sera enregistrée automatiquement.
             </p>
 
-            {!toutEstPrepare && (
-              <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Tout le matériel n’est pas encore coché comme préparé.
-              </p>
-            )}
-
-            <textarea
-              value={commentairePreparation}
-              onChange={(event) => setCommentairePreparation(event.target.value)}
-              rows={3}
-              placeholder="Commentaire préparation matériel..."
-              disabled={!peutModifierPreparation}
-              className="mt-4 w-full rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-            />
-
-            <button
-              type="button"
-              onClick={validerMateriel}
-              disabled={enregistrement || !peutValiderMateriel}
-              className="mt-4 min-h-12 w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-            >
-              {enregistrement
-                ? "Validation..."
-                : materielValide
-                  ? "Matériel déjà validé"
-                  : "Valider le matériel chargé"}
-            </button>
-          </section>
-
-          <section
-            className={`rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5 ${
-              ongletActif === "terrain" ? "block" : "hidden"
-            }`}
-          >
-            <h2 className="font-bold text-blue-950">
-              Étape 2 — Arrivée chantier
-            </h2>
-
-            <p className="mt-2 text-sm text-blue-800">
-              En validant, l’heure réelle d’arrivée est enregistrée
-              automatiquement si elle n’existe pas déjà.
-            </p>
-
-            {!materielValide && (
-              <p className="mt-3 rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm text-blue-800">
-                La préparation du matériel doit être validée avant cette étape.
-              </p>
-            )}
-
-            <textarea
-              value={commentaireArrivee}
-              onChange={(event) => setCommentaireArrivee(event.target.value)}
-              rows={3}
-              placeholder="Commentaire arrivée chantier..."
-              disabled={!peutValiderArrivee}
-              className="mt-4 w-full rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-            />
-
-            <button
-              type="button"
-              onClick={validerArrivee}
-              disabled={enregistrement || !peutValiderArrivee}
-              className="mt-4 min-h-12 w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-            >
-              {enregistrement
-                ? "Validation..."
-                : arriveeValidee
-                  ? "Arrivée déjà validée"
-                  : "Valider l’arrivée chantier"}
-            </button>
-          </section>
-
-          <div
-            className={`space-y-4 ${
-              ongletActif === "preparation" ? "block" : "hidden"
-            }`}
-          >
-            {BLOCS_ELEMENTS.map((bloc) =>
-              renduBlocElements(
-                bloc.categorie,
-                bloc.titre,
-                bloc.icone,
-                bloc.description
-              )
-            )}
-          </div>
-
-          <div className={ongletActif === "photos" ? "block" : "hidden"}>
-            <BlocPhotosChantier
-              entrepriseId={entrepriseId}
-              ficheId={fiche.id}
-              userId={authUserId || null}
-            />
-          </div>
-
-          <section
-            className={`rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5 ${
-              ongletActif === "terrain" ? "block" : "hidden"
-            }`}
-          >
-            <h2 className="font-bold text-amber-950">
-              Étape 3 — Fin de chantier
-            </h2>
-
-            <p className="mt-2 text-sm text-amber-800">
-              En validant, l’heure réelle de départ est enregistrée
-              automatiquement si elle n’existe pas déjà.
-            </p>
-
-            {!arriveeValidee && (
-              <p className="mt-3 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm text-amber-800">
-                L’arrivée chantier doit être validée avant de clôturer
-                l’intervention.
-              </p>
-            )}
-
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-white p-4">
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-white p-4">
               <input
                 type="checkbox"
                 checked={signalerProbleme}
@@ -1700,14 +1618,12 @@ export default function DetailInterventionSalariePage() {
                 disabled={!peutValiderFin}
                 className="mt-1 h-5 w-5 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60"
               />
-
               <span>
                 <span className="block text-sm font-bold text-slate-950">
-                  Signaler un problème
+                  Signaler un problème ou une réserve
                 </span>
                 <span className="mt-1 block text-xs text-slate-500">
-                  À cocher si le chantier n’est pas terminé normalement ou s’il
-                  y a une réserve importante.
+                  Utilisez cette option si l’intervention ne se termine pas normalement.
                 </span>
               </span>
             </label>
@@ -1727,7 +1643,7 @@ export default function DetailInterventionSalariePage() {
               value={commentaireFin}
               onChange={(event) => setCommentaireFin(event.target.value)}
               rows={4}
-              placeholder="Commentaire fin de chantier..."
+              placeholder="Commentaire de fin de chantier (facultatif)..."
               disabled={!peutValiderFin}
               className="mt-4 w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
             />
@@ -1736,120 +1652,57 @@ export default function DetailInterventionSalariePage() {
               type="button"
               onClick={validerFinChantier}
               disabled={enregistrement || !peutValiderFin}
-              className="mt-4 min-h-12 w-full rounded-2xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="mt-4 min-h-14 w-full rounded-2xl bg-amber-600 px-5 py-4 text-base font-bold text-white shadow-sm hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {enregistrement
-                ? "Validation..."
-                : finValidee
-                  ? "Fin déjà validée"
-                  : "Valider la fin du chantier"}
+                ? "Validation de la fin..."
+                : "🏁 Valider la fin du chantier et continuer"}
             </button>
           </section>
-
-          <div className={ongletActif === "pv" ? "block" : "hidden"}>
-            <BlocPvFinChantier
-              entrepriseId={entrepriseId}
-              ficheId={fiche.id}
-              clientId={fiche.client_id}
-              clientNom={fiche.client_nom}
-              signataireEntrepriseNom={nomSignataireEntreprise}
-              afficherEnvoiEmail={false}
-            />
-          </div>
         </div>
+      )}
 
-        <aside
-          className={`space-y-4 ${
-            ongletActif === "resume" ? "block" : "hidden"
-          }`}
-        >
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Mon affectation</h2>
-
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-bold text-slate-950">
-                {affectation?.salarie_nom ||
-                  nomSalarie(salarie) ||
-                  profilEmail ||
-                  "Salarié"}
-              </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Rôle : {affectation?.role_chantier || "Intervenant"}
-              </p>
-
-              <p className="mt-2 text-xs text-slate-500">
-                Prévu :{" "}
-                {formatHeure(
-                  affectation?.heure_arrivee_prevue ||
-                    fiche.heure_debut_prevue ||
-                    fiche.heure_debut
-                )}{" "}
-                →{" "}
-                {formatHeure(
-                  affectation?.heure_depart_prevue ||
-                    fiche.heure_fin_prevue ||
-                    fiche.heure_fin
-                )}
-              </p>
-
-              <p className="mt-1 text-xs font-semibold text-emerald-700">
-                Réel :{" "}
-                {formatHeure(
-                  affectation?.heure_arrivee_reelle ||
-                    fiche.heure_debut_reelle
-                )}{" "}
-                →{" "}
-                {formatHeure(
-                  affectation?.heure_depart_reelle || fiche.heure_fin_reelle
-                )}
-              </p>
+      {etapeCourante === 4 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+              ✅
             </div>
-          </section>
+            <h2 className="mt-4 text-xl font-bold text-emerald-950">
+              Intervention terminée
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-emerald-800">
+              Le suivi terrain est terminé. Il reste uniquement la partie fin de
+              chantier / PV.
+            </p>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Équipe chantier</h2>
-
-            {equipe.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                Aucune équipe renseignée.
-              </p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {equipe.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <p className="font-bold text-slate-950">
-                      {item.salarie_nom || "Salarié"}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      Rôle : {item.role_chantier || "Intervenant"}
-                    </p>
-
-                    <p className="mt-2 text-xs text-slate-500">
-                      Prévu : {formatHeure(item.heure_arrivee_prevue)} →{" "}
-                      {formatHeure(item.heure_depart_prevue)}
-                    </p>
-
-                    {(item.heure_arrivee_reelle ||
-                      item.heure_depart_reelle) && (
-                      <p className="mt-1 text-xs font-semibold text-emerald-700">
-                        Réel : {formatHeure(item.heure_arrivee_reelle)} →{" "}
-                        {formatHeure(item.heure_depart_reelle)}
-                      </p>
-                    )}
-                  </div>
-                ))}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Arrivée réelle
+                </p>
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {formatHeure(
+                    affectation?.heure_arrivee_reelle || fiche.heure_debut_reelle
+                  )}
+                </p>
               </div>
-            )}
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Départ réel
+                </p>
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {formatHeure(
+                    affectation?.heure_depart_reelle || fiche.heure_fin_reelle
+                  )}
+                </p>
+              </div>
+            </div>
           </section>
 
           {fiche.probleme_signale && (
             <section className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
-              <h2 className="font-bold text-red-700">Problème signalé</h2>
+              <h2 className="font-bold text-red-800">Problème / réserve signalé</h2>
               <p className="mt-2 whitespace-pre-line text-sm text-red-700">
                 {fiche.description_probleme ||
                   "Un problème a été signalé sur cette intervention."}
@@ -1857,8 +1710,16 @@ export default function DetailInterventionSalariePage() {
             </section>
           )}
 
-        </aside>
-      </section>
+          <BlocPvFinChantier
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            clientId={fiche.client_id}
+            clientNom={fiche.client_nom}
+            signataireEntrepriseNom={nomSignataireEntreprise}
+            afficherEnvoiEmail={false}
+          />
+        </div>
+      )}
     </div>
   );
 }

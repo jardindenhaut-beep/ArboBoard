@@ -154,23 +154,14 @@ export async function POST(request: NextRequest) {
         [
           "id",
           "nom_entreprise",
-          "nom",
-          "raison_sociale",
           "forme_juridique",
           "adresse",
           "code_postal",
           "ville",
           "telephone",
-          "email",
           "email_contact",
           "siret",
           "numero_tva",
-          "numero_tva_intracommunautaire",
-          "logo_url",
-          "assurance_professionnelle",
-          "mentions_legales",
-          "conditions_generales_devis",
-          "conditions_generales_factures",
         ].join(", ")
       )
       .eq("id", entrepriseId)

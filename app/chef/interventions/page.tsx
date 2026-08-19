@@ -90,6 +90,25 @@ type DevisLigne = {
   quantite: number | null;
   unite: string | null;
   ordre: number | null;
+  prestation_tarif_id?: string | null;
+  prestation_code?: string | null;
+  prestation_categorie_id?: string | null;
+  prestation_categorie_nom?: string | null;
+};
+
+type ProfilPreselectionAutomatique = {
+  id: string;
+  libelle: string;
+  detection: string[];
+  types: string[];
+  besoins: Partial<Record<CategorieArticle, string[]>>;
+};
+
+type ResumePreselectionAutomatique = {
+  profils: string[];
+  typeIntervention: string | null;
+  nombreElements: number;
+  nombreLignesDevis: number;
 };
 
 type FicheIntervention = {
@@ -263,6 +282,482 @@ const CATEGORIES_ELEMENTS: {
 function nettoyerTexte(valeur: string) {
   const texte = valeur.trim();
   return texte.length > 0 ? texte : null;
+}
+
+function normaliserTexteMetier(valeur: unknown) {
+  return String(valeur || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/['’]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const PROFILS_PRESELECTION_AUTOMATIQUE: ProfilPreselectionAutomatique[] = [
+  {
+    id: "elagage",
+    libelle: "Élagage",
+    detection: [
+      "elagage",
+      "elaguer",
+      "taille arbre",
+      "taille d arbre",
+      "taille de soins",
+      "taille sanitaire",
+      "reduction de couronne",
+      "reduction couronne",
+      "bois mort",
+      "haubanage",
+    ],
+    types: ["elagage", "taille d arbre", "taille arbre", "arboriculture"],
+    besoins: {
+      travaux: [
+        "elagage",
+        "taille",
+        "reduction",
+        "bois mort",
+        "branche",
+        "evacuation",
+        "broyage",
+      ],
+      materiel: [
+        "tronconneuse",
+        "elagueuse",
+        "harnais",
+        "corde",
+        "longe",
+        "casque",
+        "broyeur",
+        "souffleur",
+        "camion",
+        "remorque",
+        "retention",
+        "poulie",
+        "fausse fourche",
+        "nacelle",
+      ],
+      materiaux: ["carburant", "huile de chaine", "huile chaine", "chaine"],
+      consigne_securite: [
+        "epi",
+        "casque",
+        "anticoupure",
+        "protection auditive",
+        "balisage",
+        "zone de chute",
+        "ligne electrique",
+        "travail en hauteur",
+        "harnais",
+        "grimpe",
+        "retention",
+      ],
+      consigne_chantier: [
+        "acces",
+        "stationnement",
+        "voisinage",
+        "evacuation",
+        "broyage",
+      ],
+    },
+  },
+  {
+    id: "abattage",
+    libelle: "Abattage / démontage",
+    detection: [
+      "abattage",
+      "abattre",
+      "demontage",
+      "demontage arbre",
+      "suppression arbre",
+      "suppression d arbre",
+      "arbre a supprimer",
+    ],
+    types: ["abattage", "demontage", "demontage d arbre", "suppression d arbre"],
+    besoins: {
+      travaux: [
+        "abattage",
+        "demontage",
+        "debitage",
+        "evacuation",
+        "broyage",
+        "retention",
+      ],
+      materiel: [
+        "tronconneuse",
+        "elagueuse",
+        "coin",
+        "merlin",
+        "masse",
+        "corde",
+        "retention",
+        "treuil",
+        "tire fort",
+        "poulie",
+        "broyeur",
+        "camion",
+        "remorque",
+        "nacelle",
+        "casque",
+      ],
+      materiaux: ["carburant", "huile de chaine", "huile chaine", "chaine"],
+      consigne_securite: [
+        "epi",
+        "casque",
+        "anticoupure",
+        "protection auditive",
+        "balisage",
+        "zone de chute",
+        "direction de chute",
+        "ligne electrique",
+        "retention",
+        "travail en hauteur",
+      ],
+      consigne_chantier: [
+        "acces",
+        "stationnement",
+        "voisinage",
+        "evacuation",
+        "broyage",
+        "bois",
+      ],
+    },
+  },
+  {
+    id: "taille_haie",
+    libelle: "Taille de haie / arbustes",
+    detection: [
+      "taille de haie",
+      "taille haie",
+      "taille arbuste",
+      "taille d arbuste",
+      "taille de thuya",
+      "taille de cypres",
+      "taille de laurier",
+      "taille de charmille",
+      "taille de troene",
+    ],
+    types: ["taille de haie", "taille haie", "taille", "entretien"],
+    besoins: {
+      travaux: ["taille", "ramassage", "evacuation", "broyage"],
+      materiel: [
+        "taille haie",
+        "taille-haie",
+        "perche",
+        "escabeau",
+        "echelle",
+        "plateforme",
+        "souffleur",
+        "broyeur",
+        "camion",
+        "remorque",
+      ],
+      materiaux: ["carburant", "sac"],
+      consigne_securite: [
+        "epi",
+        "casque",
+        "protection auditive",
+        "balisage",
+        "travail en hauteur",
+      ],
+      consigne_chantier: ["acces", "evacuation", "broyage", "voisinage"],
+    },
+  },
+  {
+    id: "tonte",
+    libelle: "Tonte",
+    detection: ["tonte", "tondre", "gazon", "pelouse"],
+    types: ["tonte", "entretien de jardin", "entretien"],
+    besoins: {
+      travaux: ["tonte", "finition", "ramassage", "soufflage"],
+      materiel: [
+        "tondeuse",
+        "autoportee",
+        "debroussailleuse",
+        "coupe bordure",
+        "souffleur",
+        "camion",
+        "remorque",
+      ],
+      materiaux: ["carburant", "fil"],
+      consigne_securite: ["epi", "protection auditive", "projection", "balisage"],
+      consigne_chantier: ["acces", "portail", "animal", "chien"],
+    },
+  },
+  {
+    id: "debroussaillage",
+    libelle: "Débroussaillage",
+    detection: [
+      "debroussaillage",
+      "debroussailler",
+      "ronce",
+      "ronces",
+      "herbes hautes",
+      "vegetation haute",
+    ],
+    types: ["debroussaillage", "entretien", "fauchage"],
+    besoins: {
+      travaux: ["debroussaillage", "fauchage", "ramassage", "evacuation"],
+      materiel: [
+        "debroussailleuse",
+        "lame",
+        "fil",
+        "souffleur",
+        "broyeur",
+        "camion",
+        "remorque",
+      ],
+      materiaux: ["carburant", "fil", "lame"],
+      consigne_securite: [
+        "epi",
+        "visiere",
+        "protection auditive",
+        "projection",
+        "balisage",
+      ],
+      consigne_chantier: ["acces", "dechet", "evacuation"],
+    },
+  },
+  {
+    id: "rognage_dessouchage",
+    libelle: "Rognage / dessouchage",
+    detection: [
+      "rognage",
+      "rogner souche",
+      "dessouchage",
+      "dessoucher",
+      "suppression souche",
+    ],
+    types: ["rognage", "dessouchage", "souche"],
+    besoins: {
+      travaux: ["rognage", "dessouchage", "souche", "evacuation"],
+      materiel: [
+        "rogneuse",
+        "mini pelle",
+        "mini-pelle",
+        "pelle",
+        "pioche",
+        "camion",
+        "remorque",
+      ],
+      materiaux: ["carburant", "terre", "terre vegetale"],
+      consigne_securite: [
+        "epi",
+        "balisage",
+        "reseau",
+        "reseaux",
+        "projection",
+      ],
+      consigne_chantier: ["acces", "reseau", "reseaux", "evacuation"],
+    },
+  },
+  {
+    id: "plantation_creation",
+    libelle: "Plantation / création",
+    detection: [
+      "plantation",
+      "planter",
+      "creation",
+      "amenagement",
+      "massif",
+      "engazonnement",
+      "gazon",
+      "paillage",
+    ],
+    types: ["plantation", "creation", "amenagement paysager", "paysagisme"],
+    besoins: {
+      travaux: [
+        "plantation",
+        "terrassement",
+        "preparation",
+        "nivellement",
+        "engazonnement",
+        "paillage",
+      ],
+      materiel: [
+        "mini pelle",
+        "mini-pelle",
+        "motoculteur",
+        "brouette",
+        "pelle",
+        "rateau",
+        "rouleau",
+        "camion",
+        "remorque",
+      ],
+      materiaux: [
+        "terreau",
+        "terre vegetale",
+        "terre",
+        "tuteur",
+        "lien",
+        "paillage",
+        "mulch",
+        "compost",
+        "gazon",
+        "semence",
+      ],
+      consigne_securite: ["epi", "reseau", "reseaux", "balisage"],
+      consigne_chantier: ["acces", "arrosage", "reseau", "reseaux"],
+    },
+  },
+  {
+    id: "entretien",
+    libelle: "Entretien",
+    detection: [
+      "entretien",
+      "nettoyage jardin",
+      "ramassage feuilles",
+      "desherbage",
+      "desherbage",
+    ],
+    types: ["entretien", "entretien de jardin", "paysagisme"],
+    besoins: {
+      travaux: ["entretien", "nettoyage", "ramassage", "desherbage"],
+      materiel: [
+        "souffleur",
+        "debroussailleuse",
+        "taille haie",
+        "taille-haie",
+        "camion",
+      ],
+      materiaux: ["sac"],
+      consigne_securite: ["epi"],
+      consigne_chantier: ["acces", "dechet", "evacuation"],
+    },
+  },
+];
+
+function contientExpression(texteNormalise: string, expression: string) {
+  const cherche = normaliserTexteMetier(expression);
+  return Boolean(cherche) && texteNormalise.includes(cherche);
+}
+
+function scoreProfilPourLigne(
+  ligne: DevisLigne,
+  profil: ProfilPreselectionAutomatique
+) {
+  const categorie = normaliserTexteMetier(ligne.prestation_categorie_nom);
+  const designation = normaliserTexteMetier(ligne.designation);
+  const description = normaliserTexteMetier(ligne.description);
+
+  let score = 0;
+
+  for (const expression of profil.detection) {
+    if (contientExpression(categorie, expression)) score += 12;
+    if (contientExpression(designation, expression)) score += 7;
+    if (contientExpression(description, expression)) score += 2;
+  }
+
+  return score;
+}
+
+function profilsDepuisLignes(lignes: DevisLigne[]) {
+  const scores = new Map<string, number>();
+
+  for (const profil of PROFILS_PRESELECTION_AUTOMATIQUE) {
+    const score = lignes.reduce(
+      (total, ligne) => total + scoreProfilPourLigne(ligne, profil),
+      0
+    );
+
+    if (score > 0) scores.set(profil.id, score);
+  }
+
+  return PROFILS_PRESELECTION_AUTOMATIQUE
+    .filter((profil) => scores.has(profil.id))
+    .sort(
+      (a, b) =>
+        Number(scores.get(b.id) || 0) - Number(scores.get(a.id) || 0)
+    );
+}
+
+function scoreTypeIntervention(
+  article: ArticleIntervention,
+  expressions: string[]
+) {
+  const nom = normaliserTexteMetier(article.nom);
+  const description = normaliserTexteMetier(article.description);
+
+  let meilleurScore = 0;
+
+  for (const expression of expressions) {
+    const cherche = normaliserTexteMetier(expression);
+    if (!cherche) continue;
+
+    if (nom === cherche) meilleurScore = Math.max(meilleurScore, 100);
+    else if (nom.startsWith(cherche)) meilleurScore = Math.max(meilleurScore, 85);
+    else if (nom.includes(cherche)) meilleurScore = Math.max(meilleurScore, 70);
+    else if (cherche.includes(nom) && nom.length >= 4) {
+      meilleurScore = Math.max(meilleurScore, 45);
+    }
+
+    if (description.includes(cherche)) {
+      meilleurScore = Math.max(meilleurScore, 25);
+    }
+  }
+
+  return meilleurScore;
+}
+
+function trouverTypeInterventionAutomatique(
+  articles: ArticleIntervention[],
+  profils: ProfilPreselectionAutomatique[],
+  lignes: DevisLigne[]
+) {
+  const typesDisponibles = articles.filter(
+    (article) => article.categorie === "type_intervention"
+  );
+
+  if (typesDisponibles.length === 0) return null;
+
+  const expressions = [
+    ...profils.flatMap((profil) => profil.types),
+    ...lignes
+      .map((ligne) => ligne.prestation_categorie_nom || "")
+      .filter(Boolean),
+  ];
+
+  const classes = typesDisponibles
+    .map((article) => ({
+      article,
+      score: scoreTypeIntervention(article, expressions),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return classes[0]?.article || null;
+}
+
+function articleCorrespondAuxBesoins(
+  article: ArticleIntervention,
+  profils: ProfilPreselectionAutomatique[]
+) {
+  if (
+    article.categorie === "type_intervention" ||
+    ![
+      "travaux",
+      "materiel",
+      "materiaux",
+      "consigne_securite",
+      "consigne_chantier",
+    ].includes(String(article.categorie))
+  ) {
+    return false;
+  }
+
+  const contenu = normaliserTexteMetier(
+    `${article.nom || ""} ${article.description || ""}`
+  );
+
+  return profils.some((profil) => {
+    const expressions =
+      profil.besoins[article.categorie as CategorieArticle] || [];
+
+    return expressions.some((expression) =>
+      contientExpression(contenu, expression)
+    );
+  });
 }
 
 function formatDate(date: string | null | undefined) {
@@ -440,6 +935,8 @@ export default function FichesInterventionPage() {
 
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
+  const [resumePreselectionAutomatique, setResumePreselectionAutomatique] =
+    useState<ResumePreselectionAutomatique | null>(null);
   const [ficheDeplieeId, setFicheDeplieeId] = useState<string | null>(
     null
   );
@@ -557,10 +1054,10 @@ export default function FichesInterventionPage() {
     setDevis((data || []) as Devis[]);
   }
 
-  async function chargerLignesDevis(devisId: string) {
+  async function chargerLignesDevis(devisId: string): Promise<DevisLigne[]> {
     if (!entrepriseId || !devisId) {
       setLignesDevis([]);
-      return;
+      return [];
     }
 
     const { data, error } = await supabase
@@ -573,10 +1070,12 @@ export default function FichesInterventionPage() {
     if (error) {
       console.error("Erreur chargement lignes devis :", error);
       setLignesDevis([]);
-      return;
+      return [];
     }
 
-    setLignesDevis((data || []) as DevisLigne[]);
+    const lignesChargees = (data || []) as DevisLigne[];
+    setLignesDevis(lignesChargees);
+    return lignesChargees;
   }
 
   async function chargerArticles(idEntreprise = entrepriseId) {
@@ -796,6 +1295,7 @@ export default function FichesInterventionPage() {
     setElementsSelectionnes([]);
     setSalariesSelectionnes([]);
     setLignesDevis([]);
+    setResumePreselectionAutomatique(null);
     setCreationRapideCategorie(null);
     setCreationRapideNom("");
     setCreationRapideIcone("🛠️");
@@ -821,6 +1321,7 @@ export default function FichesInterventionPage() {
     setElementsSelectionnes([]);
     setSalariesSelectionnes([]);
     setLignesDevis([]);
+    setResumePreselectionAutomatique(null);
     setCreationRapideCategorie(null);
     setCreationRapideNom("");
     setCreationRapideIcone("🛠️");
@@ -877,6 +1378,7 @@ export default function FichesInterventionPage() {
         notes_chantier: "",
       }));
       setLignesDevis([]);
+      setResumePreselectionAutomatique(null);
       return;
     }
 
@@ -909,7 +1411,53 @@ export default function FichesInterventionPage() {
       notes_chantier: notes,
     }));
 
-    await chargerLignesDevis(devisId);
+    const lignesChargees = await chargerLignesDevis(devisId);
+    appliquerPreselectionAutomatique(lignesChargees);
+  }
+
+  function appliquerPreselectionAutomatique(lignes: DevisLigne[]) {
+    if (lignes.length === 0) {
+      setResumePreselectionAutomatique(null);
+      return;
+    }
+
+    const profilsDetectes = profilsDepuisLignes(lignes);
+    const typeAutomatique = trouverTypeInterventionAutomatique(
+      articles,
+      profilsDetectes,
+      lignes
+    );
+
+    const idsLignesDevis = lignes.map((ligne) => `ligne-devis-${ligne.id}`);
+
+    const articlesAutomatiques = articles.filter((article) =>
+      articleCorrespondAuxBesoins(article, profilsDetectes)
+    );
+
+    const idsArticlesAutomatiques = articlesAutomatiques.map(
+      (article) => article.id
+    );
+
+    // Les lignes du devis deviennent les travaux de base. Les besoins métier
+    // trouvés dans la bibliothèque sont seulement proposés : le chef peut tout
+    // retirer ou ajouter ensuite avant la validation.
+    setElementsSelectionnes(
+      Array.from(new Set([...idsLignesDevis, ...idsArticlesAutomatiques]))
+    );
+
+    if (typeAutomatique) {
+      setFormulaire((ancien) => ({
+        ...ancien,
+        type_intervention_id: typeAutomatique.id,
+      }));
+    }
+
+    setResumePreselectionAutomatique({
+      profils: profilsDetectes.map((profil) => profil.libelle),
+      typeIntervention: typeAutomatique?.nom || null,
+      nombreElements: idsArticlesAutomatiques.length,
+      nombreLignesDevis: idsLignesDevis.length,
+    });
   }
 
   function basculerElement(articleId: string) {
@@ -1264,17 +1812,36 @@ export default function FichesInterventionPage() {
         .map((article) => article.nom)
         .join("\n");
 
-      const salariesAssocies = salariesSelectionnes
-        .map((id) => trouverSalarie(id))
-        .filter(Boolean) as Salarie[];
+      // Recharge les salariés sélectionnés directement depuis Supabase au moment
+      // de l'enregistrement. Cela évite qu'un état React devenu obsolète crée
+      // une fiche sans affectation alors que le salarié était bien coché.
+      const { data: salariesSelectionnesDb, error: erreurSalariesSelectionnes } =
+        await supabase
+          .from("salaries")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .in("id", salariesSelectionnes);
+
+      if (erreurSalariesSelectionnes) throw erreurSalariesSelectionnes;
+
+      const salariesAssocies =
+        (salariesSelectionnesDb || []) as Salarie[];
 
       if (salariesAssocies.length !== salariesSelectionnes.length) {
         throw new Error(
-          "Un salarié sélectionné est introuvable. Revenez à l’étape Équipe et sélectionnez-le de nouveau."
+          "Un salarié sélectionné est introuvable ou n'appartient plus à l'entreprise. Revenez à l'étape Équipe et sélectionnez-le de nouveau."
         );
       }
 
-      const premierSalarie = salariesAssocies[0] || null;
+      // Respecte l'ordre de sélection pour conserver le salarié principal.
+      const salariesParId = new Map(
+        salariesAssocies.map((salarie) => [salarie.id, salarie])
+      );
+      const salariesOrdonnes = salariesSelectionnes
+        .map((id) => salariesParId.get(id))
+        .filter(Boolean) as Salarie[];
+
+      const premierSalarie = salariesOrdonnes[0] || null;
 
       const payloadFiche = {
         entreprise_id: entrepriseId,
@@ -1378,7 +1945,7 @@ export default function FichesInterventionPage() {
         if (erreurElements) throw erreurElements;
       }
 
-      const salariesAInserer = salariesAssocies.map((salarie) => {
+      const salariesAInserer = salariesOrdonnes.map((salarie) => {
         const affectation = affectationsCreation[salarie.id];
 
         return {
@@ -1408,7 +1975,9 @@ export default function FichesInterventionPage() {
         error: erreurSalaries,
       } = await supabase
         .from("fiches_intervention_salaries")
-        .insert(salariesAInserer)
+        .upsert(salariesAInserer, {
+          onConflict: "fiche_id,salarie_id",
+        })
         .select("id, fiche_id, salarie_id");
 
       if (erreurSalaries) throw erreurSalaries;
@@ -1435,6 +2004,37 @@ export default function FichesInterventionPage() {
       if (!affectationsCompletes) {
         throw new Error(
           "Un salarié sélectionné n’a pas été rattaché à la fiche. Revenez à l’étape Équipe et recommencez."
+        );
+      }
+
+      // Vérification finale en relisant la base : la fiche ne sera annoncée comme
+      // créée que si toutes les affectations sont réellement visibles en base.
+      const { data: affectationsVerifiees, error: erreurVerificationAffectations } =
+        await supabase
+          .from("fiches_intervention_salaries")
+          .select("id, fiche_id, salarie_id")
+          .eq("entreprise_id", entrepriseId)
+          .eq("fiche_id", fiche.id)
+          .in(
+            "salarie_id",
+            salariesAInserer.map((item) => item.salarie_id)
+          );
+
+      if (erreurVerificationAffectations) {
+        throw erreurVerificationAffectations;
+      }
+
+      const idsVerifies = new Set(
+        (affectationsVerifiees || []).map((item) => String(item.salarie_id || ""))
+      );
+
+      const toutesLesAffectationsSontEnBase = salariesAInserer.every((item) =>
+        idsVerifies.has(String(item.salarie_id))
+      );
+
+      if (!toutesLesAffectationsSontEnBase) {
+        throw new Error(
+          "La fiche a été créée mais l'affectation salarié n'est pas visible en base. La fiche n'est pas finalisée."
         );
       }
 
@@ -2231,6 +2831,54 @@ export default function FichesInterventionPage() {
                             + Créer un type d’intervention
                           </button>
                         </div>
+
+                        {resumePreselectionAutomatique && (
+                          <div className="sm:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <p className="text-sm font-black text-emerald-950">
+                                  ✨ Présélection automatique depuis le devis
+                                </p>
+                                {resumePreselectionAutomatique.profils.length > 0 ? (
+                                  <p className="mt-1 text-xs leading-5 text-emerald-800">
+                                    Catégorie(s) reconnue(s) :{" "}
+                                    <strong>
+                                      {resumePreselectionAutomatique.profils.join(", ")}
+                                    </strong>
+                                    {resumePreselectionAutomatique.typeIntervention
+                                      ? ` · Type proposé : ${resumePreselectionAutomatique.typeIntervention}`
+                                      : " · Aucun type correspondant trouvé dans votre bibliothèque"}
+                                    {" · "}
+                                    {resumePreselectionAutomatique.nombreLignesDevis} ligne(s)
+                                    du devis +{" "}
+                                    {resumePreselectionAutomatique.nombreElements} besoin(s)
+                                    métier présélectionné(s).
+                                  </p>
+                                ) : (
+                                  <p className="mt-1 text-xs leading-5 text-amber-800">
+                                    Les lignes du devis ont été reprises comme travaux, mais
+                                    aucune catégorie métier n’a été reconnue automatiquement.
+                                    Vous pouvez sélectionner le type et les besoins manuellement.
+                                  </p>
+                                )}
+                                <p className="mt-1 text-[11px] text-emerald-700">
+                                  Rien n’est imposé : vous pourrez tout modifier à l’étape
+                                  « Équipe & éléments ».
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  appliquerPreselectionAutomatique(lignesDevis)
+                                }
+                                className="shrink-0 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                              >
+                                ↻ Réappliquer
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         <div>
                           <label className="mb-1.5 block text-sm font-bold text-slate-700">

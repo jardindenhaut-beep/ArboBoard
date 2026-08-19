@@ -184,6 +184,67 @@ export default function InterventionsSalariePage() {
     void initialiser();
   }, []);
 
+  useEffect(() => {
+    if (!entrepriseId || !salarie?.id) return;
+
+    let actif = true;
+
+    const rechargerFiches = () => {
+      if (!actif) return;
+
+      void chargerFiches(entrepriseId, salarie.id).catch((error) => {
+        console.error("Erreur actualisation automatique des fiches :", error);
+      });
+    };
+
+    const canal = supabase
+      .channel(`interventions-salarie-liste-${salarie.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "fiches_intervention_salaries",
+          filter: `salarie_id=eq.${salarie.id}`,
+        },
+        rechargerFiches
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "fiches_intervention",
+          filter: `entreprise_id=eq.${entrepriseId}`,
+        },
+        rechargerFiches
+      )
+      .subscribe();
+
+    const actualiserAuRetour = () => {
+      rechargerFiches();
+    };
+
+    const actualiserSiVisible = () => {
+      if (document.visibilityState === "visible") {
+        rechargerFiches();
+      }
+    };
+
+    window.addEventListener("focus", actualiserAuRetour);
+    document.addEventListener("visibilitychange", actualiserSiVisible);
+
+    return () => {
+      actif = false;
+      window.removeEventListener("focus", actualiserAuRetour);
+      document.removeEventListener("visibilitychange", actualiserSiVisible);
+      void supabase.removeChannel(canal);
+    };
+
+    // chargerFiches est volontairement utilisé ici comme fonction de rafraîchissement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entrepriseId, salarie?.id]);
+
   async function initialiser() {
     try {
       setChargement(true);

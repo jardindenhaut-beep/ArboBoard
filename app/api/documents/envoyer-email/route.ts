@@ -647,7 +647,7 @@ export async function POST(request: NextRequest) {
 
     const { data: entreprise, error: entrepriseError } = await supabaseAdmin
       .from("entreprises_abonnees")
-      .select("id, nom_entreprise, nom, raison_sociale, forme_juridique, adresse, code_postal, ville, telephone, email, email_contact, siret, numero_tva, numero_tva_intracommunautaire, logo_url, assurance_professionnelle, mentions_legales, conditions_generales_devis, conditions_generales_factures")
+      .select("id, nom_entreprise, forme_juridique, adresse, code_postal, ville, telephone, email_contact, siret, numero_tva")
       .eq("id", entrepriseId)
       .maybeSingle();
 

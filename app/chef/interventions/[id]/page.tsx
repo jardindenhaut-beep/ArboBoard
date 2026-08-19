@@ -17,13 +17,6 @@ type StatutFiche =
   | "annulee"
   | "archivee";
 
-type OngletFicheChef =
-  | "resume"
-  | "preparation"
-  | "terrain"
-  | "photos"
-  | "pv";
-
 type FicheIntervention = {
   id: string;
   entreprise_id: string;
@@ -84,6 +77,7 @@ type FicheIntervention = {
 
 type FicheElement = {
   id: string;
+  entreprise_id?: string | null;
   fiche_id: string;
   article_id: string | null;
   nom: string;
@@ -111,9 +105,27 @@ type FicheSalarie = {
   heure_depart_prevue: string | null;
   heure_arrivee_reelle: string | null;
   heure_depart_reelle: string | null;
-  arrivee_validee_at?: string | null;
-  depart_valide_at?: string | null;
-  commentaire_salarie?: string | null;
+};
+
+type SalarieDisponible = {
+  id: string;
+  nom: string | null;
+  prenom: string | null;
+  email: string | null;
+  statut: string | null;
+};
+
+type Client = {
+  id: string;
+  type_client?: string | null;
+  nom?: string | null;
+  prenom?: string | null;
+  entreprise?: string | null;
+  email?: string | null;
+  telephone?: string | null;
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
 };
 
 type Devis = {
@@ -136,69 +148,66 @@ type Facture = {
   total_ttc: number | null;
 };
 
-type Client = {
-  id: string;
-  type_client?: string | null;
-  nom?: string | null;
-  prenom?: string | null;
-  entreprise?: string | null;
-  email?: string | null;
-  telephone?: string | null;
-  adresse?: string | null;
-  code_postal?: string | null;
-  ville?: string | null;
+type ContexteEntrepriseMinimal = {
+  entreprise?: {
+    id?: string | null;
+  } | null;
+  profil?: {
+    id?: string | null;
+    email?: string | null;
+    nom?: string | null;
+    prenom?: string | null;
+  } | null;
+  utilisateur?: {
+    id?: string | null;
+    email?: string | null;
+  } | null;
 };
-
-type SalarieDisponible = {
-  id: string;
-  nom: string | null;
-  prenom: string | null;
-  email: string | null;
-  statut: string | null;
-};
-
-function nomSalarieDisponible(
-  salarie: SalarieDisponible
-) {
-  const nom = `${salarie.prenom || ""} ${
-    salarie.nom || ""
-  }`.trim();
-
-  return nom || salarie.email || "Salarié";
-}
 
 const BLOCS_ELEMENTS = [
   {
     categorie: "travaux",
     titre: "Travaux à réaliser",
     icone: "✅",
-    description: "Liste des tâches prévues sur cette intervention.",
+    description: "Tâches prévues pour ce chantier.",
   },
   {
     categorie: "materiel",
     titre: "Matériel à charger",
     icone: "🧰",
-    description: "Machines, outils, véhicules et EPI prévus.",
+    description: "Matériel, machines, véhicules et EPI à préparer.",
   },
   {
     categorie: "materiaux",
     titre: "Matériaux / fournitures",
     icone: "🪨",
-    description: "Fournitures et matériaux nécessaires au chantier.",
+    description: "Matériaux ou fournitures à emporter.",
   },
   {
     categorie: "consigne_securite",
     titre: "Consignes sécurité",
     icone: "🦺",
-    description: "Balisage, EPI, risques, sécurité générale.",
+    description: "Sécurité, balisage, risques et EPI obligatoires.",
   },
   {
     categorie: "consigne_chantier",
     titre: "Consignes chantier / client",
     icone: "🏠",
-    description: "Accès, voisinage, client, évacuation, remarques.",
+    description: "Accès, voisinage, client, évacuation et remarques.",
   },
 ];
+
+function nettoyerTexte(valeur: string) {
+  const texte = valeur.trim();
+  return texte.length > 0 ? texte : null;
+}
+
+function heureMaintenant() {
+  const maintenant = new Date();
+  const heures = String(maintenant.getHours()).padStart(2, "0");
+  const minutes = String(maintenant.getMinutes()).padStart(2, "0");
+  return `${heures}:${minutes}`;
+}
 
 function formatDate(date: string | null | undefined) {
   if (!date) return "Non renseignée";
@@ -209,22 +218,6 @@ function formatDate(date: string | null | undefined) {
       month: "2-digit",
       year: "numeric",
     }).format(new Date(`${date}T00:00:00`));
-  } catch {
-    return date;
-  }
-}
-
-function formatDateHeure(date: string | null | undefined) {
-  if (!date) return "—";
-
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(date));
   } catch {
     return date;
   }
@@ -253,11 +246,9 @@ function adresseFiche(fiche: FicheIntervention | null) {
   const adresse = fiche.adresse_chantier || fiche.adresse || "";
   const codePostal = fiche.code_postal_chantier || fiche.code_postal || "";
   const ville = fiche.ville_chantier || fiche.ville || "";
-
   const villeComplete = [codePostal, ville].filter(Boolean).join(" ");
 
   if (!adresse && !villeComplete) return "Adresse non renseignée";
-
   return [adresse, villeComplete].filter(Boolean).join(", ");
 }
 
@@ -270,91 +261,9 @@ function libelleStatut(statut: string | null | undefined) {
   return "Brouillon";
 }
 
-function badgeStatut(statut: string | null | undefined) {
-  if (statut === "planifiee") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (statut === "en_cours") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (statut === "terminee")
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (statut === "annulee") return "bg-red-50 text-red-700 border-red-200";
-  if (statut === "archivee")
-    return "bg-slate-100 text-slate-600 border-slate-200";
-  return "bg-slate-50 text-slate-700 border-slate-200";
-}
-
-function decorationEntete(statut: string | null | undefined) {
-  if (statut === "planifiee") {
-    return {
-      fond: "from-blue-50 via-white to-white",
-      icone: "📅",
-      iconeFond: "bg-blue-100 text-blue-700",
-      barre: "bg-blue-600",
-    };
-  }
-
-  if (statut === "en_cours") {
-    return {
-      fond: "from-amber-50 via-white to-white",
-      icone: "🚧",
-      iconeFond: "bg-amber-100 text-amber-700",
-      barre: "bg-amber-500",
-    };
-  }
-
-  if (statut === "terminee") {
-    return {
-      fond: "from-emerald-50 via-white to-white",
-      icone: "✅",
-      iconeFond: "bg-emerald-100 text-emerald-700",
-      barre: "bg-emerald-600",
-    };
-  }
-
-  if (statut === "annulee") {
-    return {
-      fond: "from-red-50 via-white to-white",
-      icone: "⛔",
-      iconeFond: "bg-red-100 text-red-700",
-      barre: "bg-red-600",
-    };
-  }
-
-  if (statut === "archivee") {
-    return {
-      fond: "from-slate-100 via-white to-white",
-      icone: "🗄️",
-      iconeFond: "bg-slate-200 text-slate-700",
-      barre: "bg-slate-500",
-    };
-  }
-
-  return {
-    fond: "from-slate-50 via-white to-white",
-    icone: "📝",
-    iconeFond: "bg-slate-100 text-slate-700",
-    barre: "bg-slate-500",
-  };
-}
-
-function pourcentageProgression(valeur: number, total: number) {
-  if (total <= 0) return 0;
-  return Math.min(100, Math.max(0, Math.round((valeur / total) * 100)));
-}
-
-function libelleEtape(statut: string | null | undefined) {
-  if (statut === "valide") return "Validée";
-  if (statut === "en_cours") return "En cours";
-  if (statut === "probleme") return "Problème";
-  if (statut === "a_preparer") return "À préparer";
-  return "En attente";
-}
-
-function classeEtape(statut: string | null | undefined) {
-  if (statut === "valide")
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (statut === "en_cours")
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  if (statut === "probleme") return "border-red-200 bg-red-50 text-red-700";
-  return "border-slate-200 bg-slate-50 text-slate-600";
+function nomSalarieDisponible(salarie: SalarieDisponible) {
+  const complet = `${salarie.prenom || ""} ${salarie.nom || ""}`.trim();
+  return complet || salarie.email || "Salarié";
 }
 
 function nomClient(client: Client | null, fallback?: string | null) {
@@ -374,11 +283,18 @@ function nomClient(client: Client | null, fallback?: string | null) {
   );
 }
 
+function messageErreurInconnue(error: unknown, messageParDefaut: string) {
+  return error instanceof Error && error.message
+    ? error.message
+    : messageParDefaut;
+}
+
 export default function DetailFicheInterventionPage() {
   const params = useParams();
   const ficheId = String(params?.id || "");
 
   const [entrepriseId, setEntrepriseId] = useState("");
+  const [authUserId, setAuthUserId] = useState("");
   const [signataireEntrepriseNom, setSignataireEntrepriseNom] = useState("");
 
   const [fiche, setFiche] = useState<FicheIntervention | null>(null);
@@ -387,21 +303,25 @@ export default function DetailFicheInterventionPage() {
   const [salariesDisponibles, setSalariesDisponibles] =
     useState<SalarieDisponible[]>([]);
   const [selectionEquipe, setSelectionEquipe] = useState<string[]>([]);
-  const [enregistrementEquipe, setEnregistrementEquipe] =
-    useState(false);
+  const [enregistrementEquipe, setEnregistrementEquipe] = useState(false);
+
+  const [client, setClient] = useState<Client | null>(null);
   const [devis, setDevis] = useState<Devis | null>(null);
   const [facture, setFacture] = useState<Facture | null>(null);
-  const [client, setClient] = useState<Client | null>(null);
 
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
-  const [ongletActif, setOngletActif] =
-    useState<OngletFicheChef>("resume");
+
+  const [commentairePreparation, setCommentairePreparation] = useState("");
+  const [commentaireArrivee, setCommentaireArrivee] = useState("");
+  const [commentaireFin, setCommentaireFin] = useState("");
+  const [descriptionProbleme, setDescriptionProbleme] = useState("");
+  const [signalerProbleme, setSignalerProbleme] = useState(false);
 
   useEffect(() => {
-    initialiserPage();
+    void initialiserPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ficheId]);
 
@@ -418,31 +338,46 @@ export default function DetailFicheInterventionPage() {
       setMessageSucces("");
 
       const resultat = await chargerContexteEntreprise();
+      const contexte =
+        (resultat.contexte || null) as ContexteEntrepriseMinimal | null;
 
-      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
+      if (resultat.erreur || !contexte?.entreprise?.id) {
         setMessageErreur(
           "Impossible de charger votre entreprise. Veuillez vous reconnecter."
         );
-        setChargement(false);
         return;
       }
 
-      const contexte: any = resultat.contexte;
-      const idEntreprise = contexte.entreprise.id;
+      const {
+        data: { user },
+        error: erreurUtilisateur,
+      } = await supabase.auth.getUser();
+
+      if (erreurUtilisateur || !user) {
+        setMessageErreur("Votre session a expiré. Veuillez vous reconnecter.");
+        return;
+      }
+
+      const idEntreprise = String(contexte.entreprise.id);
+      const nomProfil = `${contexte.profil?.prenom || ""} ${
+        contexte.profil?.nom || ""
+      }`.trim();
 
       setEntrepriseId(idEntreprise);
+      setAuthUserId(user.id);
       setSignataireEntrepriseNom(
-        contexte?.profil?.nom ||
-          contexte?.profil?.email ||
-          contexte?.utilisateur?.email ||
+        nomProfil ||
+          contexte.profil?.email ||
+          contexte.utilisateur?.email ||
+          user.email ||
           ""
       );
 
       await chargerFicheComplete(idEntreprise, ficheId);
-    } catch (error: any) {
-      console.error("Erreur chargement détail fiche intervention :", error);
+    } catch (error: unknown) {
+      console.error("Erreur chargement détail fiche intervention chef :", error);
       setMessageErreur(
-        error?.message || "Impossible de charger la fiche d’intervention."
+        messageErreurInconnue(error, "Impossible de charger la fiche d’intervention.")
       );
     } finally {
       setChargement(false);
@@ -450,6 +385,8 @@ export default function DetailFicheInterventionPage() {
   }
 
   async function chargerFicheComplete(idEntreprise: string, idFiche: string) {
+    setMessageErreur("");
+
     const { data: ficheData, error: erreurFiche } = await supabase
       .from("fiches_intervention")
       .select("*")
@@ -461,12 +398,16 @@ export default function DetailFicheInterventionPage() {
 
     if (!ficheData) {
       setFiche(null);
+      setElements([]);
+      setEquipe([]);
+      setClient(null);
+      setDevis(null);
+      setFacture(null);
       setMessageErreur("Fiche d’intervention introuvable.");
       return;
     }
 
     const ficheChargee = ficheData as FicheIntervention;
-    setFiche(ficheChargee);
 
     const [
       elementsResult,
@@ -476,54 +417,54 @@ export default function DetailFicheInterventionPage() {
       devisResult,
       factureResult,
     ] = await Promise.all([
-        supabase
-          .from("fiches_intervention_elements")
-          .select("*")
-          .eq("entreprise_id", idEntreprise)
-          .eq("fiche_id", idFiche)
-          .order("ordre", { ascending: true }),
+      supabase
+        .from("fiches_intervention_elements")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .eq("fiche_id", idFiche)
+        .order("ordre", { ascending: true }),
 
-        supabase
-          .from("fiches_intervention_salaries")
-          .select("*")
-          .eq("entreprise_id", idEntreprise)
-          .eq("fiche_id", idFiche)
-          .order("created_at", { ascending: true }),
+      supabase
+        .from("fiches_intervention_salaries")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .eq("fiche_id", idFiche)
+        .order("created_at", { ascending: true }),
 
-        supabase
-          .from("salaries")
-          .select("id, nom, prenom, email, statut")
-          .eq("entreprise_id", idEntreprise)
-          .order("prenom", { ascending: true })
-          .order("nom", { ascending: true }),
+      supabase
+        .from("salaries")
+        .select("id, nom, prenom, email, statut")
+        .eq("entreprise_id", idEntreprise)
+        .order("prenom", { ascending: true })
+        .order("nom", { ascending: true }),
 
-        ficheChargee.client_id
-          ? supabase
-              .from("clients")
-              .select("*")
-              .eq("entreprise_id", idEntreprise)
-              .eq("id", ficheChargee.client_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
+      ficheChargee.client_id
+        ? supabase
+            .from("clients")
+            .select("*")
+            .eq("entreprise_id", idEntreprise)
+            .eq("id", ficheChargee.client_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
 
-        ficheChargee.devis_id
-          ? supabase
-              .from("devis")
-              .select("id, numero, objet, statut, total_ht, total_tva, total_ttc")
-              .eq("entreprise_id", idEntreprise)
-              .eq("id", ficheChargee.devis_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
+      ficheChargee.devis_id
+        ? supabase
+            .from("devis")
+            .select("id, numero, objet, statut, total_ht, total_tva, total_ttc")
+            .eq("entreprise_id", idEntreprise)
+            .eq("id", ficheChargee.devis_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
 
-        ficheChargee.facture_id
-          ? supabase
-              .from("factures")
-              .select("id, numero, objet, statut, total_ht, total_tva, total_ttc")
-              .eq("entreprise_id", idEntreprise)
-              .eq("id", ficheChargee.facture_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
-      ]);
+      ficheChargee.facture_id
+        ? supabase
+            .from("factures")
+            .select("id, numero, objet, statut, total_ht, total_tva, total_ttc")
+            .eq("entreprise_id", idEntreprise)
+            .eq("id", ficheChargee.facture_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
 
     if (elementsResult.error) throw elementsResult.error;
     if (equipeResult.error) throw equipeResult.error;
@@ -532,38 +473,31 @@ export default function DetailFicheInterventionPage() {
     if (devisResult.error) throw devisResult.error;
     if (factureResult.error) throw factureResult.error;
 
-    const equipeChargee =
-      (equipeResult.data || []) as FicheSalarie[];
-
-    const salariesActifs =
-      ((salariesResult.data || []) as SalarieDisponible[]).filter(
-        (salarie) => {
-          const statut = String(
-            salarie.statut || "actif"
-          ).toLowerCase();
-
-          return ![
-            "archive",
-            "archivee",
-            "archivée",
-            "inactif",
-            "supprime",
-            "supprimé",
-          ].includes(statut);
-        }
-      );
+    const equipeChargee = (equipeResult.data || []) as FicheSalarie[];
+    const salariesActifs = ((salariesResult.data || []) as SalarieDisponible[]).filter(
+      (salarie) => {
+        const statut = String(salarie.statut || "actif").toLowerCase();
+        return ![
+          "archive",
+          "archivee",
+          "archivée",
+          "inactif",
+          "supprime",
+          "supprimé",
+        ].includes(statut);
+      }
+    );
 
     const selectionInitiale = Array.from(
       new Set([
         ...equipeChargee
           .map((item) => item.salarie_id)
           .filter((id): id is string => Boolean(id)),
-        ...(ficheChargee.salarie_id
-          ? [ficheChargee.salarie_id]
-          : []),
+        ...(ficheChargee.salarie_id ? [ficheChargee.salarie_id] : []),
       ])
     );
 
+    setFiche(ficheChargee);
     setElements((elementsResult.data || []) as FicheElement[]);
     setEquipe(equipeChargee);
     setSalariesDisponibles(salariesActifs);
@@ -571,6 +505,17 @@ export default function DetailFicheInterventionPage() {
     setClient((clientResult.data || null) as Client | null);
     setDevis((devisResult.data || null) as Devis | null);
     setFacture((factureResult.data || null) as Facture | null);
+
+    setCommentairePreparation(ficheChargee.commentaire_preparation || "");
+    setCommentaireArrivee(ficheChargee.commentaire_arrivee || "");
+    setCommentaireFin(ficheChargee.commentaire_fin || "");
+    setDescriptionProbleme(ficheChargee.description_probleme || "");
+    setSignalerProbleme(ficheChargee.probleme_signale === true);
+  }
+
+  async function rafraichir() {
+    if (!entrepriseId || !ficheId) return;
+    await chargerFicheComplete(entrepriseId, ficheId);
   }
 
   function basculerSalarieEquipe(salarieId: string) {
@@ -591,26 +536,19 @@ export default function DetailFicheInterventionPage() {
       setMessageErreur("");
       setMessageSucces("");
 
-      const selection = Array.from(
-        new Set(selectionEquipe)
-      );
-
+      const selection = Array.from(new Set(selectionEquipe));
       const affectationsExistantes = new Map(
         equipe
           .filter(
-            (item): item is FicheSalarie & {
-              salarie_id: string;
-            } => Boolean(item.salarie_id)
+            (item): item is FicheSalarie & { salarie_id: string } =>
+              Boolean(item.salarie_id)
           )
-          .map((item) => [
-            item.salarie_id,
-            item,
-          ])
+          .map((item) => [item.salarie_id, item])
       );
 
-      const aSupprimer = Array.from(
-        affectationsExistantes.keys()
-      ).filter((id) => !selection.includes(id));
+      const aSupprimer = Array.from(affectationsExistantes.keys()).filter(
+        (id) => !selection.includes(id)
+      );
 
       if (aSupprimer.length > 0) {
         const { error } = await supabase
@@ -623,49 +561,34 @@ export default function DetailFicheInterventionPage() {
         if (error) throw error;
       }
 
-      const aAjouter = selection.filter(
-        (id) => !affectationsExistantes.has(id)
-      );
+      const aAjouter = selection.filter((id) => !affectationsExistantes.has(id));
 
       if (aAjouter.length > 0) {
         const payload = aAjouter.map((id) => {
-          const salarie = salariesDisponibles.find(
-            (item) => item.id === id
-          );
+          const salarie = salariesDisponibles.find((item) => item.id === id);
 
           return {
             entreprise_id: entrepriseId,
             fiche_id: fiche.id,
             salarie_id: id,
-            salarie_nom: salarie
-              ? nomSalarieDisponible(salarie)
-              : "Salarié",
+            salarie_nom: salarie ? nomSalarieDisponible(salarie) : "Salarié",
             role_chantier: "Intervenant",
             heure_arrivee_prevue:
-              fiche.heure_debut_prevue ||
-              fiche.heure_debut ||
-              null,
-            heure_depart_prevue:
-              fiche.heure_fin_prevue ||
-              fiche.heure_fin ||
-              null,
+              fiche.heure_debut_prevue || fiche.heure_debut || null,
+            heure_depart_prevue: fiche.heure_fin_prevue || fiche.heure_fin || null,
           };
         });
 
         const { error } = await supabase
           .from("fiches_intervention_salaries")
-          .upsert(payload, {
-            onConflict: "fiche_id,salarie_id",
-          });
+          .upsert(payload, { onConflict: "fiche_id,salarie_id" });
 
         if (error) throw error;
       }
 
       const premierId = selection[0] || null;
       const premierSalarie =
-        salariesDisponibles.find(
-          (item) => item.id === premierId
-        ) || null;
+        salariesDisponibles.find((item) => item.id === premierId) || null;
 
       const { error: ficheError } = await supabase
         .from("fiches_intervention")
@@ -680,59 +603,18 @@ export default function DetailFicheInterventionPage() {
 
       if (ficheError) throw ficheError;
 
-      await chargerFicheComplete(
-        entrepriseId,
-        fiche.id
-      );
-
+      await rafraichir();
       setMessageSucces(
         selection.length > 0
           ? `${selection.length} salarié(s) affecté(s) à cette intervention.`
           : "L’équipe a été retirée de cette intervention."
       );
-    } catch (error) {
+    } catch (error: unknown) {
       setMessageErreur(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’enregistrer l’équipe."
+        messageErreurInconnue(error, "Impossible d’enregistrer l’équipe.")
       );
     } finally {
       setEnregistrementEquipe(false);
-    }
-  }
-
-  async function rafraichir() {
-    if (!entrepriseId || !ficheId) return;
-    await chargerFicheComplete(entrepriseId, ficheId);
-  }
-
-  async function changerStatut(nouveauStatut: StatutFiche) {
-    if (!entrepriseId || !fiche) return;
-
-    try {
-      setEnregistrement(true);
-      setMessageErreur("");
-      setMessageSucces("");
-
-      const { error } = await supabase
-        .from("fiches_intervention")
-        .update({
-          statut: nouveauStatut,
-        })
-        .eq("entreprise_id", entrepriseId)
-        .eq("id", fiche.id);
-
-      if (error) throw error;
-
-      await rafraichir();
-      setMessageSucces(`Statut mis à jour : ${libelleStatut(nouveauStatut)}.`);
-    } catch (error: any) {
-      console.error("Erreur changement statut fiche :", error);
-      setMessageErreur(
-        error?.message || "Impossible de modifier le statut de la fiche."
-      );
-    } finally {
-      setEnregistrement(false);
     }
   }
 
@@ -747,147 +629,300 @@ export default function DetailFicheInterventionPage() {
     return resultat;
   }, [elements]);
 
-  const travauxSimples = useMemo(() => {
-    return [
-      fiche?.travaux_prevus,
-      fiche?.materiel_prevu,
-      fiche?.consignes_securite,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-  }, [fiche]);
+  const materielEtMateriaux = useMemo(
+    () =>
+      elements.filter(
+        (element) =>
+          element.categorie === "materiel" || element.categorie === "materiaux"
+      ),
+    [elements]
+  );
 
-  const nombreEtapesValidees = useMemo(() => {
-    if (!fiche) return 0;
+  const nombreElementsPreparables = materielEtMateriaux.length;
+  const nombreElementsPrepares = materielEtMateriaux.filter(
+    (element) => element.coche_prepare === true
+  ).length;
 
-    return [
-      fiche.etape_materiel_statut,
-      fiche.etape_arrivee_statut,
-      fiche.etape_fin_statut,
-    ].filter((statut) => statut === "valide").length;
-  }, [fiche]);
+  const toutEstPrepare =
+    nombreElementsPreparables === 0 ||
+    nombreElementsPrepares === nombreElementsPreparables;
 
-  const nombreElementsPrepares = useMemo(() => {
-    return elements.filter((element) => element.coche_prepare).length;
-  }, [elements]);
+  const ficheEnLectureSeule =
+    fiche?.statut === "terminee" ||
+    fiche?.statut === "annulee" ||
+    fiche?.statut === "archivee";
 
-  function renduEtape({
-    numero,
-    titre,
-    description,
-    statut,
-    dateValidation,
-    commentaire,
-    icone,
-  }: {
-    numero: number;
-    titre: string;
-    description: string;
-    statut: string | null | undefined;
-    dateValidation: string | null | undefined;
-    commentaire: string | null | undefined;
-    icone: string;
-  }) {
-    return (
-      <div className={`relative overflow-hidden rounded-3xl border p-4 ${classeEtape(statut)}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-xl shadow-sm">
-              {icone}
-            </div>
+  const materielValide = fiche?.etape_materiel_statut === "valide";
+  const arriveeValidee = fiche?.etape_arrivee_statut === "valide";
+  const finValidee = fiche?.etape_fin_statut === "valide";
+  const finAvecProbleme = fiche?.etape_fin_statut === "probleme";
+  const finCloturee = finValidee || finAvecProbleme;
 
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide opacity-70">
-                Étape {numero}
-              </p>
-              <p className="mt-1 font-bold">{titre}</p>
-              <p className="mt-1 text-xs opacity-80">{description}</p>
-            </div>
-          </div>
+  const peutModifierPreparation = !ficheEnLectureSeule && !materielValide;
+  const peutValiderMateriel =
+    !ficheEnLectureSeule && !materielValide && toutEstPrepare;
+  const peutValiderArrivee =
+    !ficheEnLectureSeule && materielValide && !arriveeValidee;
+  const peutValiderFin =
+    !ficheEnLectureSeule && arriveeValidee && !finCloturee;
 
-          <span className="shrink-0 rounded-full border border-current/15 bg-white/70 px-3 py-1 text-xs font-bold">
-            {libelleEtape(statut)}
-          </span>
-        </div>
+  async function verifierAccesChefAvantMutation() {
+    if (!entrepriseId || !ficheId) {
+      setMessageErreur("Entreprise ou fiche introuvable.");
+      return false;
+    }
 
-        <div className="mt-4 border-t border-current/10 pt-3 text-xs">
-          <p className="font-medium opacity-80">
-            Validation : {formatDateHeure(dateValidation)}
-          </p>
+    const { data, error } = await supabase
+      .from("fiches_intervention")
+      .select("id, statut")
+      .eq("entreprise_id", entrepriseId)
+      .eq("id", ficheId)
+      .maybeSingle();
 
-          {commentaire && (
-            <p className="mt-2 whitespace-pre-line rounded-2xl bg-white/70 px-3 py-2 leading-5">
-              {commentaire}
-            </p>
-          )}
-        </div>
-      </div>
-    );
+    if (error || !data) {
+      setMessageErreur("Cette intervention n’est plus accessible.");
+      return false;
+    }
+
+    if (
+      data.statut === "terminee" ||
+      data.statut === "annulee" ||
+      data.statut === "archivee"
+    ) {
+      setMessageErreur("Cette intervention est maintenant en lecture seule.");
+      await rafraichir();
+      return false;
+    }
+
+    return true;
   }
 
-  function renduEtapes() {
-    if (!fiche) return null;
+  async function basculerPreparationElement(element: FicheElement) {
+    if (
+      !entrepriseId ||
+      !fiche ||
+      enregistrement ||
+      !peutModifierPreparation
+    ) {
+      return;
+    }
 
-    return (
-      <div className="space-y-4">
-        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-bold text-slate-950">
-                Progression terrain
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {nombreEtapesValidees} étape(s) validée(s) sur 3
-              </p>
-            </div>
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
 
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-36 overflow-hidden rounded-full bg-slate-200 sm:w-48">
-                <div
-                  className="h-full rounded-full bg-emerald-600 transition-all"
-                  style={{ width: `${progressionEtapes}%` }}
-                />
-              </div>
-              <span className="text-xs font-bold text-slate-700">
-                {progressionEtapes} %
-              </span>
-            </div>
-          </div>
-        </div>
+      if (!(await verifierAccesChefAvantMutation())) return;
 
-        <div className="grid gap-3 xl:grid-cols-3">
-          {renduEtape({
-            numero: 1,
-            titre: "Préparation matériel",
-            description: "Matériel, fournitures et EPI préparés.",
-            statut: fiche.etape_materiel_statut,
-            dateValidation: fiche.materiel_valide_at,
-            commentaire: fiche.commentaire_preparation,
-            icone: "🧰",
-          })}
+      const nouvelleValeur = !element.coche_prepare;
+      const { error } = await supabase
+        .from("fiches_intervention_elements")
+        .update({ coche_prepare: nouvelleValeur })
+        .eq("entreprise_id", entrepriseId)
+        .eq("fiche_id", fiche.id)
+        .eq("id", element.id);
 
-          {renduEtape({
-            numero: 2,
-            titre: "Arrivée chantier",
-            description: "Présence de l’équipe et démarrage confirmé.",
-            statut: fiche.etape_arrivee_statut,
-            dateValidation: fiche.arrivee_validee_at,
-            commentaire: fiche.commentaire_arrivee,
-            icone: "📍",
-          })}
+      if (error) throw error;
 
-          {renduEtape({
-            numero: 3,
-            titre: "Fin de chantier",
-            description: "Travaux, photos et PV de fin validés.",
-            statut: fiche.etape_fin_statut,
-            dateValidation: fiche.fin_validee_at,
-            commentaire: fiche.commentaire_fin,
-            icone: "✅",
-          })}
-        </div>
-      </div>
-    );
+      setElements((anciens) =>
+        anciens.map((item) =>
+          item.id === element.id
+            ? { ...item, coche_prepare: nouvelleValeur }
+            : item
+        )
+      );
+    } catch (error: unknown) {
+      console.error("Erreur préparation élément chef :", error);
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          "Impossible de modifier la préparation de l’élément."
+        )
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function validerMateriel() {
+    if (!entrepriseId || !fiche || enregistrement) return;
+
+    if (!toutEstPrepare) {
+      setMessageErreur(
+        "Cochez tout le matériel et tous les matériaux avant de valider cette étape."
+      );
+      return;
+    }
+
+    if (!peutValiderMateriel) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      if (!(await verifierAccesChefAvantMutation())) return;
+
+      const maintenant = new Date().toISOString();
+      const { error } = await supabase
+        .from("fiches_intervention")
+        .update({
+          etape_materiel_statut: "valide",
+          materiel_valide_at: maintenant,
+          commentaire_preparation: nettoyerTexte(commentairePreparation),
+        })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (error) throw error;
+
+      await rafraichir();
+      setMessageSucces("Matériel validé par le chef.");
+    } catch (error: unknown) {
+      console.error("Erreur validation matériel chef :", error);
+      setMessageErreur(
+        messageErreurInconnue(error, "Impossible de valider le matériel.")
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function validerArrivee() {
+    if (!entrepriseId || !fiche || enregistrement) return;
+
+    if (!materielValide) {
+      setMessageErreur(
+        "Validez d’abord la préparation du matériel avant l’arrivée chantier."
+      );
+      return;
+    }
+
+    if (!peutValiderArrivee) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      if (!(await verifierAccesChefAvantMutation())) return;
+
+      const maintenant = new Date().toISOString();
+      const heure = heureMaintenant();
+
+      const { error } = await supabase
+        .from("fiches_intervention")
+        .update({
+          statut: "en_cours",
+          etape_arrivee_statut: "valide",
+          arrivee_validee_at: maintenant,
+          heure_debut_reelle: fiche.heure_debut_reelle || heure,
+          commentaire_arrivee: nettoyerTexte(commentaireArrivee),
+        })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (error) throw error;
+
+      await rafraichir();
+      setMessageSucces("Arrivée chantier validée par le chef.");
+    } catch (error: unknown) {
+      console.error("Erreur validation arrivée chef :", error);
+      setMessageErreur(
+        messageErreurInconnue(error, "Impossible de valider l’arrivée chantier.")
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function validerFinChantier() {
+    if (!entrepriseId || !fiche || enregistrement) return;
+
+    if (!arriveeValidee) {
+      setMessageErreur(
+        "Validez d’abord l’arrivée sur le chantier avant de terminer l’intervention."
+      );
+      return;
+    }
+
+    if (signalerProbleme && !descriptionProbleme.trim()) {
+      setMessageErreur(
+        "Décrivez le problème rencontré avant d’enregistrer la fin du chantier."
+      );
+      return;
+    }
+
+    if (!peutValiderFin) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      if (!(await verifierAccesChefAvantMutation())) return;
+
+      const maintenant = new Date().toISOString();
+      const heure = heureMaintenant();
+      const statutFin = signalerProbleme ? "probleme" : "valide";
+
+      const { error } = await supabase
+        .from("fiches_intervention")
+        .update({
+          statut: signalerProbleme ? "en_cours" : "terminee",
+          etape_fin_statut: statutFin,
+          fin_validee_at: maintenant,
+          heure_fin_reelle: fiche.heure_fin_reelle || heure,
+          commentaire_fin: nettoyerTexte(commentaireFin),
+          probleme_signale: signalerProbleme,
+          description_probleme: signalerProbleme
+            ? nettoyerTexte(descriptionProbleme)
+            : null,
+        })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (error) throw error;
+
+      await rafraichir();
+      setMessageSucces(
+        signalerProbleme
+          ? "Fin de chantier enregistrée avec problème signalé."
+          : "Fin de chantier validée par le chef."
+      );
+    } catch (error: unknown) {
+      console.error("Erreur validation fin chantier chef :", error);
+      setMessageErreur(
+        messageErreurInconnue(error, "Impossible de valider la fin de chantier.")
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function archiverFiche() {
+    if (!entrepriseId || !fiche || enregistrement) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const { error } = await supabase
+        .from("fiches_intervention")
+        .update({ statut: "archivee" satisfies StatutFiche })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", fiche.id);
+
+      if (error) throw error;
+
+      await rafraichir();
+      setMessageSucces("Fiche archivée.");
+    } catch (error: unknown) {
+      setMessageErreur(messageErreurInconnue(error, "Impossible d’archiver la fiche."));
+    } finally {
+      setEnregistrement(false);
+    }
   }
 
   function renduBlocElements(
@@ -897,179 +932,213 @@ export default function DetailFicheInterventionPage() {
     description: string
   ) {
     const liste = elementsParCategorie[categorie] || [];
-
-    if (liste.length === 0) return null;
-
-    const prepares = liste.filter((element) => element.coche_prepare).length;
+    const categoriePreparation =
+      categorie === "materiel" || categorie === "materiaux";
 
     return (
-      <section
-        key={categorie}
-        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-              {icone}
-            </div>
-
-            <div>
-              <h2 className="font-bold text-slate-950">{titre}</h2>
-              <p className="mt-1 text-sm text-slate-500">{description}</p>
-            </div>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+            {icone}
           </div>
-
-          <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-            {prepares}/{liste.length} préparé(s)
-          </span>
+          <div>
+            <h2 className="font-bold text-slate-950">{titre}</h2>
+            <p className="mt-1 text-sm text-slate-500">{description}</p>
+          </div>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {liste.map((element) => (
-            <div
-              key={element.id}
-              className={`rounded-2xl border p-4 transition ${
-                element.coche_prepare
-                  ? "border-emerald-200 bg-emerald-50/70"
-                  : "border-slate-200 bg-slate-50"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-lg shadow-sm">
-                    {element.icone || "•"}
-                  </span>
+        {liste.length === 0 ? (
+          <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+            Aucun élément renseigné.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {liste.map((element) => {
+              const cartePreparationActive =
+                categoriePreparation && peutModifierPreparation;
+              const classeCarte = categoriePreparation
+                ? element.coche_prepare
+                  ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                  : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/40"
+                : "border-slate-200 bg-slate-50";
 
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-950">
-                      {element.nom}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Prévu : {Number(element.quantite_prevue || 1)}{" "}
-                      {element.unite || "u"}
-                      {element.quantite_reelle !== null &&
-                      element.quantite_reelle !== undefined
-                        ? ` · Réel : ${Number(element.quantite_reelle)} ${
-                            element.unite || "u"
-                          }`
-                        : ""}
-                    </p>
-                  </div>
-                </div>
-
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                    element.coche_prepare
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-white text-slate-500"
+              return (
+                <div
+                  key={element.id}
+                  role={categoriePreparation ? "button" : undefined}
+                  tabIndex={cartePreparationActive ? 0 : undefined}
+                  aria-pressed={
+                    categoriePreparation ? Boolean(element.coche_prepare) : undefined
+                  }
+                  onClick={() => {
+                    if (cartePreparationActive) {
+                      void basculerPreparationElement(element);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      !cartePreparationActive ||
+                      (event.key !== "Enter" && event.key !== " ")
+                    ) {
+                      return;
+                    }
+                    event.preventDefault();
+                    void basculerPreparationElement(element);
+                  }}
+                  className={`rounded-2xl border p-4 transition-all duration-150 ${classeCarte} ${
+                    categoriePreparation
+                      ? cartePreparationActive
+                        ? "cursor-pointer select-none"
+                        : "cursor-not-allowed opacity-70"
+                      : ""
                   }`}
                 >
-                  {element.coche_prepare ? "Préparé" : "À préparer"}
-                </span>
-              </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <p
+                      className={`font-semibold ${
+                        element.coche_prepare && categoriePreparation
+                          ? "text-emerald-950"
+                          : "text-slate-950"
+                      }`}
+                    >
+                      {element.icone || "•"} {element.nom}
+                    </p>
 
-              {element.commentaire_chef && (
-                <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
-                  <span className="font-bold text-slate-700">Chef :</span>{" "}
-                  {element.commentaire_chef}
-                </div>
-              )}
+                    {categoriePreparation && (
+                      <span
+                        className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-4 py-2 text-xs font-semibold ${
+                          element.coche_prepare
+                            ? "bg-emerald-600 text-white"
+                            : "border border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        {element.coche_prepare ? "✓ Préparé" : "À préparer"}
+                      </span>
+                    )}
+                  </div>
 
-              {element.commentaire_salarie && (
-                <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-700">
-                  <span className="font-bold">Retour salarié :</span>{" "}
-                  {element.commentaire_salarie}
+                  <p
+                    className={`mt-2 text-xs ${
+                      element.coche_prepare && categoriePreparation
+                        ? "text-emerald-700"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    Prévu : {Number(element.quantite_prevue || 1)} {element.unite || "u"}
+                    {element.quantite_reelle !== null &&
+                    element.quantite_reelle !== undefined
+                      ? ` · Réel : ${Number(element.quantite_reelle)} ${
+                          element.unite || "u"
+                        }`
+                      : ""}
+                  </p>
+
+                  {element.commentaire_chef && (
+                    <p
+                      className={`mt-3 rounded-xl px-3 py-2 text-xs ${
+                        element.coche_prepare && categoriePreparation
+                          ? "bg-white/80 text-emerald-800"
+                          : "bg-white text-slate-600"
+                      }`}
+                    >
+                      Chef : {element.commentaire_chef}
+                    </p>
+                  )}
+
+                  {element.commentaire_salarie && (
+                    <p className="mt-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs text-emerald-800">
+                      Salarié : {element.commentaire_salarie}
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     );
   }
 
-  function renduActionsStatut() {
-    if (!fiche) return null;
-
-    const statut = fiche.statut || "brouillon";
+  function blocDocuments() {
+    if (!devis && !facture) return null;
 
     return (
-      <div className="grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
-        <button
-          type="button"
-          onClick={() => void rafraichir()}
-          disabled={enregistrement}
-          className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {enregistrement ? "Mise à jour…" : "↻ Actualiser"}
-        </button>
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+            📄
+          </div>
+          <div>
+            <h2 className="font-bold text-slate-950">Documents liés</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Devis et facture liés à cette intervention.
+            </p>
+          </div>
+        </div>
 
-        {devis ? (
-          <Link
-            href={`/chef/devis?devisId=${devis.id}`}
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-          >
-            Voir le devis
-          </Link>
-        ) : null}
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {devis && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
+                Devis
+              </p>
+              <p className="mt-2 font-bold text-emerald-950">
+                {devis.numero || "Devis sans numéro"}
+              </p>
+              <p className="mt-1 text-sm text-emerald-700">
+                {devis.objet || "Sans objet"}
+              </p>
+              <p className="mt-2 text-sm font-bold text-emerald-900">
+                {formatMontant(devis.total_ttc)}
+              </p>
+              <Link
+                href={`/chef/devis?devisId=${devis.id}`}
+                className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+              >
+                Ouvrir le devis
+              </Link>
+            </div>
+          )}
 
-        {facture ? (
-          <Link
-            href={`/chef/factures?factureId=${facture.id}`}
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-          >
-            Voir la facture
-          </Link>
-        ) : null}
-
-        {(statut === "brouillon" || statut === "planifiee") && (
-          <button
-            type="button"
-            onClick={() => void changerStatut("en_cours")}
-            disabled={enregistrement}
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Démarrer l’intervention
-          </button>
-        )}
-
-        {statut === "en_cours" && (
-          <button
-            type="button"
-            onClick={() => void changerStatut("terminee")}
-            disabled={enregistrement}
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Marquer terminée
-          </button>
-        )}
-
-        {statut === "terminee" && (
-          <button
-            type="button"
-            onClick={() => void changerStatut("archivee")}
-            disabled={enregistrement}
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Archiver la fiche
-          </button>
-        )}
-      </div>
+          {facture && (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
+                Facture
+              </p>
+              <p className="mt-2 font-bold text-blue-950">
+                {facture.numero || "Facture sans numéro"}
+              </p>
+              <p className="mt-1 text-sm text-blue-700">
+                {facture.objet || "Sans objet"}
+              </p>
+              <p className="mt-2 text-sm font-bold text-blue-900">
+                {formatMontant(facture.total_ttc)}
+              </p>
+              <Link
+                href={`/chef/factures?factureId=${facture.id}`}
+                className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                Ouvrir la facture
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
     );
   }
 
   if (chargement) {
     return (
       <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
             📋
           </div>
           <p className="font-semibold text-slate-950">
-            Chargement de la fiche...
+            Chargement de l’intervention...
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Récupération des données du chantier.
+            Récupération des données chantier.
           </p>
         </div>
       </div>
@@ -1081,7 +1150,7 @@ export default function DetailFicheInterventionPage() {
       <div className="space-y-6">
         <Link
           href="/chef/interventions"
-          className="inline-flex rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
         >
           ← Retour aux fiches
         </Link>
@@ -1089,188 +1158,85 @@ export default function DetailFicheInterventionPage() {
         <div className="rounded-3xl border border-red-200 bg-red-50 p-8 text-center">
           <p className="font-bold text-red-700">Fiche introuvable</p>
           <p className="mt-2 text-sm text-red-700">
-            Cette fiche n’existe pas ou n’appartient pas à votre entreprise.
+            Cette intervention n’existe pas ou n’appartient pas à votre entreprise.
           </p>
         </div>
       </div>
     );
   }
 
-  const statutActuel = fiche.statut || "brouillon";
-  const ficheArchivee = statutActuel === "archivee";
-  const ficheTerminee = statutActuel === "terminee";
+  const etapeCourante = !materielValide
+    ? 1
+    : !arriveeValidee
+      ? 2
+      : !finCloturee
+        ? 3
+        : 4;
+
+  const titreEtapeCourante =
+    etapeCourante === 1
+      ? "Préparation du départ"
+      : etapeCourante === 2
+        ? "Arrivée chantier"
+        : etapeCourante === 3
+          ? "Intervention en cours"
+          : "Fin de chantier / PV";
+
+  const blocsTerrain = BLOCS_ELEMENTS.filter(
+    (bloc) => bloc.categorie !== "materiel" && bloc.categorie !== "materiaux"
+  );
+
   const clientAffiche = nomClient(client, fiche.client_nom);
-  const decoration = decorationEntete(statutActuel);
-  const progressionEtapes = pourcentageProgression(
-    nombreEtapesValidees,
-    3
-  );
-  const progressionPreparation = pourcentageProgression(
-    nombreElementsPrepares,
-    elements.length
-  );
+  const ficheArchivee = fiche.statut === "archivee";
 
   return (
-    <div className="space-y-6 pb-28 xl:pb-10">
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className={`h-1.5 w-full ${decoration.barre}`} />
+    <div className="mx-auto w-full max-w-6xl space-y-5 pb-10">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <Link
+              href="/chef/interventions"
+              className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              ← Fiches d’intervention
+            </Link>
+
+            <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">
+              Mode terrain chef · Étape {etapeCourante} sur 4
+            </p>
+            <h1 className="mt-1 truncate text-2xl font-bold text-slate-950 sm:text-3xl">
+              {titreEtapeCourante}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {fiche.numero ? `${fiche.numero} · ` : ""}
+              {titreFiche(fiche)} · {libelleStatut(fiche.statut)}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void rafraichir()}
+            disabled={enregistrement}
+            className="min-h-10 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Actualiser
+          </button>
+        </div>
 
         <div
-          className={`border-b border-slate-200 bg-gradient-to-br ${decoration.fond} p-5 sm:p-7`}
+          className="mt-5 grid grid-cols-4 gap-2"
+          aria-label={`Étape ${etapeCourante} sur 4`}
         >
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0">
-              <Link
-                href="/chef/interventions"
-                className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-              >
-                ← Retour aux fiches
-              </Link>
-
-              <div className="mt-5 flex items-start gap-4">
-                <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-sm ${decoration.iconeFond}`}
-                >
-                  {decoration.icone}
-                </div>
-
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${badgeStatut(
-                        fiche.statut
-                      )}`}
-                    >
-                      {libelleStatut(fiche.statut)}
-                    </span>
-
-                    {fiche.numero ? (
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600">
-                        {fiche.numero}
-                      </span>
-                    ) : null}
-
-                    {fiche.type_intervention ? (
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                        {fiche.type_intervention}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <h1 className="mt-3 break-words text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                    {titreFiche(fiche)}
-                  </h1>
-
-                  <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
-                    <p className="flex min-w-0 items-start gap-2">
-                      <span className="shrink-0">👤</span>
-                      <span className="truncate font-semibold text-slate-800">
-                        {clientAffiche}
-                      </span>
-                    </p>
-
-                    <p className="flex min-w-0 items-start gap-2">
-                      <span className="shrink-0">📍</span>
-                      <span className="break-words">
-                        {adresseFiche(fiche)}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="w-full xl:max-w-xl">
-              {renduActionsStatut()}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="bg-white p-4 sm:p-5">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">📅</span>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Date prévue
-              </p>
-            </div>
-            <p className="mt-2 text-base font-bold text-slate-950">
-              {formatDate(fiche.date_prevue || fiche.date_intervention)}
-            </p>
-          </div>
-
-          <div className="bg-white p-4 sm:p-5">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🕘</span>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Horaires prévus
-              </p>
-            </div>
-            <p className="mt-2 text-base font-bold text-slate-950">
-              {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)} →{" "}
-              {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
-            </p>
-          </div>
-
-          <div className="bg-white p-4 sm:p-5">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">⏱️</span>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Horaires réels
-              </p>
-            </div>
-            <p className="mt-2 text-base font-bold text-slate-950">
-              {formatHeure(fiche.heure_debut_reelle)} →{" "}
-              {formatHeure(fiche.heure_fin_reelle)}
-            </p>
-          </div>
-
-          <div className="bg-white p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🧰</span>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Préparation
-                </p>
-              </div>
-              <span className="text-xs font-bold text-emerald-700">
-                {progressionPreparation} %
-              </span>
-            </div>
-
-            <p className="mt-2 text-base font-bold text-slate-950">
-              {nombreElementsPrepares}/{elements.length} élément(s)
-            </p>
-
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-emerald-600 transition-all"
-                style={{ width: `${progressionPreparation}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-        <div className="flex min-w-max gap-2">
-          {[
-            ["#suivi-terrain", "🧭 Suivi terrain"],
-            ["#informations-chantier", "📍 Chantier"],
-            ["#contenu-fiche", "📋 Travaux et matériel"],
-            ["#photos-chantier", "📷 Photos"],
-            ["#pv-fin-chantier", "✍️ PV de fin"],
-          ].map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
-            >
-              {label}
-            </a>
+          {[1, 2, 3, 4].map((numero) => (
+            <div
+              key={numero}
+              className={`h-2 rounded-full transition-colors ${
+                numero <= etapeCourante ? "bg-emerald-500" : "bg-slate-200"
+              }`}
+            />
           ))}
         </div>
-      </nav>
+      </section>
 
       {messageErreur && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -1285,292 +1251,271 @@ export default function DetailFicheInterventionPage() {
       )}
 
       {ficheArchivee && (
-        <div className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
-          <span className="font-bold">Fiche archivée.</span> Elle reste
-          consultable, mais aucune action de changement de statut n’est affichée.
+        <div className="rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+          Fiche archivée : consultation uniquement.
         </div>
       )}
 
-      {ficheTerminee && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <span className="font-bold">Intervention terminée.</span> Vérifiez les
-          photos et le PV avant d’archiver définitivement la fiche.
-        </div>
-      )}
-
-      <nav className="sticky top-3 z-20 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
-        <div className="flex min-w-max gap-1">
-          {[
-            ["resume", "Résumé", "📋"],
-            ["preparation", "Préparation", "🧰"],
-            ["terrain", "Suivi terrain", "🧭"],
-            ["photos", "Photos", "📷"],
-            ["pv", "Fin / PV", "✍️"],
-          ].map(([valeur, label, icone]) => (
-            <button
-              key={valeur}
-              type="button"
-              onClick={() =>
-                setOngletActif(valeur as OngletFicheChef)
-              }
-              className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-                ongletActif === valeur
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <span className="mr-1.5">{icone}</span>
-              {label}
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {fiche.probleme_signale && ongletActif === "resume" && (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-xl">
-              ⚠️
-            </div>
-            <div>
-              <h2 className="font-bold text-red-800">Problème signalé</h2>
-              <p className="mt-2 whitespace-pre-line text-sm leading-6 text-red-700">
-                {fiche.description_probleme ||
-                  "Un problème a été signalé sur cette intervention."}
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section
-        id="suivi-terrain"
-        className={`scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-          ongletActif === "terrain" ? "block" : "hidden"
-        }`}
-      >
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-            🧭
-          </div>
-          <div>
-            <h2 className="font-bold text-slate-950">
-              Suivi terrain en 3 étapes
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Préparation, arrivée sur place et validation de fin de chantier.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5">{renduEtapes()}</div>
-
-        <ResumeRetourTerrainFiche
-          entrepriseId={entrepriseId}
-          ficheId={fiche.id}
-          problemeSignale={fiche.probleme_signale}
-          descriptionProbleme={fiche.description_probleme}
-          afficherActionsPv={false}
-          autoriserEnvoiClient={true}
-        />
-      </section>
-
-      <section
-        className={`grid gap-5 ${
-          ongletActif === "resume"
-            ? "xl:grid-cols-[minmax(0,1fr)_360px]"
-            : "grid-cols-1"
-        }`}
-      >
-        <div className="min-w-0 space-y-5">
-          <section
-            id="informations-chantier"
-            className={`scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-              ongletActif === "resume" ? "block" : "hidden"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                📍
-              </div>
+      {etapeCourante === 1 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="font-bold text-slate-950">
-                  Informations chantier
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+                  🧰
+                </div>
+                <h2 className="mt-4 text-xl font-bold text-emerald-950">
+                  Préparez tout le matériel avant de partir
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Client, adresse, accès et informations internes.
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-800">
+                  Comme côté salarié, tant que cette étape n’est pas validée,
+                  l’adresse détaillée, les travaux, les photos et les étapes suivantes
+                  restent masqués.
                 </p>
               </div>
-            </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl bg-white px-4 py-3 text-center shadow-sm">
+                <p className="text-2xl font-black text-emerald-700">
+                  {nombreElementsPrepares}/{nombreElementsPreparables}
+                </p>
+                <p className="text-xs font-semibold text-slate-500">préparés</p>
+              </div>
+            </div>
+          </section>
+
+          {renduBlocElements(
+            "materiel",
+            "Matériel à charger",
+            "🧰",
+            "Cliquez sur toute la vignette pour confirmer que le matériel est chargé."
+          )}
+
+          {renduBlocElements(
+            "materiaux",
+            "Matériaux / fournitures",
+            "🪨",
+            "Confirmez également les matériaux et fournitures à emporter."
+          )}
+
+          <section className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-6">
+            {!toutEstPrepare && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Il reste {Math.max(
+                  0,
+                  nombreElementsPreparables - nombreElementsPrepares
+                )} élément(s) à préparer.
+              </div>
+            )}
+
+            <textarea
+              value={commentairePreparation}
+              onChange={(event) => setCommentairePreparation(event.target.value)}
+              rows={3}
+              placeholder="Commentaire de préparation (facultatif)..."
+              disabled={!peutModifierPreparation}
+              className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => void validerMateriel()}
+              disabled={enregistrement || !peutValiderMateriel}
+              className="mt-4 min-h-14 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-base font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enregistrement
+                ? "Validation du matériel..."
+                : "✓ Valider le matériel chargé et continuer"}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {etapeCourante === 2 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+              📍
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-blue-950">
+              Rendez-vous sur le chantier
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-blue-800">
+              Le matériel est validé. Les informations techniques et les travaux
+              restent masqués jusqu’à l’enregistrement de l’arrivée chantier.
+            </p>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                   Client
                 </p>
-                <p className="mt-2 font-bold text-slate-950">
+                <p className="mt-2 text-lg font-bold text-slate-950">
                   {clientAffiche}
                 </p>
-
-                <div className="mt-3 space-y-1 text-sm text-slate-600">
-                  {client?.email ? (
-                    <a
-                      href={`mailto:${client.email}`}
-                      className="block break-all font-medium text-emerald-700 hover:underline"
-                    >
-                      {client.email}
-                    </a>
-                  ) : (
-                    <p className="text-amber-700">Aucun email enregistré</p>
-                  )}
-
-                  {client?.telephone && (
-                    <a
-                      href={`tel:${client.telephone}`}
-                      className="block font-medium text-slate-700 hover:underline"
-                    >
-                      {client.telephone}
-                    </a>
-                  )}
-                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Adresse chantier
+                  Horaire prévu
                 </p>
-                <p className="mt-2 whitespace-pre-line font-bold leading-6 text-slate-950">
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-500">
+                Adresse chantier
+              </p>
+              <p className="mt-2 text-lg font-bold text-blue-950">
+                {adresseFiche(fiche)}
+              </p>
+            </div>
+
+            {fiche.notes_chantier && (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-bold text-amber-950">
+                  Accès / remarque avant arrivée
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm text-amber-800">
+                  {fiche.notes_chantier}
+                </p>
+              </div>
+            )}
+
+            <textarea
+              value={commentaireArrivee}
+              onChange={(event) => setCommentaireArrivee(event.target.value)}
+              rows={3}
+              placeholder="Commentaire d’arrivée (facultatif)..."
+              disabled={!peutValiderArrivee}
+              className="mt-5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => void validerArrivee()}
+              disabled={enregistrement || !peutValiderArrivee}
+              className="mt-4 min-h-14 w-full rounded-2xl bg-blue-600 px-5 py-4 text-base font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enregistrement
+                ? "Enregistrement de l’arrivée..."
+                : "📍 Je suis arrivé — enregistrer l’heure"}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {etapeCourante === 3 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+                  🚧
+                </div>
+                <h2 className="mt-4 text-xl font-bold text-emerald-950">
+                  Intervention en cours
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-emerald-800">
+                  L’arrivée est enregistrée. Les informations techniques du chantier
+                  sont maintenant accessibles au chef.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Arrivée réelle
+                </p>
+                <p className="mt-1 text-xl font-black text-emerald-700">
+                  {formatHeure(fiche.heure_debut_reelle)}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Client
+                </p>
+                <p className="mt-2 font-bold text-slate-950">{clientAffiche}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Adresse
+                </p>
+                <p className="mt-2 font-bold text-slate-950">
                   {adresseFiche(fiche)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Date prévue
+                </p>
+                <p className="mt-2 font-bold text-slate-950">
+                  {formatDate(fiche.date_prevue || fiche.date_intervention)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Horaires prévus
+                </p>
+                <p className="mt-2 font-bold text-slate-950">
+                  {formatHeure(fiche.heure_debut_prevue || fiche.heure_debut)} →{" "}
+                  {formatHeure(fiche.heure_fin_prevue || fiche.heure_fin)}
                 </p>
               </div>
             </div>
 
             {fiche.notes_chantier && (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-bold text-amber-950">
-                  Notes chantier / accès
-                </p>
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-amber-800">
+                <p className="text-sm font-bold text-amber-950">Notes chantier / accès</p>
+                <p className="mt-2 whitespace-pre-line text-sm text-amber-800">
                   {fiche.notes_chantier}
                 </p>
               </div>
             )}
 
             {fiche.notes_internes && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-950">
-                  Notes internes chef
-                </p>
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm font-bold text-slate-950">Notes internes</p>
+                <p className="mt-2 whitespace-pre-line text-sm text-slate-600">
                   {fiche.notes_internes}
                 </p>
               </div>
             )}
           </section>
 
-          <div
-            id="contenu-fiche"
-            className={`scroll-mt-24 space-y-4 ${
-              ongletActif === "preparation" ? "block" : "hidden"
-            }`}
-          >
-            {BLOCS_ELEMENTS.map((bloc) =>
-              renduBlocElements(
-                bloc.categorie,
-                bloc.titre,
-                bloc.icone,
-                bloc.description
-              )
-            )}
-          </div>
+          {blocsTerrain.map((bloc) =>
+            renduBlocElements(
+              bloc.categorie,
+              bloc.titre,
+              bloc.icone,
+              bloc.description
+            )
+          )}
 
-          {travauxSimples &&
-            elements.length === 0 &&
-            ongletActif === "preparation" && (
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-                  📝
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-xl">
+                  👥
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-950">
-                    Informations préparées
-                  </h2>
+                  <h2 className="font-bold text-slate-950">Équipe chantier</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Contenu historique de la fiche, sans éléments détaillés.
+                    Le chef peut encore ajuster l’équipe affectée.
                   </p>
                 </div>
               </div>
-              <p className="mt-4 whitespace-pre-line rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                {travauxSimples}
-              </p>
-            </section>
-          )}
-
-          <section
-            id="photos-chantier"
-            className={`scroll-mt-24 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-              ongletActif === "photos" ? "block" : "hidden"
-            }`}
-          >
-            <div>
-              <p className="text-sm font-bold text-slate-950">
-                Photos du chantier
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Photos avant, pendant et après l’intervention.
-              </p>
-            </div>
-
-            <BlocPhotosChantier
-              entrepriseId={entrepriseId}
-              ficheId={fiche.id}
-              userId={null}
-            />
-          </section>
-
-          <section
-            id="pv-fin-chantier"
-            className={`scroll-mt-24 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${
-              ongletActif === "pv" ? "block" : "hidden"
-            }`}
-          >
-            <div>
-              <p className="text-sm font-bold text-slate-950">
-                Procès-verbal de fin de chantier
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Signature, téléchargement et envoi au client par le chef.
-              </p>
-            </div>
-
-            <BlocPvFinChantier
-              entrepriseId={entrepriseId}
-              ficheId={fiche.id}
-              clientId={fiche.client_id}
-              clientNom={clientAffiche}
-              signataireEntrepriseNom={signataireEntrepriseNom}
-              afficherEnvoiEmail={true}
-            />
-          </section>
-        </div>
-
-        <aside
-          className={`space-y-4 xl:sticky xl:top-24 xl:self-start ${
-            ongletActif === "resume" ? "block" : "hidden"
-          }`}
-        >
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-bold text-slate-950">
-                  Équipe affectée
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Plusieurs salariés peuvent travailler sur la même fiche.
-                </p>
-              </div>
-
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                 {selectionEquipe.length}
               </span>
@@ -1581,24 +1526,16 @@ export default function DetailFicheInterventionPage() {
                 Aucun salarié actif disponible.
               </p>
             ) : (
-              <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {salariesDisponibles.map((salarie) => {
-                  const actif =
-                    selectionEquipe.includes(
-                      salarie.id
-                    );
-
+                  const actif = selectionEquipe.includes(salarie.id);
                   const retourTerrain =
-                    equipe.find(
-                      (item) =>
-                        item.salarie_id ===
-                        salarie.id
-                    ) || null;
+                    equipe.find((item) => item.salarie_id === salarie.id) || null;
 
                   return (
                     <label
                       key={salarie.id}
-                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
                         actif
                           ? "border-emerald-300 bg-emerald-50"
                           : "border-slate-200 bg-slate-50 hover:bg-slate-100"
@@ -1607,42 +1544,23 @@ export default function DetailFicheInterventionPage() {
                       <input
                         type="checkbox"
                         checked={actif}
-                        onChange={() =>
-                          basculerSalarieEquipe(
-                            salarie.id
-                          )
-                        }
-                        disabled={
-                          enregistrementEquipe ||
-                          fiche.statut ===
-                            "archivee"
-                        }
+                        onChange={() => basculerSalarieEquipe(salarie.id)}
+                        disabled={enregistrementEquipe || ficheArchivee}
                         className="mt-1 h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
-
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold text-slate-950">
-                          {nomSalarieDisponible(
-                            salarie
-                          )}
+                          {nomSalarieDisponible(salarie)}
                         </span>
-
-                        {retourTerrain ? (
-                          <span className="mt-1 block text-xs text-slate-500">
-                            Réel :{" "}
-                            {formatHeure(
-                              retourTerrain.heure_arrivee_reelle
-                            )}{" "}
-                            →{" "}
-                            {formatHeure(
-                              retourTerrain.heure_depart_reelle
-                            )}
-                          </span>
-                        ) : (
-                          <span className="mt-1 block text-xs text-slate-400">
-                            Pas encore de retour terrain.
-                          </span>
-                        )}
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {retourTerrain
+                            ? `Réel : ${formatHeure(
+                                retourTerrain.heure_arrivee_reelle
+                              )} → ${formatHeure(
+                                retourTerrain.heure_depart_reelle
+                              )}`
+                            : "Pas encore de retour terrain."}
+                        </span>
                       </span>
                     </label>
                   );
@@ -1652,144 +1570,164 @@ export default function DetailFicheInterventionPage() {
 
             <button
               type="button"
-              onClick={() =>
-                void enregistrerEquipeAffectee()
-              }
-              disabled={
-                enregistrementEquipe ||
-                fiche.statut === "archivee"
-              }
-              className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void enregistrerEquipeAffectee()}
+              disabled={enregistrementEquipe || ficheArchivee}
+              className="mt-4 w-full rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {enregistrementEquipe
-                ? "Enregistrement…"
-                : "Enregistrer l’équipe"}
+              {enregistrementEquipe ? "Enregistrement…" : "Enregistrer l’équipe"}
             </button>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Documents liés</h2>
+          {blocDocuments()}
 
-            <div className="mt-4 space-y-3">
-              {devis ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
-                        Devis
-                      </p>
-                      <p className="mt-2 font-bold text-emerald-950">
-                        {devis.numero || "Devis sans numéro"}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-emerald-700">
-                      {devis.statut || "—"}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-emerald-700">
-                    {devis.objet || "Sans objet"}
-                  </p>
-                  <p className="mt-2 text-sm font-bold text-emerald-900">
-                    {formatMontant(devis.total_ttc)}
-                  </p>
-                  <Link
-                    href={`/chef/devis?devisId=${devis.id}`}
-                    className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                  >
-                    Ouvrir ce devis
-                  </Link>
-                </div>
-              ) : (
-                <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                  Aucun devis lié.
-                </p>
-              )}
+          <BlocPhotosChantier
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            userId={authUserId || null}
+          />
 
-              {facture ? (
-                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
-                        Facture
-                      </p>
-                      <p className="mt-2 font-bold text-blue-950">
-                        {facture.numero || "Facture sans numéro"}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-blue-700">
-                      {facture.statut || "—"}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-blue-700">
-                    {facture.objet || "Sans objet"}
-                  </p>
-                  <p className="mt-2 text-sm font-bold text-blue-900">
-                    {formatMontant(facture.total_ttc)}
-                  </p>
-                  <Link
-                    href={`/chef/factures?factureId=${facture.id}`}
-                    className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                  >
-                    Ouvrir cette facture
-                  </Link>
-                </div>
-              ) : (
-                <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                  Aucune facture liée.
+          <ResumeRetourTerrainFiche
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            problemeSignale={fiche.probleme_signale}
+            descriptionProbleme={fiche.description_probleme}
+            afficherActionsPv={false}
+            autoriserEnvoiClient={false}
+          />
+
+          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm sm:p-6">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+              🏁
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-amber-950">
+              Terminer l’intervention
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-amber-800">
+              À faire uniquement lorsque le chantier est réellement terminé.
+              L’heure de départ sera enregistrée automatiquement.
+            </p>
+
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-white p-4">
+              <input
+                type="checkbox"
+                checked={signalerProbleme}
+                onChange={(event) => setSignalerProbleme(event.target.checked)}
+                disabled={!peutValiderFin}
+                className="mt-1 h-5 w-5 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <span>
+                <span className="block text-sm font-bold text-slate-950">
+                  Signaler un problème ou une réserve
+                </span>
+                <span className="mt-1 block text-xs text-slate-500">
+                  Utilisez cette option si l’intervention ne se termine pas normalement.
+                </span>
+              </span>
+            </label>
+
+            {signalerProbleme && (
+              <textarea
+                value={descriptionProbleme}
+                onChange={(event) => setDescriptionProbleme(event.target.value)}
+                rows={4}
+                placeholder="Décrivez le problème rencontré..."
+                disabled={!peutValiderFin}
+                className="mt-4 w-full rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            )}
+
+            <textarea
+              value={commentaireFin}
+              onChange={(event) => setCommentaireFin(event.target.value)}
+              rows={4}
+              placeholder="Commentaire de fin de chantier (facultatif)..."
+              disabled={!peutValiderFin}
+              className="mt-4 w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => void validerFinChantier()}
+              disabled={enregistrement || !peutValiderFin}
+              className="mt-4 min-h-14 w-full rounded-2xl bg-amber-600 px-5 py-4 text-base font-bold text-white shadow-sm hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enregistrement
+                ? "Validation de la fin..."
+                : "🏁 Valider la fin du chantier et continuer"}
+            </button>
+          </section>
+        </div>
+      )}
+
+      {etapeCourante === 4 && (
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+              {finAvecProbleme ? "⚠️" : "✅"}
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-emerald-950">
+              {finAvecProbleme
+                ? "Fin enregistrée avec problème / réserve"
+                : "Intervention terminée"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-emerald-800">
+              Le suivi terrain est terminé. La partie fin de chantier / PV est
+              maintenant accessible.
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Arrivée réelle
                 </p>
-              )}
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {formatHeure(fiche.heure_debut_reelle)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Départ réel
+                </p>
+                <p className="mt-2 text-lg font-bold text-slate-950">
+                  {formatHeure(fiche.heure_fin_reelle)}
+                </p>
+              </div>
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Résumé fiche</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <dt className="text-slate-500">Éléments</dt>
-                <dd className="font-bold text-slate-950">{elements.length}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <dt className="text-slate-500">Préparés</dt>
-                <dd className="font-bold text-emerald-700">
-                  {nombreElementsPrepares}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <dt className="text-slate-500">Étapes validées</dt>
-                <dd className="font-bold text-slate-950">
-                  {nombreEtapesValidees}/3
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500">Dernière mise à jour</dt>
-                <dd className="text-right text-xs font-semibold text-slate-700">
-                  {formatDateHeure(fiche.updated_at)}
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </aside>
-      </section>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur xl:hidden">
-        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-2">
-          <Link
-            href="/chef/interventions"
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
-          >
-            ← Liste des fiches
-          </Link>
+          {fiche.probleme_signale && (
+            <section className="rounded-3xl border border-red-200 bg-red-50 p-5 shadow-sm">
+              <h2 className="font-bold text-red-800">Problème / réserve signalé</h2>
+              <p className="mt-2 whitespace-pre-line text-sm text-red-700">
+                {fiche.description_probleme ||
+                  "Un problème a été signalé sur cette intervention."}
+              </p>
+            </section>
+          )}
 
-          <button
-            type="button"
-            onClick={() => void rafraichir()}
-            disabled={enregistrement}
-            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {enregistrement ? "Mise à jour…" : "↻ Actualiser"}
-          </button>
+          {blocDocuments()}
+
+          <BlocPvFinChantier
+            entrepriseId={entrepriseId}
+            ficheId={fiche.id}
+            clientId={fiche.client_id}
+            clientNom={clientAffiche}
+            signataireEntrepriseNom={signataireEntrepriseNom}
+            afficherEnvoiEmail={true}
+          />
+
+          {fiche.statut === "terminee" && (
+            <button
+              type="button"
+              onClick={() => void archiverFiche()}
+              disabled={enregistrement}
+              className="min-h-12 w-full rounded-2xl border border-slate-300 bg-slate-100 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              🗄️ Archiver la fiche
+            </button>
+          )}
         </div>
-      </div>
-
+      )}
     </div>
   );
 }

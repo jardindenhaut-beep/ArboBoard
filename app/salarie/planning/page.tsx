@@ -6,6 +6,8 @@ import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 import ResumeRetourTerrainFiche from "@/components/interventions/ResumeRetourTerrainFiche";
 
+type VuePlanning = "jour" | "semaine" | "mois" | "liste";
+
 type FiltrePlanning =
   | "toutes"
   | "aujourd_hui"
@@ -116,6 +118,35 @@ type Salarie = {
   statut?: string | null;
 };
 
+type PlanningEvenement = {
+  id: string;
+  entreprise_id: string;
+  type_evenement: string;
+  titre: string;
+  description: string | null;
+  date_debut: string;
+  date_fin: string;
+  heure_debut: string | null;
+  heure_fin: string | null;
+  journee_entiere: boolean | null;
+  lieu: string | null;
+  statut: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type PlanningEvenementSalarie = {
+  id: string;
+  entreprise_id: string;
+  evenement_id: string;
+  salarie_id: string;
+  salarie_nom: string | null;
+};
+
+type ElementPlanningSalarie =
+  | { nature: "fiche"; fiche: FicheIntervention }
+  | { nature: "evenement"; evenement: PlanningEvenement };
+
 type ContexteEntrepriseMinimal = {
   entreprise?: {
     id?: string | null;
@@ -147,11 +178,107 @@ function dateLocaleIso(date = new Date()) {
   return `${annee}-${mois}-${jour}`;
 }
 
+function dateDepuisIso(dateIso: string) {
+  return new Date(`${dateIso}T12:00:00`);
+}
+
 function ajouterJours(dateIso: string, jours: number) {
-  const date = new Date(`${dateIso}T00:00:00`);
+  const date = dateDepuisIso(dateIso);
   date.setDate(date.getDate() + jours);
 
   return dateLocaleIso(date);
+}
+
+function ajouterMois(dateIso: string, mois: number) {
+  const date = dateDepuisIso(dateIso);
+  const jourInitial = date.getDate();
+
+  date.setDate(1);
+  date.setMonth(date.getMonth() + mois);
+
+  const dernierJourDuMois = new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0
+  ).getDate();
+
+  date.setDate(Math.min(jourInitial, dernierJourDuMois));
+  return dateLocaleIso(date);
+}
+
+function debutSemaine(dateIso: string) {
+  const date = dateDepuisIso(dateIso);
+  const jour = date.getDay();
+  const decalage = jour === 0 ? -6 : 1 - jour;
+
+  date.setDate(date.getDate() + decalage);
+  return dateLocaleIso(date);
+}
+
+function debutMois(dateIso: string) {
+  const date = dateDepuisIso(dateIso);
+  date.setDate(1);
+  return dateLocaleIso(date);
+}
+
+function construireSemaine(dateIso: string) {
+  const debut = debutSemaine(dateIso);
+  return Array.from({ length: 7 }, (_, index) =>
+    ajouterJours(debut, index)
+  );
+}
+
+function construireGrilleMois(dateIso: string) {
+  const premierJour = debutMois(dateIso);
+  const premierJourGrille = debutSemaine(premierJour);
+
+  return Array.from({ length: 42 }, (_, index) =>
+    ajouterJours(premierJourGrille, index)
+  );
+}
+
+function dateDansEvenement(date: string, evenement: PlanningEvenement) {
+  return date >= evenement.date_debut && date <= evenement.date_fin;
+}
+
+function libelleTypeEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "Rendez-vous";
+  if (type === "conge") return "Congé / vacances";
+  if (type === "absence") return "Absence";
+  if (type === "formation") return "Formation";
+  if (type === "interne") return "Événement interne";
+  if (type === "indisponibilite") return "Indisponibilité";
+  return "Autre";
+}
+
+function iconeTypeEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "🤝";
+  if (type === "conge") return "🏖️";
+  if (type === "absence") return "🚫";
+  if (type === "formation") return "🎓";
+  if (type === "interne") return "🏢";
+  if (type === "indisponibilite") return "⛔";
+  return "📌";
+}
+
+function classeEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "border-violet-200 bg-violet-50";
+  if (type === "conge") return "border-sky-200 bg-sky-50";
+  if (type === "absence") return "border-rose-200 bg-rose-50";
+  if (type === "formation") return "border-indigo-200 bg-indigo-50";
+  if (type === "interne") return "border-cyan-200 bg-cyan-50";
+  if (type === "indisponibilite") return "border-orange-200 bg-orange-50";
+  return "border-slate-200 bg-slate-50";
+}
+
+function barreEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "bg-violet-500";
+  if (type === "conge") return "bg-sky-500";
+  if (type === "absence") return "bg-rose-500";
+  if (type === "formation") return "bg-indigo-500";
+  if (type === "interne") return "bg-cyan-500";
+  if (type === "indisponibilite") return "bg-orange-500";
+  return "bg-slate-500";
 }
 
 function formatDateLongue(date: string | null | undefined) {
@@ -181,6 +308,25 @@ function formatDateCourte(date: string | null | undefined) {
   } catch {
     return date;
   }
+}
+
+function formatJourSemaine(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "short",
+  }).format(dateDepuisIso(date));
+}
+
+function formatNumeroJour(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+  }).format(dateDepuisIso(date));
+}
+
+function formatMoisAnnee(date: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+  }).format(dateDepuisIso(date));
 }
 
 function formatHeure(heure: string | null | undefined) {
@@ -254,6 +400,42 @@ function badgeStatut(statut: string | null | undefined) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function bordureEvenementFiche(fiche: FicheIntervention) {
+  if (fiche.probleme_signale) {
+    return "border-red-300 bg-red-50 hover:border-red-400";
+  }
+
+  if (fiche.statut === "en_cours") {
+    return "border-amber-300 bg-amber-50 hover:border-amber-400";
+  }
+
+  if (fiche.statut === "terminee") {
+    return "border-emerald-300 bg-emerald-50 hover:border-emerald-400";
+  }
+
+  return "border-blue-200 bg-blue-50 hover:border-blue-300";
+}
+
+function iconeStatutPlanning(statut: string | null | undefined) {
+  if (statut === "planifiee") return "📅";
+  if (statut === "en_cours") return "🚧";
+  if (statut === "terminee") return "✅";
+  return "📝";
+}
+
+function barreStatutPlanning(fiche: FicheIntervention) {
+  if (fiche.probleme_signale) return "bg-red-500";
+  if (fiche.statut === "en_cours") return "bg-amber-500";
+  if (fiche.statut === "terminee") return "bg-emerald-600";
+  if (fiche.statut === "planifiee") return "bg-blue-500";
+  return "bg-slate-400";
+}
+
+function estWeekend(dateIso: string) {
+  const jour = dateDepuisIso(dateIso).getDay();
+  return jour === 0 || jour === 6;
+}
+
 function libelleEtape(statut: string | null | undefined) {
   if (statut === "valide") return "Validée";
   if (statut === "en_cours") return "En cours";
@@ -286,6 +468,9 @@ export default function PlanningSalariePage() {
   const [fiches, setFiches] = useState<FicheIntervention[]>([]);
   const [elements, setElements] = useState<FicheElement[]>([]);
   const [affectations, setAffectations] = useState<FicheSalarie[]>([]);
+  const [evenements, setEvenements] = useState<PlanningEvenement[]>([]);
+  const [affectationsEvenements, setAffectationsEvenements] =
+    useState<PlanningEvenementSalarie[]>([]);
 
   const [chargement, setChargement] = useState(true);
   const [actualisation, setActualisation] = useState(false);
@@ -293,11 +478,67 @@ export default function PlanningSalariePage() {
   const [messageSucces, setMessageSucces] = useState("");
 
   const [recherche, setRecherche] = useState("");
-  const [filtre, setFiltre] = useState<FiltrePlanning>("a_venir");
+  const [filtre, setFiltre] = useState<FiltrePlanning>("toutes");
+  const [vue, setVue] = useState<VuePlanning>("semaine");
+  const [dateReference, setDateReference] = useState(dateLocaleIso());
 
   useEffect(() => {
     initialiserPage();
   }, []);
+
+  useEffect(() => {
+    if (!entrepriseId || !salarie?.id) return;
+
+    let temporisation: ReturnType<typeof setTimeout> | null = null;
+
+    const recharger = () => {
+      if (temporisation) clearTimeout(temporisation);
+      temporisation = setTimeout(() => {
+        void chargerPlanning(entrepriseId, salarie);
+      }, 250);
+    };
+
+    const canal = supabase
+      .channel(`planning-salarie-${entrepriseId}-${salarie.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "planning_evenements_salaries",
+          filter: `entreprise_id=eq.${entrepriseId}`,
+        },
+        recharger
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "planning_evenements",
+          filter: `entreprise_id=eq.${entrepriseId}`,
+        },
+        recharger
+      )
+      .subscribe();
+
+    const auFocus = () => void chargerPlanning(entrepriseId, salarie);
+    const aLaVisibilite = () => {
+      if (document.visibilityState === "visible") {
+        void chargerPlanning(entrepriseId, salarie);
+      }
+    };
+
+    window.addEventListener("focus", auFocus);
+    document.addEventListener("visibilitychange", aLaVisibilite);
+
+    return () => {
+      if (temporisation) clearTimeout(temporisation);
+      window.removeEventListener("focus", auFocus);
+      document.removeEventListener("visibilitychange", aLaVisibilite);
+      void supabase.removeChannel(canal);
+    };
+  }, [entrepriseId, salarie?.id]);
 
   async function initialiserPage() {
     try {
@@ -453,6 +694,8 @@ export default function PlanningSalariePage() {
       setFiches([]);
       setElements([]);
       setAffectations([]);
+      setEvenements([]);
+      setAffectationsEvenements([]);
       return;
     }
 
@@ -478,46 +721,69 @@ export default function PlanningSalariePage() {
     const affectationsChargees =
       (affectationsData || []) as FicheSalarie[];
 
-    const ficheIdsAffectations = affectationsChargees
-      .map((item) => item.fiche_id)
-      .filter(Boolean);
-
-    const fichesDepuisAffectations =
-      await chargerFichesParIds(
-        idEntreprise,
-        ficheIdsAffectations
-      );
-
-    const { data: fichesLegacyData, error: erreurLegacy } =
+    const { data: affectationsEvenementsData, error: erreurAffectationsEvenements } =
       await supabase
-        .from("fiches_intervention")
+        .from("planning_evenements_salaries")
         .select("*")
         .eq("entreprise_id", idEntreprise)
         .eq("salarie_id", salarieConnecte.id);
 
-    if (erreurLegacy) {
+    if (erreurAffectationsEvenements) {
       console.error(
-        "Erreur chargement fiches historiques salarié :",
-        erreurLegacy
+        "Erreur chargement événements affectés au salarié :",
+        erreurAffectationsEvenements
+      );
+      throw new Error(
+        erreurAffectationsEvenements.message ||
+          "Impossible de charger les événements de votre planning."
       );
     }
 
-    const fichesLegacy = (
-      (fichesLegacyData || []) as FicheIntervention[]
-    ).filter(ficheVisibleDansPlanning);
+    const affectationsEvenementsChargees =
+      (affectationsEvenementsData || []) as PlanningEvenementSalarie[];
 
-    const fichesMap = new Map<string, FicheIntervention>();
+    setAffectationsEvenements(affectationsEvenementsChargees);
 
-    for (const fiche of fichesDepuisAffectations) {
-      fichesMap.set(fiche.id, fiche);
+    const idsEvenements = Array.from(
+      new Set(
+        affectationsEvenementsChargees
+          .map((item) => item.evenement_id)
+          .filter(Boolean)
+      )
+    );
+
+    if (idsEvenements.length > 0) {
+      const { data: evenementsData, error: erreurEvenements } = await supabase
+        .from("planning_evenements")
+        .select("*")
+        .eq("entreprise_id", idEntreprise)
+        .in("id", idsEvenements)
+        .neq("statut", "supprime")
+        .order("date_debut", { ascending: true })
+        .order("heure_debut", { ascending: true });
+
+      if (erreurEvenements) {
+        console.error("Erreur chargement événements salarié :", erreurEvenements);
+        throw new Error(
+          erreurEvenements.message ||
+            "Impossible de charger les événements de votre planning."
+        );
+      }
+
+      setEvenements((evenementsData || []) as PlanningEvenement[]);
+    } else {
+      setEvenements([]);
     }
 
-    for (const fiche of fichesLegacy) {
-      fichesMap.set(fiche.id, fiche);
-    }
+    const ficheIdsAffectations = affectationsChargees
+      .map((item) => item.fiche_id)
+      .filter(Boolean);
 
-    const fichesChargees = Array.from(
-      fichesMap.values()
+    const fichesChargees = (
+      await chargerFichesParIds(
+        idEntreprise,
+        ficheIdsAffectations
+      )
     ).sort((a, b) => {
       const dateA = dateFiche(a) || "9999-12-31";
       const dateB = dateFiche(b) || "9999-12-31";
@@ -534,57 +800,79 @@ export default function PlanningSalariePage() {
 
     setFiches(fichesChargees);
 
-    const tousLesIds = fichesChargees.map(
-      (fiche) => fiche.id
-    );
-
-    if (tousLesIds.length === 0) {
+    if (fichesChargees.length === 0) {
       setElements([]);
-      setAffectations([]);
+      setAffectations(affectationsChargees);
       return;
     }
 
-    const [elementsResult, affectationsToutesResult] =
-      await Promise.all([
-        supabase
-          .from("fiches_intervention_elements")
-          .select("*")
-          .eq("entreprise_id", idEntreprise)
-          .in("fiche_id", tousLesIds)
-          .order("ordre", { ascending: true }),
+    /*
+     * Important côté salarié :
+     * on ne fait plus une lecture globale avec `.in(...)` sur toutes les
+     * fiches de l’entreprise. Certaines politiques RLS autorisent la lecture
+     * d’une fiche précise déjà affectée au salarié mais refusent la lecture
+     * groupée de lignes appartenant à d’autres membres de l’équipe.
+     *
+     * On recharge donc les détails fiche par fiche, exactement dans le même
+     * périmètre que la fiche terrain du salarié.
+     */
+    const detailsParFiche = await Promise.all(
+      fichesChargees.map(async (fiche) => {
+        const [elementsResult, equipeResult] = await Promise.all([
+          supabase
+            .from("fiches_intervention_elements")
+            .select("*")
+            .eq("entreprise_id", idEntreprise)
+            .eq("fiche_id", fiche.id)
+            .order("ordre", { ascending: true }),
 
-        supabase
-          .from("fiches_intervention_salaries")
-          .select("*")
-          .eq("entreprise_id", idEntreprise)
-          .in("fiche_id", tousLesIds)
-          .order("created_at", { ascending: true }),
-      ]);
+          supabase
+            .from("fiches_intervention_salaries")
+            .select("*")
+            .eq("entreprise_id", idEntreprise)
+            .eq("fiche_id", fiche.id)
+            .order("created_at", { ascending: true }),
+        ]);
 
-    if (elementsResult.error) {
-      console.error(
-        "Erreur chargement éléments fiches :",
-        elementsResult.error
-      );
-      setElements([]);
-    } else {
-      setElements(
-        (elementsResult.data || []) as FicheElement[]
-      );
+        const elementsFiche = elementsResult.error
+          ? ([] as FicheElement[])
+          : ((elementsResult.data || []) as FicheElement[]);
+
+        /*
+         * En cas de politique RLS plus restrictive sur la composition complète
+         * de l’équipe, on conserve au minimum l’affectation du salarié connecté.
+         * Le planning reste fonctionnel et aucune erreur de console n’est levée.
+         */
+        const equipeFiche = equipeResult.error
+          ? affectationsChargees.filter(
+              (item) => item.fiche_id === fiche.id
+            )
+          : ((equipeResult.data || []) as FicheSalarie[]);
+
+        return {
+          elements: elementsFiche,
+          equipe: equipeFiche,
+        };
+      })
+    );
+
+    setElements(
+      detailsParFiche.flatMap((detail) => detail.elements)
+    );
+
+    const equipeMap = new Map<string, FicheSalarie>();
+
+    for (const affectation of affectationsChargees) {
+      equipeMap.set(affectation.id, affectation);
     }
 
-    if (affectationsToutesResult.error) {
-      console.error(
-        "Erreur chargement équipes fiches :",
-        affectationsToutesResult.error
-      );
-      setAffectations(affectationsChargees);
-    } else {
-      setAffectations(
-        (affectationsToutesResult.data ||
-          []) as FicheSalarie[]
-      );
+    for (const detail of detailsParFiche) {
+      for (const affectation of detail.equipe) {
+        equipeMap.set(affectation.id, affectation);
+      }
     }
+
+    setAffectations(Array.from(equipeMap.values()));
   }
 
   async function rafraichir() {
@@ -618,19 +906,18 @@ export default function PlanningSalariePage() {
     const aujourdhui = dateLocaleIso();
 
     return {
-      total: fiches.length,
-      aujourdHui: fiches.filter(
-        (fiche) => dateFiche(fiche) === aujourdhui
-      ).length,
-      aVenir: fiches.filter((fiche) => {
-        const date = dateFiche(fiche);
-
-        return Boolean(
-          date &&
-            date >= aujourdhui &&
-            fiche.statut !== "terminee"
-        );
-      }).length,
+      total: fiches.length + evenements.length,
+      aujourdHui:
+        fiches.filter((fiche) => dateFiche(fiche) === aujourdhui).length +
+        evenements.filter((evenement) => dateDansEvenement(aujourdhui, evenement)).length,
+      aVenir:
+        fiches.filter((fiche) => {
+          const date = dateFiche(fiche);
+          return Boolean(
+            date && date >= aujourdhui && fiche.statut !== "terminee"
+          );
+        }).length +
+        evenements.filter((evenement) => evenement.date_fin >= aujourdhui).length,
       enCours: fiches.filter(
         (fiche) => fiche.statut === "en_cours"
       ).length,
@@ -641,7 +928,7 @@ export default function PlanningSalariePage() {
         (fiche) => fiche.probleme_signale === true
       ).length,
     };
-  }, [fiches]);
+  }, [fiches, evenements]);
 
   const fichesFiltrees = useMemo(() => {
     const texte = recherche.trim().toLowerCase();
@@ -728,31 +1015,160 @@ export default function PlanningSalariePage() {
     filtre,
   ]);
 
-  const fichesParDate = useMemo(() => {
-    const groupes: Record<
-      string,
-      FicheIntervention[]
-    > = {};
+  const evenementsFiltres = useMemo(() => {
+    const texte = recherche.trim().toLowerCase();
+    const aujourdhui = dateLocaleIso();
+    const dansSeptJours = ajouterJours(aujourdhui, 7);
 
-    for (const fiche of fichesFiltrees) {
-      const date =
-        dateFiche(fiche) || "non_planifiee";
+    return evenements.filter((evenement) => {
+      const correspondFiltre =
+        filtre === "toutes" ||
+        (filtre === "aujourd_hui" && dateDansEvenement(aujourdhui, evenement)) ||
+        (filtre === "semaine" &&
+          evenement.date_fin >= aujourdhui &&
+          evenement.date_debut <= dansSeptJours) ||
+        (filtre === "a_venir" && evenement.date_fin >= aujourdhui);
 
-      if (!groupes[date]) {
-        groupes[date] = [];
+      // Les vues En cours / Terminées / Problèmes concernent uniquement les chantiers.
+      if (!["toutes", "aujourd_hui", "semaine", "a_venir"].includes(filtre)) {
+        return false;
       }
 
-      groupes[date].push(fiche);
+      const zoneRecherche = [
+        evenement.titre,
+        evenement.description,
+        evenement.lieu,
+        libelleTypeEvenement(evenement.type_evenement),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return correspondFiltre && (texte.length === 0 || zoneRecherche.includes(texte));
+    });
+  }, [evenements, recherche, filtre]);
+
+  const elementsPlanningFiltres = useMemo<ElementPlanningSalarie[]>(() => {
+    return [
+      ...fichesFiltrees.map((fiche) => ({ nature: "fiche" as const, fiche })),
+      ...evenementsFiltres.map((evenement) => ({
+        nature: "evenement" as const,
+        evenement,
+      })),
+    ];
+  }, [fichesFiltrees, evenementsFiltres]);
+
+  const joursSemaine = useMemo(
+    () => construireSemaine(dateReference),
+    [dateReference]
+  );
+
+  const joursMois = useMemo(
+    () => construireGrilleMois(dateReference),
+    [dateReference]
+  );
+
+  function elementsPlanningPourDate(date: string) {
+    const liste: ElementPlanningSalarie[] = [
+      ...fichesFiltrees
+        .filter((fiche) => dateFiche(fiche) === date)
+        .map((fiche) => ({ nature: "fiche" as const, fiche })),
+      ...evenementsFiltres
+        .filter((evenement) => dateDansEvenement(date, evenement))
+        .map((evenement) => ({
+          nature: "evenement" as const,
+          evenement,
+        })),
+    ];
+
+    return liste.sort((a, b) => {
+      const heureA =
+        a.nature === "fiche"
+          ? heureDebutFiche(a.fiche) || "99:99"
+          : a.evenement.journee_entiere
+            ? "00:00"
+            : a.evenement.heure_debut || "99:99";
+      const heureB =
+        b.nature === "fiche"
+          ? heureDebutFiche(b.fiche) || "99:99"
+          : b.evenement.journee_entiere
+            ? "00:00"
+            : b.evenement.heure_debut || "99:99";
+
+      return heureA.localeCompare(heureB);
+    });
+  }
+
+  function naviguer(direction: -1 | 1) {
+    if (vue === "jour") {
+      setDateReference((date) => ajouterJours(date, direction));
+      return;
     }
 
-    return Object.entries(groupes).sort(
-      ([dateA], [dateB]) => {
-        if (dateA === "non_planifiee") return 1;
-        if (dateB === "non_planifiee") return -1;
-        return dateA.localeCompare(dateB);
+    if (vue === "semaine") {
+      setDateReference((date) => ajouterJours(date, direction * 7));
+      return;
+    }
+
+    if (vue === "mois") {
+      setDateReference((date) => ajouterMois(date, direction));
+    }
+  }
+
+  function titrePeriode() {
+    if (vue === "jour") return formatDateLongue(dateReference);
+    if (vue === "semaine") {
+      const debut = joursSemaine[0];
+      const fin = joursSemaine[6];
+      return `${formatDateCourte(debut)} → ${formatDateCourte(fin)}`;
+    }
+    if (vue === "mois") return formatMoisAnnee(dateReference);
+    return "Tout mon planning";
+  }
+
+  const elementsParDate = useMemo(() => {
+    const groupes: Record<string, ElementPlanningSalarie[]> = {};
+
+    for (const element of elementsPlanningFiltres) {
+      if (element.nature === "fiche") {
+        const date = dateFiche(element.fiche) || "non_planifiee";
+        if (!groupes[date]) groupes[date] = [];
+        groupes[date].push(element);
+        continue;
       }
-    );
-  }, [fichesFiltrees]);
+
+      let date = element.evenement.date_debut;
+      while (date <= element.evenement.date_fin) {
+        if (!groupes[date]) groupes[date] = [];
+        groupes[date].push(element);
+        date = ajouterJours(date, 1);
+      }
+    }
+
+    for (const liste of Object.values(groupes)) {
+      liste.sort((a, b) => {
+        const heureA =
+          a.nature === "fiche"
+            ? heureDebutFiche(a.fiche) || "99:99"
+            : a.evenement.journee_entiere
+              ? "00:00"
+              : a.evenement.heure_debut || "99:99";
+        const heureB =
+          b.nature === "fiche"
+            ? heureDebutFiche(b.fiche) || "99:99"
+            : b.evenement.journee_entiere
+              ? "00:00"
+              : b.evenement.heure_debut || "99:99";
+        return heureA.localeCompare(heureB);
+      });
+    }
+
+    return Object.entries(groupes).sort(([dateA], [dateB]) => {
+      if (dateA === "non_planifiee") return 1;
+      if (dateB === "non_planifiee") return -1;
+      return dateA.localeCompare(dateB);
+    });
+  }, [elementsPlanningFiltres]);
 
   function elementsDeFiche(ficheId: string) {
     return elements.filter(
@@ -875,6 +1291,451 @@ export default function PlanningSalariePage() {
           </span>
         )}
       </div>
+    );
+  }
+
+  function renduCarteCalendrierFiche(
+    fiche: FicheIntervention,
+    compacte = false
+  ) {
+    return (
+      <article
+        key={`cal-${fiche.id}`}
+        className={`relative overflow-hidden rounded-xl border p-2.5 pl-3.5 shadow-sm transition ${bordureEvenementFiche(
+          fiche
+        )}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1 ${barreStatutPlanning(
+            fiche
+          )}`}
+        />
+
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-bold text-slate-950">
+              {formatHeure(heureDebutFiche(fiche))} · {titreFiche(fiche)}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] font-medium text-slate-600">
+              {fiche.client_nom || "Client non renseigné"}
+            </p>
+          </div>
+
+          <span
+            className="shrink-0 text-xs"
+            title={
+              fiche.probleme_signale
+                ? "Problème signalé"
+                : libelleStatut(fiche.statut)
+            }
+          >
+            {fiche.probleme_signale
+              ? "⚠️"
+              : iconeStatutPlanning(fiche.statut)}
+          </span>
+        </div>
+
+        {!compacte && (
+          <p className="mt-2 line-clamp-2 text-[10px] text-slate-500">
+            📍 {adresseFiche(fiche)}
+          </p>
+        )}
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-semibold ${badgeStatut(
+              fiche.statut
+            )}`}
+          >
+            {libelleStatut(fiche.statut)}
+          </span>
+
+          <Link
+            href={`/salarie/interventions/${fiche.id}`}
+            className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900"
+          >
+            Ouvrir
+          </Link>
+        </div>
+      </article>
+    );
+  }
+
+  function renduCarteCalendrierEvenement(
+    evenement: PlanningEvenement,
+    compacte = false
+  ) {
+    return (
+      <article
+        key={`cal-event-${evenement.id}`}
+        className={`relative overflow-hidden rounded-xl border p-2.5 pl-3.5 shadow-sm ${classeEvenement(
+          evenement.type_evenement
+        )}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1 ${barreEvenement(
+            evenement.type_evenement
+          )}`}
+        />
+
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-bold text-slate-950">
+            {evenement.journee_entiere
+              ? "Toute la journée"
+              : `${formatHeure(evenement.heure_debut)} · `}
+            {evenement.titre}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] font-medium text-slate-600">
+            {iconeTypeEvenement(evenement.type_evenement)}{" "}
+            {libelleTypeEvenement(evenement.type_evenement)}
+          </p>
+        </div>
+
+        {!compacte && evenement.lieu && (
+          <p className="mt-2 line-clamp-1 text-[10px] text-slate-500">
+            📍 {evenement.lieu}
+          </p>
+        )}
+
+        <div className="mt-2">
+          <span className="inline-flex rounded-full border border-white/80 bg-white/70 px-2 py-0.5 text-[9px] font-semibold text-slate-600">
+            Affecté à mon planning
+          </span>
+        </div>
+      </article>
+    );
+  }
+
+  function renduElementCalendrier(
+    element: ElementPlanningSalarie,
+    compacte = false
+  ) {
+    return element.nature === "fiche"
+      ? renduCarteCalendrierFiche(element.fiche, compacte)
+      : renduCarteCalendrierEvenement(element.evenement, compacte);
+  }
+
+  function renduVueJour() {
+    const liste = elementsPlanningPourDate(dateReference);
+
+    return (
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Vue jour
+              </p>
+              <h2 className="mt-1 text-xl font-bold capitalize text-slate-950">
+                {formatDateLongue(dateReference)}
+              </h2>
+            </div>
+
+            <p className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-500 shadow-sm">
+              {liste.length} élément{liste.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        </div>
+
+        <div className="min-h-[360px] p-4">
+          {liste.length === 0 ? (
+            <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+                📅
+              </div>
+              <p className="mt-4 font-semibold text-slate-900">
+                Rien de prévu ce jour
+              </p>
+              <p className="mt-1 max-w-md text-sm text-slate-500">
+                Aucune intervention ni aucun événement ne vous est affecté pour
+                cette journée.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+              {liste.map((element) => renduElementCalendrier(element))}
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  function renduVueSemaine() {
+    return (
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 lg:hidden">
+          Faites défiler horizontalement pour consulter toute la semaine.
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[1050px]">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+              {joursSemaine.map((date) => {
+                const aujourdhui = date === dateLocaleIso();
+                const liste = elementsPlanningPourDate(date);
+
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => {
+                      setDateReference(date);
+                      setVue("jour");
+                    }}
+                    className={`border-r border-slate-200 px-3 py-3 text-left transition last:border-r-0 hover:bg-emerald-50 ${
+                      aujourdhui
+                        ? "bg-emerald-50"
+                        : estWeekend(date)
+                          ? "bg-slate-50/80"
+                          : "bg-white"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {formatJourSemaine(date)}
+                    </p>
+                    <div className="mt-1 flex items-center justify-between">
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                          aujourdhui
+                            ? "bg-emerald-600 text-white"
+                            : "text-slate-950"
+                        }`}
+                      >
+                        {formatNumeroJour(date)}
+                      </span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-400 shadow-sm">
+                        {liste.length}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {joursSemaine.map((date) => {
+                const liste = elementsPlanningPourDate(date);
+
+                return (
+                  <div
+                    key={date}
+                    className={`min-h-[440px] space-y-2 border-r border-slate-200 p-2 last:border-r-0 ${
+                      date === dateLocaleIso()
+                        ? "bg-emerald-50/30"
+                        : estWeekend(date)
+                          ? "bg-slate-50/60"
+                          : "bg-white"
+                    }`}
+                  >
+                    {liste.map((element) => renduElementCalendrier(element))}
+
+                    {liste.length === 0 && (
+                      <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 px-2 text-center text-[10px] text-slate-400">
+                        Rien de prévu
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renduVueMois() {
+    const moisReference = dateReference.slice(0, 7);
+
+    return (
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 lg:hidden">
+          Faites défiler horizontalement pour consulter tout le mois.
+        </div>
+
+        <div className="overflow-x-auto">
+          <div className="min-w-[980px]">
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+              {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(
+                (jour) => (
+                  <div
+                    key={jour}
+                    className="border-r border-slate-200 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 last:border-r-0"
+                  >
+                    {jour}
+                  </div>
+                )
+              )}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {joursMois.map((date) => {
+                const liste = elementsPlanningPourDate(date);
+                const dansMois = date.slice(0, 7) === moisReference;
+                const aujourdhui = date === dateLocaleIso();
+
+                return (
+                  <div
+                    key={date}
+                    className={`min-h-[145px] border-b border-r border-slate-200 p-1.5 [&:nth-child(7n)]:border-r-0 ${
+                      dansMois
+                        ? estWeekend(date)
+                          ? "bg-slate-50/70"
+                          : "bg-white"
+                        : "bg-slate-50/40 text-slate-300"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateReference(date);
+                        setVue("jour");
+                      }}
+                      className={`mb-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                        aujourdhui
+                          ? "bg-emerald-600 text-white"
+                          : dansMois
+                            ? "text-slate-700 hover:bg-emerald-50"
+                            : "text-slate-300"
+                      }`}
+                    >
+                      {formatNumeroJour(date)}
+                    </button>
+
+                    <div className="space-y-1">
+                      {liste
+                        .slice(0, 3)
+                        .map((element) => renduElementCalendrier(element, true))}
+                    </div>
+
+                    {liste.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDateReference(date);
+                          setVue("jour");
+                        }}
+                        className="mt-1 w-full rounded-lg px-1 py-1 text-left text-[10px] font-bold text-emerald-700 hover:bg-emerald-50"
+                      >
+                        +{liste.length - 3} autre
+                        {liste.length - 3 > 1 ? "s" : ""}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renduVueListe() {
+    if (elementsPlanningFiltres.length === 0) {
+      return (
+        <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+            📅
+          </div>
+          <p className="mt-4 font-semibold text-slate-900">
+            Aucun élément trouvé
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Aucune intervention ni aucun événement affecté ne correspond aux
+            filtres ou à la recherche.
+          </p>
+        </section>
+      );
+    }
+
+    return (
+      <section className="space-y-6">
+        {elementsParDate.map(([date, liste]) => (
+          <section key={date} className="space-y-3">
+            <div className="sticky top-2 z-10 rounded-2xl border border-slate-200 bg-slate-50/95 px-4 py-3 shadow-sm backdrop-blur">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="font-bold capitalize text-slate-950">
+                  {date === "non_planifiee"
+                    ? "Non planifiées"
+                    : formatDateLongue(date)}
+                </h2>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {liste.length} élément{liste.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              {liste.map((element) =>
+                element.nature === "fiche"
+                  ? renduCarteFiche(element.fiche)
+                  : renduCarteEvenement(element.evenement)
+              )}
+            </div>
+          </section>
+        ))}
+      </section>
+    );
+  }
+
+  function renduCarteEvenement(evenement: PlanningEvenement) {
+    return (
+      <article
+        key={`evenement-${evenement.id}`}
+        className={`relative overflow-hidden rounded-3xl border p-5 pl-6 shadow-sm ${classeEvenement(
+          evenement.type_evenement
+        )}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1.5 ${barreEvenement(
+            evenement.type_evenement
+          )}`}
+        />
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              {iconeTypeEvenement(evenement.type_evenement)}{" "}
+              {libelleTypeEvenement(evenement.type_evenement)}
+            </p>
+            <h3 className="mt-1 text-lg font-black text-slate-950">
+              {evenement.titre}
+            </h3>
+
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-slate-600">
+              <span>
+                🗓️ {formatDateCourte(evenement.date_debut)}
+                {evenement.date_fin !== evenement.date_debut
+                  ? ` → ${formatDateCourte(evenement.date_fin)}`
+                  : ""}
+              </span>
+              <span>
+                🕒 {evenement.journee_entiere
+                  ? "Toute la journée"
+                  : `${formatHeure(evenement.heure_debut)} → ${formatHeure(
+                      evenement.heure_fin
+                    )}`}
+              </span>
+              {evenement.lieu && <span>📍 {evenement.lieu}</span>}
+            </div>
+
+            {evenement.description && (
+              <p className="mt-4 whitespace-pre-line rounded-2xl border border-white/70 bg-white/60 px-4 py-3 text-sm leading-6 text-slate-700">
+                {evenement.description}
+              </p>
+            )}
+          </div>
+
+          <span className="shrink-0 rounded-full border border-white/80 bg-white/75 px-3 py-1 text-xs font-bold text-slate-700">
+            Planning
+          </span>
+        </div>
+      </article>
     );
   }
 
@@ -1054,327 +1915,301 @@ export default function PlanningSalariePage() {
 
   if (chargement) {
     return (
-      <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-            📅
+      <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+              ⏳
+            </div>
+            <p className="font-semibold text-slate-950">
+              Chargement du planning…
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Récupération de vos interventions et événements.
+            </p>
           </div>
-
-          <p className="font-semibold text-slate-950">
-            Chargement du planning...
-          </p>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Récupération de vos interventions.
-          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">
-            Espace salarié
-          </p>
+    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 bg-emerald-600" />
 
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            Mon planning
-          </h1>
+          <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
+                  📅
+                </div>
 
-          <p className="mt-2 max-w-4xl text-sm text-slate-600">
-            Retrouvez uniquement les interventions qui
-            vous sont affectées et ouvrez directement la
-            fiche terrain.
-          </p>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                    Espace salarié
+                  </p>
+                  <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                    Mon planning
+                  </h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Retrouvez vos interventions, rendez-vous, congés, absences,
+                    formations et autres événements affectés par votre responsable.
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-slate-400">
+                    Connecté : {nomSalarie(salarie) || profilEmail || "Salarié"}
+                  </p>
+                </div>
+              </div>
 
-          <p className="mt-2 text-xs font-semibold text-slate-400">
-            Connecté :{" "}
-            {nomSalarie(salarie) ||
-              profilEmail ||
-              "Salarié"}
-          </p>
-        </div>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+                <Link
+                  href="/salarie/demandes"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                >
+                  <span aria-hidden="true">＋</span>
+                  Faire une demande
+                </Link>
 
-        <button
-          type="button"
-          onClick={rafraichir}
-          disabled={actualisation || !salarie}
-          className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-        >
-          {actualisation
-            ? "Actualisation..."
-            : "Actualiser"}
-        </button>
-      </section>
-
-      {messageErreur && (
-        <div
-          role="alert"
-          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-        >
-          {messageErreur}
-        </div>
-      )}
-
-      {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {messageSucces}
-        </div>
-      )}
-
-      {!salarie && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Aucun salarié lié à votre compte n’a été trouvé.
-          Le chef doit vérifier votre adresse email et le
-          rattachement de votre compte dans la fiche salarié.
-        </div>
-      )}
-
-      <section className="grid grid-cols-4 gap-2 md:hidden">
-        {[
-          ["Total", statistiques.total],
-          ["Aujourd’hui", statistiques.aujourdHui],
-          ["En cours", statistiques.enCours],
-          ["Alertes", statistiques.problemes],
-        ].map(([libelle, valeur]) => (
-          <button
-            key={String(libelle)}
-            type="button"
-            onClick={() => {
-              if (libelle === "Aujourd’hui") {
-                setFiltre("aujourd_hui");
-              } else if (libelle === "En cours") {
-                setFiltre("en_cours");
-              } else if (libelle === "Alertes") {
-                setFiltre("problemes");
-              } else {
-                setFiltre("toutes");
-              }
-            }}
-            className="rounded-2xl border border-slate-200 bg-white p-2 text-center shadow-sm"
-          >
-            <span className="block truncate text-[9px] font-bold uppercase text-slate-400">
-              {libelle}
-            </span>
-            <span className="mt-1 block text-xl font-black text-slate-950">
-              {valeur}
-            </span>
-          </button>
-        ))}
-      </section>
-
-      <section className="hidden grid-cols-2 gap-3 md:grid md:grid-cols-3 xl:grid-cols-6">
-        <button
-          type="button"
-          onClick={() => setFiltre("toutes")}
-          aria-pressed={filtre === "toutes"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
-            filtre === "toutes"
-              ? "border-slate-400 bg-slate-100 ring-2 ring-slate-200"
-              : "border-slate-200 bg-white hover:border-slate-300"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Total
-          </p>
-          <p className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
-            {statistiques.total}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setFiltre("aujourd_hui")
-          }
-          aria-pressed={
-            filtre === "aujourd_hui"
-          }
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
-            filtre === "aujourd_hui"
-              ? "border-blue-400 bg-blue-100 ring-2 ring-blue-100"
-              : "border-blue-100 bg-blue-50 hover:border-blue-300"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-blue-500">
-            Aujourd’hui
-          </p>
-          <p className="mt-1 text-2xl font-bold text-blue-900 sm:text-3xl">
-            {statistiques.aujourdHui}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltre("a_venir")}
-          aria-pressed={filtre === "a_venir"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
-            filtre === "a_venir"
-              ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100"
-              : "border-emerald-100 bg-emerald-50 hover:border-emerald-300"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-emerald-600">
-            À venir
-          </p>
-          <p className="mt-1 text-2xl font-bold text-emerald-900 sm:text-3xl">
-            {statistiques.aVenir}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltre("en_cours")}
-          aria-pressed={filtre === "en_cours"}
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
-            filtre === "en_cours"
-              ? "border-amber-400 bg-amber-100 ring-2 ring-amber-100"
-              : "border-amber-100 bg-amber-50 hover:border-amber-300"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-amber-600">
-            En cours
-          </p>
-          <p className="mt-1 text-2xl font-bold text-amber-900 sm:text-3xl">
-            {statistiques.enCours}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltre("terminees")}
-          aria-pressed={
-            filtre === "terminees"
-          }
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
-            filtre === "terminees"
-              ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100"
-              : "border-slate-200 bg-white hover:border-emerald-300"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Terminées
-          </p>
-          <p className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">
-            {statistiques.terminees}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltre("problemes")}
-          aria-pressed={
-            filtre === "problemes"
-          }
-          className={`rounded-2xl border p-3 text-left shadow-sm transition sm:p-4 ${
-            filtre === "problemes"
-              ? "border-red-400 bg-red-100 ring-2 ring-red-100"
-              : "border-red-100 bg-red-50 hover:border-red-300"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-wide text-red-600">
-            Problèmes
-          </p>
-          <p className="mt-1 text-2xl font-bold text-red-900 sm:text-3xl">
-            {statistiques.problemes}
-          </p>
-        </button>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="sticky top-2 z-10 grid gap-3 rounded-t-3xl border-b border-slate-200 bg-white/95 p-3 backdrop-blur sm:p-4 lg:grid-cols-[1fr_240px]">
-          <input
-            value={recherche}
-            onChange={(event) =>
-              setRecherche(event.target.value)
-            }
-            placeholder="Rechercher par client, ville, chantier, matériel..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          />
-
-          <select
-            value={filtre}
-            onChange={(event) =>
-              setFiltre(
-                event.target.value as FiltrePlanning
-              )
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="a_venir">
-              À venir
-            </option>
-            <option value="aujourd_hui">
-              Aujourd’hui
-            </option>
-            <option value="semaine">
-              7 prochains jours
-            </option>
-            <option value="en_cours">
-              En cours
-            </option>
-            <option value="terminees">
-              Terminées
-            </option>
-            <option value="problemes">
-              Problèmes
-            </option>
-            <option value="toutes">
-              Toutes mes interventions
-            </option>
-          </select>
-        </div>
-
-        {fichesFiltrees.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-              📅
+                <button
+                  type="button"
+                  onClick={() => void rafraichir()}
+                  disabled={actualisation || !salarie}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true">↻</span>
+                  {actualisation ? "Actualisation…" : "Actualiser"}
+                </button>
+              </div>
             </div>
-
-            <p className="font-semibold text-slate-900">
-              Aucune intervention trouvée
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Aucune fiche affectée ne correspond au
-              filtre ou à la recherche.
-            </p>
           </div>
-        ) : (
-          <div className="space-y-6 p-4">
-            {fichesParDate.map(([date, liste]) => (
-              <section
-                key={date}
-                className="space-y-3"
-              >
-                <div className="sticky top-2 z-10 rounded-2xl border border-slate-200 bg-slate-50/95 px-4 py-3 shadow-sm backdrop-blur">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <h2 className="font-bold capitalize text-slate-950">
-                      {date === "non_planifiee"
-                        ? "Non planifiées"
-                        : formatDateLongue(date)}
-                    </h2>
+        </section>
 
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      {liste.length} intervention
-                      {liste.length > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {liste.map((fiche) =>
-                    renduCarteFiche(fiche)
-                  )}
-                </div>
-              </section>
-            ))}
+        {messageErreur && (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          >
+            {messageErreur}
           </div>
         )}
-      </section>
+
+        {messageSucces && (
+          <div
+            role="status"
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+          >
+            {messageSucces}
+          </div>
+        )}
+
+        {!salarie && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Aucun salarié lié à votre compte n’a été trouvé. Le chef doit
+            vérifier votre adresse email et le rattachement de votre compte.
+          </div>
+        )}
+
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {[
+            {
+              filtre: "toutes" as FiltrePlanning,
+              label: "Total",
+              valeur: statistiques.total,
+              inactif: "border-slate-200 bg-white hover:border-slate-300",
+              actif: "border-slate-400 bg-slate-100 ring-2 ring-slate-100",
+              texte: "text-slate-950",
+              labelClasse: "text-slate-400",
+            },
+            {
+              filtre: "aujourd_hui" as FiltrePlanning,
+              label: "Aujourd’hui",
+              valeur: statistiques.aujourdHui,
+              inactif: "border-blue-100 bg-blue-50 hover:border-blue-300",
+              actif: "border-blue-400 bg-blue-100 ring-2 ring-blue-100",
+              texte: "text-blue-900",
+              labelClasse: "text-blue-600",
+            },
+            {
+              filtre: "a_venir" as FiltrePlanning,
+              label: "À venir",
+              valeur: statistiques.aVenir,
+              inactif: "border-emerald-100 bg-emerald-50 hover:border-emerald-300",
+              actif: "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100",
+              texte: "text-emerald-900",
+              labelClasse: "text-emerald-600",
+            },
+            {
+              filtre: "en_cours" as FiltrePlanning,
+              label: "En cours",
+              valeur: statistiques.enCours,
+              inactif: "border-amber-100 bg-amber-50 hover:border-amber-300",
+              actif: "border-amber-400 bg-amber-100 ring-2 ring-amber-100",
+              texte: "text-amber-900",
+              labelClasse: "text-amber-600",
+            },
+            {
+              filtre: "terminees" as FiltrePlanning,
+              label: "Terminées",
+              valeur: statistiques.terminees,
+              inactif: "border-slate-200 bg-white hover:border-emerald-300",
+              actif: "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-100",
+              texte: "text-slate-950",
+              labelClasse: "text-slate-400",
+            },
+            {
+              filtre: "problemes" as FiltrePlanning,
+              label: "Problèmes",
+              valeur: statistiques.problemes,
+              inactif: "border-red-100 bg-red-50 hover:border-red-300",
+              actif: "border-red-400 bg-red-100 ring-2 ring-red-100",
+              texte: "text-red-900",
+              labelClasse: "text-red-600",
+            },
+          ].map((item) => (
+            <button
+              key={item.filtre}
+              type="button"
+              onClick={() => setFiltre(item.filtre)}
+              aria-pressed={filtre === item.filtre}
+              className={`rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                filtre === item.filtre ? item.actif : item.inactif
+              }`}
+            >
+              <p className={`text-xs uppercase tracking-wide ${item.labelClasse}`}>
+                {item.label}
+              </p>
+              <p className={`mt-1 text-2xl font-bold sm:text-3xl ${item.texte}`}>
+                {item.valeur}
+              </p>
+            </button>
+          ))}
+        </section>
+
+        <section className="sticky top-3 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="inline-flex w-full rounded-2xl bg-slate-100 p-1 xl:w-auto">
+              {(
+                [
+                  ["jour", "Jour"],
+                  ["semaine", "Semaine"],
+                  ["mois", "Mois"],
+                  ["liste", "Liste"],
+                ] as Array<[VuePlanning, string]>
+              ).map(([valeur, libelle]) => (
+                <button
+                  key={valeur}
+                  type="button"
+                  onClick={() => setVue(valeur)}
+                  className={`flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition xl:flex-none ${
+                    vue === valeur
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  {libelle}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => naviguer(-1)}
+                disabled={vue === "liste"}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label="Période précédente"
+              >
+                ‹
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDateReference(dateLocaleIso())}
+                disabled={vue === "liste"}
+                className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Aujourd’hui
+              </button>
+
+              <input
+                type="date"
+                value={dateReference}
+                onChange={(event) => {
+                  if (event.target.value) setDateReference(event.target.value);
+                }}
+                disabled={vue === "liste"}
+                aria-label="Choisir une date"
+                className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-30"
+              />
+
+              <button
+                type="button"
+                onClick={() => naviguer(1)}
+                disabled={vue === "liste"}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                aria-label="Période suivante"
+              >
+                ›
+              </button>
+            </div>
+
+            <h2 className="text-center text-base font-bold capitalize text-slate-950 xl:min-w-72 xl:text-right">
+              {titrePeriode()}
+            </h2>
+          </div>
+
+          <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+            <input
+              value={recherche}
+              onChange={(event) => setRecherche(event.target.value)}
+              placeholder="Rechercher par client, chantier, rendez-vous, congé, formation…"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            />
+
+            <select
+              value={filtre}
+              onChange={(event) =>
+                setFiltre(event.target.value as FiltrePlanning)
+              }
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            >
+              <option value="toutes">Tout mon planning</option>
+              <option value="aujourd_hui">Aujourd’hui</option>
+              <option value="semaine">7 prochains jours</option>
+              <option value="a_venir">À venir</option>
+              <option value="en_cours">Interventions en cours</option>
+              <option value="terminees">Interventions terminées</option>
+              <option value="problemes">Problèmes signalés</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRecherche("");
+                setFiltre("toutes");
+              }}
+              className="min-h-12 rounded-2xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Réinitialiser
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              {elementsPlanningFiltres.length} élément
+              {elementsPlanningFiltres.length === 1 ? "" : "s"} après filtrage
+            </p>
+            <p>Planning en lecture seule · ouvrez une fiche pour agir sur le chantier.</p>
+          </div>
+        </section>
+
+        {vue === "jour" && renduVueJour()}
+        {vue === "semaine" && renduVueSemaine()}
+        {vue === "mois" && renduVueMois()}
+        {vue === "liste" && renduVueListe()}
+      </div>
     </div>
   );
 }

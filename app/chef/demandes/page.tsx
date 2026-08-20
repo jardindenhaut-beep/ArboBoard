@@ -1,26 +1,10 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
 
-type TypeDemande = "conge" | "materiel" | "absence" | "probleme" | "autre";
-
-type StatutDemande =
-  | "en_attente"
-  | "acceptee"
-  | "refusee"
-  | "traitee"
-  | "annulee";
-
-type ProfilUtilisateur = {
-  id: string;
-  email?: string | null;
-  nom?: string | null;
-  prenom?: string | null;
-  role?: string | null;
-  statut?: string | null;
-};
+type DecisionChef = "acceptee" | "refusee";
 
 type Demande = {
   id: string;
@@ -38,59 +22,36 @@ type Demande = {
   reponse_chef: string | null;
   repondu_par: string | null;
   repondu_at: string | null;
+  decision_chef: DecisionChef | null;
+  decision_chef_at: string | null;
+  planning_evenement_id: string | null;
+  archivee: boolean | null;
+  archivee_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
 
-function libelleType(type: string | null | undefined) {
-  if (type === "conge") return "Congé";
-  if (type === "materiel") return "Matériel";
-  if (type === "absence") return "Absence";
-  if (type === "probleme") return "Problème";
-  return "Autre";
+type VueDemandes = "actives" | "archives";
+
+function messageErreurInconnue(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function badgeType(type: string | null | undefined) {
-  if (type === "conge") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (type === "materiel") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (type === "absence") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (type === "probleme") return "bg-red-50 text-red-700 border-red-200";
-  return "bg-slate-50 text-slate-700 border-slate-200";
-}
-
-function libelleStatut(statut: string | null | undefined) {
-  if (statut === "acceptee") return "Acceptée";
-  if (statut === "refusee") return "Refusée";
-  if (statut === "traitee") return "Traitée";
-  if (statut === "annulee") return "Annulée";
-  return "En attente";
-}
-
-function badgeStatut(statut: string | null | undefined) {
-  if (statut === "acceptee") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (statut === "refusee") return "bg-red-50 text-red-700 border-red-200";
-  if (statut === "traitee") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (statut === "annulee") return "bg-slate-100 text-slate-600 border-slate-200";
-  return "bg-amber-50 text-amber-700 border-amber-200";
-}
-
-function formatDate(date: string | null) {
+function formatDate(date: string | null | undefined) {
   if (!date) return "—";
-
   try {
     return new Intl.DateTimeFormat("fr-FR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
+    }).format(new Date(`${date.slice(0, 10)}T12:00:00`));
   } catch {
-    return "—";
+    return date;
   }
 }
 
-function formatDateHeure(date: string | null) {
+function formatDateHeure(date: string | null | undefined) {
   if (!date) return "—";
-
   try {
     return new Intl.DateTimeFormat("fr-FR", {
       day: "2-digit",
@@ -100,108 +61,214 @@ function formatDateHeure(date: string | null) {
       minute: "2-digit",
     }).format(new Date(date));
   } catch {
-    return "—";
+    return date;
   }
+}
+
+function libelleType(type: string | null | undefined) {
+  switch (type) {
+    case "conge":
+      return "Congé";
+    case "materiel":
+      return "Matériel";
+    case "absence":
+      return "Absence";
+    case "formation":
+      return "Formation";
+    case "rendez_vous":
+    case "rendez-vous":
+      return "Rendez-vous";
+    case "indisponibilite":
+      return "Indisponibilité";
+    case "probleme":
+      return "Problème";
+    default:
+      return "Autre demande";
+  }
+}
+
+function iconeType(type: string | null | undefined) {
+  switch (type) {
+    case "conge":
+      return "🏖️";
+    case "materiel":
+      return "🧰";
+    case "absence":
+      return "🚫";
+    case "formation":
+      return "🎓";
+    case "rendez_vous":
+    case "rendez-vous":
+      return "🤝";
+    case "indisponibilite":
+      return "⛔";
+    case "probleme":
+      return "⚠️";
+    default:
+      return "📩";
+  }
+}
+
+function estPlanifiable(type: string | null | undefined) {
+  return [
+    "conge",
+    "absence",
+    "formation",
+    "rendez_vous",
+    "rendez-vous",
+    "indisponibilite",
+  ].includes(type || "");
+}
+
+function libelleDecision(demande: Demande) {
+  if (demande.decision_chef === "acceptee") return "Acceptée";
+  if (demande.decision_chef === "refusee") return "Refusée";
+  if (demande.statut === "traitee") return "Traitée — décision à classer";
+  return "En attente";
+}
+
+function classeDecision(demande: Demande) {
+  if (demande.decision_chef === "acceptee") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (demande.decision_chef === "refusee") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  if (demande.statut === "traitee") {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function demandeVerrouillee(demande: Demande) {
+  return Boolean(demande.decision_chef || demande.archivee);
 }
 
 export default function DemandesChefPage() {
   const [entrepriseId, setEntrepriseId] = useState("");
-  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
+  const [utilisateurId, setUtilisateurId] = useState("");
   const [demandes, setDemandes] = useState<Demande[]>([]);
   const [reponses, setReponses] = useState<Record<string, string>>({});
 
-  const [chargement, setChargement] = useState(true);
-  const [actionEnCours, setActionEnCours] = useState(false);
-
-  const [filtreStatut, setFiltreStatut] = useState<"tous" | StatutDemande>(
-    "tous"
-  );
-  const [filtreType, setFiltreType] = useState<"tous" | TypeDemande>("tous");
+  const [vue, setVue] = useState<VueDemandes>("actives");
   const [recherche, setRecherche] = useState("");
+  const [filtreType, setFiltreType] = useState("tous");
 
+  const [chargement, setChargement] = useState(true);
+  const [actionId, setActionId] = useState<string | null>(null);
   const [messageErreur, setMessageErreur] = useState("");
   const [messageSucces, setMessageSucces] = useState("");
 
-  useEffect(() => {
-    initialiserPage();
-  }, []);
-
-  async function initialiserPage() {
-    try {
-      setChargement(true);
-      setMessageErreur("");
-
-      const resultat = await chargerContexteEntreprise();
-
-      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
-        setMessageErreur(
-          "Impossible de charger votre entreprise. Veuillez vous reconnecter."
-        );
-        setChargement(false);
-        return;
-      }
-
-      const profilConnecte = resultat.contexte.profil as ProfilUtilisateur;
-
-      if (profilConnecte.role !== "chef") {
-        setMessageErreur("Cette page est réservée au chef d’entreprise.");
-        setChargement(false);
-        return;
-      }
-
-      const idEntreprise = resultat.contexte.entreprise.id as string;
-
-      setEntrepriseId(idEntreprise);
-      setProfil(profilConnecte);
-
-      await chargerDemandes(idEntreprise);
-    } catch (error) {
-      console.error("Erreur initialisation demandes chef :", error);
-      setMessageErreur("Une erreur est survenue pendant le chargement.");
-    } finally {
-      setChargement(false);
-    }
-  }
-
-  async function chargerDemandes(idEntreprise = entrepriseId) {
-    if (!idEntreprise) return;
-
+  const chargerDemandes = useCallback(async (idEntreprise: string) => {
     const { data, error } = await supabase
       .from("demandes")
       .select("*")
       .eq("entreprise_id", idEntreprise)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Erreur chargement demandes chef :", error);
-      setMessageErreur(error.message || "Impossible de charger les demandes.");
-      return;
-    }
+    if (error) throw error;
 
-    const demandesChargees = (data || []) as Demande[];
+    const liste = (data || []) as Demande[];
+    setDemandes(liste);
 
-    setDemandes(demandesChargees);
-
-    const reponsesInitiales: Record<string, string> = {};
-
-    demandesChargees.forEach((demande) => {
-      reponsesInitiales[demande.id] = demande.reponse_chef || "";
+    setReponses((anciennes) => {
+      const suivantes = { ...anciennes };
+      for (const demande of liste) {
+        if (suivantes[demande.id] === undefined) {
+          suivantes[demande.id] = demande.reponse_chef || "";
+        }
+      }
+      return suivantes;
     });
+  }, []);
 
-    setReponses(reponsesInitiales);
-  }
+  const initialiser = useCallback(async () => {
+    try {
+      setChargement(true);
+      setMessageErreur("");
+
+      const resultat = await chargerContexteEntreprise();
+
+      if (
+        resultat.erreur ||
+        !resultat.contexte?.entreprise?.id ||
+        !resultat.contexte?.profil?.id
+      ) {
+        throw new Error(
+          "Impossible de charger votre entreprise. Veuillez vous reconnecter."
+        );
+      }
+
+      const idEntreprise = resultat.contexte.entreprise.id;
+      const idUtilisateur = resultat.contexte.profil.id;
+
+      setEntrepriseId(idEntreprise);
+      setUtilisateurId(idUtilisateur);
+
+      await chargerDemandes(idEntreprise);
+    } catch (error: unknown) {
+      console.error("Erreur initialisation demandes chef :", error);
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          "Impossible de charger les demandes des salariés."
+        )
+      );
+    } finally {
+      setChargement(false);
+    }
+  }, [chargerDemandes]);
+
+  useEffect(() => {
+    void initialiser();
+  }, [initialiser]);
+
+  useEffect(() => {
+    if (!entrepriseId) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const recharger = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void chargerDemandes(entrepriseId).catch((error) => {
+          console.error("Erreur actualisation demandes :", error);
+        });
+      }, 250);
+    };
+
+    const canal = supabase
+      .channel(`demandes-chef-${entrepriseId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "demandes",
+          filter: `entreprise_id=eq.${entrepriseId}`,
+        },
+        recharger
+      )
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(canal);
+    };
+  }, [entrepriseId, chargerDemandes]);
+
+  const typesDisponibles = useMemo(() => {
+    return Array.from(
+      new Set(demandes.map((demande) => demande.type_demande).filter(Boolean))
+    ).sort() as string[];
+  }, [demandes]);
 
   const statistiques = useMemo(() => {
     return {
-      total: demandes.length,
-      attente: demandes.filter((demande) => demande.statut === "en_attente")
-        .length,
-      acceptees: demandes.filter((demande) => demande.statut === "acceptee")
-        .length,
-      refusees: demandes.filter((demande) => demande.statut === "refusee")
-        .length,
-      traitees: demandes.filter((demande) => demande.statut === "traitee")
-        .length,
+      actives: demandes.filter((d) => !demandeVerrouillee(d)).length,
+      archives: demandes.filter((d) => demandeVerrouillee(d)).length,
+      acceptees: demandes.filter((d) => d.decision_chef === "acceptee").length,
+      refusees: demandes.filter((d) => d.decision_chef === "refusee").length,
     };
   }, [demandes]);
 
@@ -209,372 +276,461 @@ export default function DemandesChefPage() {
     const texte = recherche.trim().toLowerCase();
 
     return demandes.filter((demande) => {
-      const statut = demande.statut || "en_attente";
-      const type = demande.type_demande || "autre";
+      const archive = demandeVerrouillee(demande);
 
-      const correspondStatut =
-        filtreStatut === "tous" || statut === filtreStatut;
+      if (vue === "actives" && archive) return false;
+      if (vue === "archives" && !archive) return false;
 
-      const correspondType = filtreType === "tous" || type === filtreType;
+      if (filtreType !== "tous" && demande.type_demande !== filtreType) {
+        return false;
+      }
 
-      const zoneRecherche = [
+      if (!texte) return true;
+
+      const contenu = [
         demande.demandeur_nom,
         demande.demandeur_email,
         demande.titre,
         demande.message,
         demande.reponse_chef,
-        demande.type_demande,
-        demande.statut,
+        libelleType(demande.type_demande),
+        libelleDecision(demande),
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      const correspondRecherche =
-        texte.length === 0 || zoneRecherche.includes(texte);
-
-      return correspondStatut && correspondType && correspondRecherche;
+      return contenu.includes(texte);
     });
-  }, [demandes, filtreStatut, filtreType, recherche]);
+  }, [demandes, vue, filtreType, recherche]);
 
-  function modifierReponse(demandeId: string, valeur: string) {
-    setReponses((ancien) => ({
-      ...ancien,
-      [demandeId]: valeur,
-    }));
-  }
-
-  async function mettreAJourDemande(
+  async function prendreDecision(
     demande: Demande,
-    statut: StatutDemande,
-    messageSuccesAction: string
+    decision: DecisionChef
   ) {
-    if (!entrepriseId || !profil?.id) return;
+    if (!entrepriseId || !utilisateurId || actionId) return;
 
-    try {
-      setActionEnCours(true);
-      setMessageErreur("");
-      setMessageSucces("");
-
-      const reponse = reponses[demande.id] || "";
-
-      const { error } = await supabase
-        .from("demandes")
-        .update({
-          statut,
-          reponse_chef: reponse.trim() || null,
-          repondu_par: profil.id,
-          repondu_at: new Date().toISOString(),
-        })
-        .eq("id", demande.id)
-        .eq("entreprise_id", entrepriseId);
-
-      if (error) throw error;
-
-      await chargerDemandes(entrepriseId);
-
-      setMessageSucces(messageSuccesAction);
-    } catch (error: any) {
-      console.error("Erreur mise à jour demande :", error);
+    if (demandeVerrouillee(demande)) {
       setMessageErreur(
-        error?.message || "Impossible de mettre à jour cette demande."
+        "Cette demande a déjà reçu une décision définitive et ne peut plus être modifiée."
       );
-    } finally {
-      setActionEnCours(false);
+      return;
     }
-  }
 
-  async function supprimerDemande(demande: Demande) {
-    if (!entrepriseId) return;
-
+    const action = decision === "acceptee" ? "accepter" : "refuser";
     const confirmation = window.confirm(
-      `Supprimer définitivement la demande "${
-        demande.titre || "sans titre"
-      }" ?`
+      decision === "acceptee"
+        ? "Accepter définitivement cette demande ? Elle sera ensuite archivée automatiquement."
+        : "Refuser définitivement cette demande ? Elle sera ensuite archivée automatiquement."
     );
 
     if (!confirmation) return;
 
     try {
-      setActionEnCours(true);
+      setActionId(demande.id);
       setMessageErreur("");
       setMessageSucces("");
 
-      const { error } = await supabase
+      const maintenant = new Date().toISOString();
+      const reponse = (reponses[demande.id] || "").trim();
+
+      const { data, error } = await supabase
         .from("demandes")
-        .delete()
+        .update({
+          decision_chef: decision,
+          statut: decision,
+          reponse_chef: reponse || null,
+          repondu_par: utilisateurId,
+          repondu_at: maintenant,
+          archivee: true,
+          archivee_at: maintenant,
+          updated_at: maintenant,
+        })
+        .eq("entreprise_id", entrepriseId)
         .eq("id", demande.id)
-        .eq("entreprise_id", entrepriseId);
+        .is("decision_chef", null)
+        .eq("archivee", false)
+        .select("*")
+        .maybeSingle();
 
       if (error) throw error;
 
+      if (!data) {
+        throw new Error(
+          "La demande a déjà été traitée ou son état a changé. Actualisez la page."
+        );
+      }
+
       await chargerDemandes(entrepriseId);
 
-      setMessageSucces("Demande supprimée.");
-    } catch (error: any) {
-      console.error("Erreur suppression demande :", error);
-      setMessageErreur(error?.message || "Impossible de supprimer cette demande.");
+      const textePlanning =
+        decision === "acceptee" &&
+        estPlanifiable(demande.type_demande) &&
+        demande.date_debut
+          ? " L’événement correspondant a été transmis automatiquement au planning."
+          : "";
+
+      setMessageSucces(
+        `Demande ${decision === "acceptee" ? "acceptée" : "refusée"} et archivée définitivement.${textePlanning}`
+      );
+    } catch (error: unknown) {
+      console.error(`Erreur pour ${action} la demande :`, error);
+      setMessageErreur(
+        messageErreurInconnue(
+          error,
+          `Impossible d’${action} cette demande.`
+        )
+      );
     } finally {
-      setActionEnCours(false);
+      setActionId(null);
     }
   }
 
+  if (chargement) {
+    return (
+      <div className="mx-auto max-w-7xl p-4 sm:p-6">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+          <p className="mt-4 text-sm font-semibold text-slate-600">
+            Chargement des demandes…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-700">Arboboard</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            Demandes salariés
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Consultez les demandes envoyées par vos salariés : congés, matériel,
-            absence, problème terrain ou autre besoin.
-          </p>
-        </div>
-      </section>
-
-      {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {messageErreur}
-        </div>
-      )}
-
-      {messageSucces && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {messageSucces}
-        </div>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.total}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            En attente
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.attente}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Acceptées
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.acceptees}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Refusées
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.refusees}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Traitées
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-950">
-            {statistiques.traitees}
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-slate-200 p-4 lg:grid-cols-[1fr_220px_220px]">
-          <input
-            value={recherche}
-            onChange={(event) => setRecherche(event.target.value)}
-            placeholder="Rechercher salarié, titre, message..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          />
-
-          <select
-            value={filtreType}
-            onChange={(event) =>
-              setFiltreType(event.target.value as "tous" | TypeDemande)
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="tous">Tous les types</option>
-            <option value="conge">Congé</option>
-            <option value="materiel">Matériel</option>
-            <option value="absence">Absence</option>
-            <option value="probleme">Problème</option>
-            <option value="autre">Autre</option>
-          </select>
-
-          <select
-            value={filtreStatut}
-            onChange={(event) =>
-              setFiltreStatut(event.target.value as "tous" | StatutDemande)
-            }
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-          >
-            <option value="tous">Tous les statuts</option>
-            <option value="en_attente">En attente</option>
-            <option value="acceptee">Acceptées</option>
-            <option value="refusee">Refusées</option>
-            <option value="traitee">Traitées</option>
-            <option value="annulee">Annulées</option>
-          </select>
-        </div>
-
-        {chargement ? (
-          <div className="p-8 text-center">
-            <p className="font-semibold text-slate-900">
-              Chargement des demandes...
-            </p>
-          </div>
-        ) : demandesFiltrees.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-              📩
+    <div className="min-h-screen bg-slate-50/70">
+      <div className="mx-auto max-w-7xl space-y-5 p-3 sm:p-5 lg:p-6">
+        <header className="overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 p-5 text-white shadow-lg sm:p-7">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
+                Équipe
+              </p>
+              <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+                Demandes salariés
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100">
+                Acceptez ou refusez une demande une seule fois. Toute décision
+                est définitive et la demande est automatiquement archivée.
+                Les demandes qui touchent le planning sont synchronisées dès
+                leur acceptation.
+              </p>
             </div>
-            <p className="font-semibold text-slate-900">
-              Aucune demande trouvée
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Les demandes envoyées par les salariés apparaîtront ici.
-            </p>
+
+            <button
+              type="button"
+              onClick={() => void initialiser()}
+              className="min-h-11 rounded-xl border border-white/20 bg-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/20"
+            >
+              ↻ Actualiser
+            </button>
           </div>
+        </header>
+
+        {messageErreur ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+          >
+            {messageErreur}
+          </div>
+        ) : null}
+
+        {messageSucces ? (
+          <div
+            role="status"
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"
+          >
+            {messageSucces}
+          </div>
+        ) : null}
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["À traiter", statistiques.actives, "text-amber-700", "bg-amber-50 border-amber-200"],
+            ["Archives", statistiques.archives, "text-slate-700", "bg-white border-slate-200"],
+            ["Acceptées", statistiques.acceptees, "text-emerald-700", "bg-emerald-50 border-emerald-200"],
+            ["Refusées", statistiques.refusees, "text-red-700", "bg-red-50 border-red-200"],
+          ].map(([label, valeur, texte, fond]) => (
+            <div
+              key={String(label)}
+              className={`rounded-2xl border p-4 shadow-sm ${fond}`}
+            >
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                {label}
+              </p>
+              <p className={`mt-1 text-3xl font-black ${texte}`}>{valeur}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="inline-flex rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setVue("actives")}
+                className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                  vue === "actives"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                À traiter · {statistiques.actives}
+              </button>
+              <button
+                type="button"
+                onClick={() => setVue("archives")}
+                className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                  vue === "archives"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Archives · {statistiques.archives}
+              </button>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:w-[560px]">
+              <input
+                value={recherche}
+                onChange={(event) => setRecherche(event.target.value)}
+                placeholder="Rechercher un salarié, une demande…"
+                className="h-11 rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              />
+
+              <select
+                value={filtreType}
+                onChange={(event) => setFiltreType(event.target.value)}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500"
+              >
+                <option value="tous">Tous les types</option>
+                {typesDisponibles.map((type) => (
+                  <option key={type} value={type}>
+                    {libelleType(type)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {demandesFiltrees.length === 0 ? (
+          <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+            <div className="text-3xl">{vue === "archives" ? "🗄️" : "📭"}</div>
+            <h2 className="mt-3 font-black text-slate-900">
+              {vue === "archives"
+                ? "Aucune demande archivée"
+                : "Aucune demande à traiter"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {vue === "archives"
+                ? "Les demandes acceptées ou refusées apparaîtront ici."
+                : "Les nouvelles demandes des salariés apparaîtront ici."}
+            </p>
+          </section>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {demandesFiltrees.map((demande) => (
-              <article key={demande.id} className="p-5">
-                <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeType(
-                          demande.type_demande
-                        )}`}
-                      >
-                        {libelleType(demande.type_demande)}
-                      </span>
+          <section className="space-y-4">
+            {demandesFiltrees.map((demande) => {
+              const verrouillee = demandeVerrouillee(demande);
+              const enAction = actionId === demande.id;
+              const periode =
+                demande.date_debut || demande.date_fin
+                  ? `${formatDate(demande.date_debut)}${
+                      demande.date_fin &&
+                      demande.date_fin !== demande.date_debut
+                        ? ` → ${formatDate(demande.date_fin)}`
+                        : ""
+                    }`
+                  : "Aucune date renseignée";
 
-                      <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
-                          demande.statut
-                        )}`}
-                      >
-                        {libelleStatut(demande.statut)}
-                      </span>
-                    </div>
+              return (
+                <article
+                  key={demande.id}
+                  className={`overflow-hidden rounded-3xl border bg-white shadow-sm ${
+                    verrouillee
+                      ? demande.decision_chef === "acceptee"
+                        ? "border-emerald-200"
+                        : "border-red-200"
+                      : "border-slate-200"
+                  }`}
+                >
+                  <div className="p-5 sm:p-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xl" aria-hidden="true">
+                            {iconeType(demande.type_demande)}
+                          </span>
+                          <h2 className="text-lg font-black text-slate-950">
+                            {demande.titre ||
+                              libelleType(demande.type_demande)}
+                          </h2>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${classeDecision(
+                              demande
+                            )}`}
+                          >
+                            {libelleDecision(demande)}
+                          </span>
+                        </div>
 
-                    <h2 className="mt-3 text-lg font-bold text-slate-950">
-                      {demande.titre || "Demande sans titre"}
-                    </h2>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      Par {demande.demandeur_nom || "Salarié"} —{" "}
-                      {demande.demandeur_email || "email non renseigné"}
-                    </p>
-
-                    <p className="mt-3 whitespace-pre-line text-sm text-slate-700">
-                      {demande.message || "—"}
-                    </p>
-
-                    <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-3">
-                      <p>Envoyée le : {formatDateHeure(demande.created_at)}</p>
-                      <p>Début : {formatDate(demande.date_debut)}</p>
-                      <p>Fin : {formatDate(demande.date_fin)}</p>
-                    </div>
-
-                    {demande.reponse_chef && (
-                      <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                        <p className="font-semibold">Réponse enregistrée</p>
-                        <p className="mt-1 whitespace-pre-line">
-                          {demande.reponse_chef}
+                        <p className="mt-2 text-sm font-bold text-slate-800">
+                          {demande.demandeur_nom || "Salarié"}
                         </p>
+                        {demande.demandeur_email ? (
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {demande.demandeur_email}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="shrink-0 text-xs leading-5 text-slate-500 lg:text-right">
+                        <p>
+                          Reçue :{" "}
+                          <strong className="text-slate-700">
+                            {formatDateHeure(demande.created_at)}
+                          </strong>
+                        </p>
+                        <p>
+                          Période :{" "}
+                          <strong className="text-slate-700">{periode}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    {demande.message ? (
+                      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                          Message du salarié
+                        </p>
+                        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+                          {demande.message}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {!verrouillee ? (
+                      <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+                        <label className="text-sm font-black text-slate-800">
+                          Réponse au salarié
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={reponses[demande.id] || ""}
+                          onChange={(event) =>
+                            setReponses((ancien) => ({
+                              ...ancien,
+                              [demande.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Message facultatif qui accompagnera votre décision…"
+                          className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                        />
+
+                        {demande.statut === "traitee" &&
+                        !demande.decision_chef ? (
+                          <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-blue-800">
+                            Cette ancienne demande était marquée « traitée » sans
+                            préciser si elle avait été acceptée ou refusée.
+                            Classez-la une dernière fois avec l’un des deux
+                            boutons ci-dessous.
+                          </div>
+                        ) : null}
+
+                        {estPlanifiable(demande.type_demande) &&
+                        demande.date_debut ? (
+                          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold leading-5 text-emerald-800">
+                            Si vous acceptez cette demande, elle sera ajoutée
+                            automatiquement au planning et affectée au salarié.
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void prendreDecision(demande, "acceptee")
+                            }
+                            disabled={Boolean(actionId)}
+                            className="min-h-11 flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {enAction ? "Enregistrement…" : "✓ Accepter définitivement"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void prendreDecision(demande, "refusee")
+                            }
+                            disabled={Boolean(actionId)}
+                            className="min-h-11 flex-1 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {enAction ? "Enregistrement…" : "✕ Refuser définitivement"}
+                          </button>
+                        </div>
+
+                        <p className="mt-3 text-center text-[11px] font-semibold text-slate-400">
+                          Après validation ou refus, aucune modification ne sera
+                          possible.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                              Décision définitive
+                            </p>
+                            <p
+                              className={`mt-1 text-base font-black ${
+                                demande.decision_chef === "acceptee"
+                                  ? "text-emerald-700"
+                                  : "text-red-700"
+                              }`}
+                            >
+                              {demande.decision_chef === "acceptee"
+                                ? "Demande acceptée"
+                                : "Demande refusée"}
+                            </p>
+                          </div>
+
+                          <div className="text-xs text-slate-500 sm:text-right">
+                            <p>{formatDateHeure(demande.decision_chef_at || demande.repondu_at)}</p>
+                            {demande.planning_evenement_id ? (
+                              <p className="mt-1 font-bold text-emerald-700">
+                                📅 Ajoutée au planning
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {demande.reponse_chef ? (
+                          <div className="mt-3 border-t border-slate-200 pt-3">
+                            <p className="text-xs font-bold text-slate-500">
+                              Réponse du chef
+                            </p>
+                            <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">
+                              {demande.reponse_chef}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
+                          🔒 Demande archivée et verrouillée. Elle ne peut plus
+                          être modifiée.
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">
-                      Réponse au salarié
-                    </label>
-
-                    <textarea
-                      value={reponses[demande.id] || ""}
-                      onChange={(event) =>
-                        modifierReponse(demande.id, event.target.value)
-                      }
-                      rows={5}
-                      placeholder="Écrire une réponse..."
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                    />
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button type="button"
-                        onClick={() =>
-                          mettreAJourDemande(
-                            demande,
-                            "acceptee",
-                            "Demande acceptée."
-                          )
-                        }
-                        disabled={actionEnCours}
-                        className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
-                      >
-                        Accepter
-                      </button>
-
-                      <button type="button"
-                        onClick={() =>
-                          mettreAJourDemande(
-                            demande,
-                            "refusee",
-                            "Demande refusée."
-                          )
-                        }
-                        disabled={actionEnCours}
-                        className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                      >
-                        Refuser
-                      </button>
-
-                      <button type="button"
-                        onClick={() =>
-                          mettreAJourDemande(
-                            demande,
-                            "traitee",
-                            "Demande marquée comme traitée."
-                          )
-                        }
-                        disabled={actionEnCours}
-                        className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60"
-                      >
-                        Traiter
-                      </button>
-
-                      <button type="button"
-                        onClick={() => supprimerDemande(demande)}
-                        disabled={actionEnCours}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              );
+            })}
+          </section>
         )}
-      </section>
+      </div>
     </div>
   );
 }

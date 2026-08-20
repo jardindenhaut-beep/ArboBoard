@@ -679,7 +679,7 @@ export async function POST(request: NextRequest) {
     if (typeDemande === "devis") {
       const { data, error } = await supabaseAdmin
         .from("devis")
-        .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_devis, date_validite, statut, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc")
+        .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_devis, date_validite, statut, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc, remise_globale_pourcent, remise_globale_montant")
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
@@ -700,7 +700,7 @@ export async function POST(request: NextRequest) {
 
       const { data: lignesData, error: lignesError } = await supabaseAdmin
         .from("devis_lignes")
-        .select("id, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, total_ttc, ordre")
+        .select("id, type_ligne, designation, description, quantite, unite, prix_unitaire_ht, remise_pourcent, total_brut_ht, tva, total_ht, total_tva, total_ttc, ordre")
         .eq("devis_id", documentId)
         .eq("entreprise_id", entrepriseId)
         .order("ordre", { ascending: true });
@@ -712,7 +712,7 @@ export async function POST(request: NextRequest) {
     } else {
       const { data, error } = await supabaseAdmin
         .from("factures")
-        .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_facture, date_echeance, statut, type_facture, est_avoir, facture_origine_id, motif_avoir, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc, montant_paye, reste_a_payer")
+        .select("id, entreprise_id, client_id, numero, client_nom, objet, description, date_facture, date_echeance, statut, type_facture, est_avoir, facture_origine_id, motif_avoir, adresse_chantier, code_postal_chantier, ville_chantier, notes_chantier, conditions, total_ht, total_tva, total_ttc, remise_globale_pourcent, remise_globale_montant, montant_paye, reste_a_payer")
         .eq("id", documentId)
         .eq("entreprise_id", entrepriseId)
         .maybeSingle();
@@ -738,7 +738,7 @@ export async function POST(request: NextRequest) {
 
       const { data: lignesData, error: lignesError } = await supabaseAdmin
         .from("factures_lignes")
-        .select("id, designation, description, quantite, unite, prix_unitaire_ht, tva, total_ht, total_ttc, ordre")
+        .select("id, type_ligne, designation, description, quantite, unite, prix_unitaire_ht, remise_pourcent, total_brut_ht, tva, total_ht, total_tva, total_ttc, ordre")
         .eq("facture_id", documentId)
         .eq("entreprise_id", entrepriseId)
         .order("ordre", { ascending: true });

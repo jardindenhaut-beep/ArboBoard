@@ -13,6 +13,10 @@ export type AppareilConfiance = {
   appareil_actuel: boolean;
 };
 
+function attendre(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function obtenirJeton(
   jetonFourni?: string
 ) {
@@ -30,16 +34,98 @@ async function obtenirJeton(
   return session.access_token;
 }
 
-async function lireErreur(response: Response) {
-  const donnees = await response
-    .json()
-    .catch(() => null);
+/**
+ * Après une validation MFA, Supabase renouvelle la session avec un JWT AAL2.
+ * Selon le navigateur / timing, getSession() peut encore rendre brièvement
+ * l'ancien JWT AAL1. On attend donc explicitement la session AAL2 avant
+ * d'appeler la route serveur qui enregistre l'appareil.
+ */
+async function obtenirJetonAal2(
+  jetonFourni?: string
+) {
+  if (jetonFourni) return jetonFourni;
 
-  return (
-    donnees?.erreur ||
-    donnees?.error ||
-    "La gestion de l’appareil de confiance a échoué."
-  );
+  for (let tentative = 0; tentative < 8; tentative += 1) {
+    const [
+      sessionResult,
+      niveauResult,
+    ] = await Promise.all([
+      supabase.auth.getSession(),
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    ]);
+
+    const session =
+      sessionResult.data.session;
+
+    if (
+      !sessionResult.error &&
+      !niveauResult.error &&
+      session?.access_token &&
+      niveauResult.data.currentLevel === "aal2"
+    ) {
+      return session.access_token;
+    }
+
+    // Une courte attente suffit normalement le temps que la session
+    // issue de mfa.verify soit persistée dans le client Supabase.
+    await attendre(100);
+  }
+
+  // Dernier essai avec une actualisation explicite de la session.
+  const {
+    data: refreshData,
+    error: refreshError,
+  } = await supabase.auth.refreshSession();
+
+  if (
+    !refreshError &&
+    refreshData.session?.access_token
+  ) {
+    const { data: niveau, error: niveauError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+    if (
+      !niveauError &&
+      niveau.currentLevel === "aal2"
+    ) {
+      return refreshData.session.access_token;
+    }
+  }
+
+  return null;
+}
+
+async function lireErreur(response: Response) {
+  const texte = await response.text().catch(() => "");
+
+  if (texte) {
+    try {
+      const donnees = JSON.parse(texte);
+
+      const message =
+        donnees?.erreur ||
+        donnees?.error ||
+        donnees?.message;
+
+      if (typeof message === "string" && message.trim()) {
+        return message.trim();
+      }
+    } catch {
+      // La réponse n'est pas du JSON. On conserve un extrait utile
+      // plutôt que de masquer l'erreur derrière un message générique.
+      const extrait = texte
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 180);
+
+      if (extrait) {
+        return `Erreur HTTP ${response.status} : ${extrait}`;
+      }
+    }
+  }
+
+  return `La gestion de l’appareil de confiance a échoué (HTTP ${response.status}).`;
 }
 
 export async function verifierAppareilConfiance(
@@ -79,11 +165,11 @@ export async function verifierAppareilConfiance(
 export async function enregistrerAppareilConfiance(
   jetonFourni?: string
 ) {
-  const jeton = await obtenirJeton(jetonFourni);
+  const jeton = await obtenirJetonAal2(jetonFourni);
 
   if (!jeton) {
     throw new Error(
-      "Session introuvable pour enregistrer cet appareil."
+      "La session AAL2 n’est pas encore disponible après la validation du code MFA."
     );
   }
 

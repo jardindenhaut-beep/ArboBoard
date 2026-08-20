@@ -125,6 +125,80 @@ type OptionSalarie = {
   libelle: string;
 };
 
+type TypeEvenementPlanning =
+  | "rendez_vous"
+  | "conge"
+  | "absence"
+  | "formation"
+  | "interne"
+  | "indisponibilite"
+  | "autre";
+
+type PlanningEvenement = {
+  id: string;
+  entreprise_id: string;
+  type_evenement: TypeEvenementPlanning | string;
+  titre: string;
+  description: string | null;
+  date_debut: string;
+  date_fin: string;
+  heure_debut: string | null;
+  heure_fin: string | null;
+  journee_entiere: boolean | null;
+  lieu: string | null;
+  statut: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type PlanningEvenementSalarie = {
+  id: string;
+  entreprise_id: string;
+  evenement_id: string;
+  salarie_id: string;
+  salarie_nom: string | null;
+};
+
+type SalarieDisponible = {
+  id: string;
+  nom: string | null;
+  prenom: string | null;
+  email: string | null;
+  statut: string | null;
+};
+
+type FormEvenementPlanning = {
+  id: string;
+  type_evenement: TypeEvenementPlanning;
+  titre: string;
+  description: string;
+  date_debut: string;
+  date_fin: string;
+  heure_debut: string;
+  heure_fin: string;
+  journee_entiere: boolean;
+  lieu: string;
+  salaries_ids: string[];
+};
+
+type ElementPlanning =
+  | { nature: "fiche"; fiche: FicheIntervention }
+  | { nature: "evenement"; evenement: PlanningEvenement };
+
+const FORM_EVENEMENT_VIDE: FormEvenementPlanning = {
+  id: "",
+  type_evenement: "rendez_vous",
+  titre: "",
+  description: "",
+  date_debut: dateLocaleIso(),
+  date_fin: dateLocaleIso(),
+  heure_debut: "08:00",
+  heure_fin: "09:00",
+  journee_entiere: false,
+  lieu: "",
+  salaries_ids: [],
+};
+
 function messageErreurInconnue(
   error: unknown,
   messageParDefaut: string
@@ -393,11 +467,70 @@ function pluraliserIntervention(nombre: number) {
   return `${nombre} intervention${nombre === 1 ? "" : "s"}`;
 }
 
+function nomSalarieDisponible(salarie: SalarieDisponible) {
+  const nom = `${salarie.prenom || ""} ${salarie.nom || ""}`.trim();
+  return nom || salarie.email || "Salarié";
+}
+
+function libelleTypeEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "Rendez-vous";
+  if (type === "conge") return "Congé / vacances";
+  if (type === "absence") return "Absence";
+  if (type === "formation") return "Formation";
+  if (type === "interne") return "Événement interne";
+  if (type === "indisponibilite") return "Indisponibilité";
+  return "Autre";
+}
+
+function iconeTypeEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "🤝";
+  if (type === "conge") return "🏖️";
+  if (type === "absence") return "🚫";
+  if (type === "formation") return "🎓";
+  if (type === "interne") return "🏢";
+  if (type === "indisponibilite") return "⛔";
+  return "📌";
+}
+
+function classeEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "border-violet-200 bg-violet-50";
+  if (type === "conge") return "border-sky-200 bg-sky-50";
+  if (type === "absence") return "border-rose-200 bg-rose-50";
+  if (type === "formation") return "border-indigo-200 bg-indigo-50";
+  if (type === "interne") return "border-cyan-200 bg-cyan-50";
+  if (type === "indisponibilite") return "border-orange-200 bg-orange-50";
+  return "border-slate-200 bg-slate-50";
+}
+
+function barreEvenement(type: string | null | undefined) {
+  if (type === "rendez_vous") return "bg-violet-500";
+  if (type === "conge") return "bg-sky-500";
+  if (type === "absence") return "bg-rose-500";
+  if (type === "formation") return "bg-indigo-500";
+  if (type === "interne") return "bg-cyan-500";
+  if (type === "indisponibilite") return "bg-orange-500";
+  return "bg-slate-500";
+}
+
+function dateDansEvenement(date: string, evenement: PlanningEvenement) {
+  return date >= evenement.date_debut && date <= evenement.date_fin;
+}
+
+function heureDebutEvenement(evenement: PlanningEvenement) {
+  if (evenement.journee_entiere) return "00:00";
+  return evenement.heure_debut || "99:99";
+}
+
 export default function PlanningChefPage() {
   const [entrepriseId, setEntrepriseId] = useState("");
   const [fiches, setFiches] = useState<FicheIntervention[]>([]);
   const [elements, setElements] = useState<FicheElement[]>([]);
   const [equipes, setEquipes] = useState<FicheSalarie[]>([]);
+  const [evenements, setEvenements] = useState<PlanningEvenement[]>([]);
+  const [evenementSalaries, setEvenementSalaries] = useState<PlanningEvenementSalarie[]>([]);
+  const [salariesDisponibles, setSalariesDisponibles] = useState<SalarieDisponible[]>([]);
+  const [modalEvenementOuverte, setModalEvenementOuverte] = useState(false);
+  const [formEvenement, setFormEvenement] = useState<FormEvenementPlanning>(FORM_EVENEMENT_VIDE);
 
   const [chargement, setChargement] = useState(true);
   const [enregistrement, setEnregistrement] = useState(false);
@@ -461,87 +594,122 @@ export default function PlanningChefPage() {
   async function chargerPlanning(idEntreprise = entrepriseId) {
     if (!idEntreprise) return;
 
-    const { data, error } = await supabase
-      .from("fiches_intervention")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .or("statut.is.null,statut.neq.archivee")
-      .order("date_prevue", { ascending: true })
-      .order("date_intervention", { ascending: true })
-      .order("created_at", { ascending: false });
+    const [fichesResult, evenementsResult, evenementSalariesResult, salariesResult] =
+      await Promise.all([
+        supabase
+          .from("fiches_intervention")
+          .select("*")
+          .eq("entreprise_id", idEntreprise)
+          .or("statut.is.null,statut.neq.archivee")
+          .order("date_prevue", { ascending: true })
+          .order("date_intervention", { ascending: true })
+          .order("created_at", { ascending: false }),
 
-    if (error) {
-      console.error("Erreur chargement planning chef :", error);
+        supabase
+          .from("planning_evenements")
+          .select("*")
+          .eq("entreprise_id", idEntreprise)
+          .neq("statut", "supprime")
+          .order("date_debut", { ascending: true })
+          .order("heure_debut", { ascending: true }),
+
+        supabase
+          .from("planning_evenements_salaries")
+          .select("*")
+          .eq("entreprise_id", idEntreprise),
+
+        supabase
+          .from("salaries")
+          .select("id, nom, prenom, email, statut")
+          .eq("entreprise_id", idEntreprise)
+          .order("nom", { ascending: true })
+          .order("prenom", { ascending: true }),
+      ]);
+
+    if (fichesResult.error) {
+      console.error("Erreur chargement planning chef :", fichesResult.error);
       setMessageErreur(
-        error.message ||
+        fichesResult.error.message ||
           "Impossible de charger les fiches du planning."
       );
       setFiches([]);
       setElements([]);
       setEquipes([]);
-      return;
-    }
+    } else {
+      const fichesChargees = (
+        (fichesResult.data || []) as FicheIntervention[]
+      ).sort((a, b) => {
+        const dateA = dateFiche(a) || "9999-12-31";
+        const dateB = dateFiche(b) || "9999-12-31";
 
-    const fichesChargees = (
-      (data || []) as FicheIntervention[]
-    ).sort((a, b) => {
-      const dateA = dateFiche(a) || "9999-12-31";
-      const dateB = dateFiche(b) || "9999-12-31";
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
 
-      if (dateA !== dateB) {
-        return dateA.localeCompare(dateB);
+        return (heureDebutFiche(a) || "99:99").localeCompare(
+          heureDebutFiche(b) || "99:99"
+        );
+      });
+
+      setFiches(fichesChargees);
+
+      const ids = fichesChargees.map((fiche) => fiche.id);
+
+      if (ids.length > 0) {
+        const [elementsResult, equipesResult] = await Promise.all([
+          supabase
+            .from("fiches_intervention_elements")
+            .select("*")
+            .eq("entreprise_id", idEntreprise)
+            .in("fiche_id", ids)
+            .order("ordre", { ascending: true }),
+
+          supabase
+            .from("fiches_intervention_salaries")
+            .select("*")
+            .eq("entreprise_id", idEntreprise)
+            .in("fiche_id", ids)
+            .order("created_at", { ascending: true }),
+        ]);
+
+        setElements(
+          elementsResult.error
+            ? []
+            : ((elementsResult.data || []) as FicheElement[])
+        );
+        setEquipes(
+          equipesResult.error
+            ? []
+            : ((equipesResult.data || []) as FicheSalarie[])
+        );
+      } else {
+        setElements([]);
+        setEquipes([]);
       }
-
-      const heureA = heureDebutFiche(a) || "99:99";
-      const heureB = heureDebutFiche(b) || "99:99";
-
-      return heureA.localeCompare(heureB);
-    });
-
-    setFiches(fichesChargees);
-
-    const ids = fichesChargees.map((fiche) => fiche.id);
-
-    if (ids.length === 0) {
-      setElements([]);
-      setEquipes([]);
-      return;
     }
 
-    const [elementsResult, equipesResult] = await Promise.all([
-      supabase
-        .from("fiches_intervention_elements")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .in("fiche_id", ids)
-        .order("ordre", { ascending: true }),
-
-      supabase
-        .from("fiches_intervention_salaries")
-        .select("*")
-        .eq("entreprise_id", idEntreprise)
-        .in("fiche_id", ids)
-        .order("created_at", { ascending: true }),
-    ]);
-
-    if (elementsResult.error) {
-      console.error(
-        "Erreur chargement éléments planning :",
-        elementsResult.error
-      );
-      setElements([]);
+    if (evenementsResult.error) {
+      console.error("Erreur chargement événements planning :", evenementsResult.error);
+      setEvenements([]);
     } else {
-      setElements((elementsResult.data || []) as FicheElement[]);
+      setEvenements((evenementsResult.data || []) as PlanningEvenement[]);
     }
 
-    if (equipesResult.error) {
+    if (evenementSalariesResult.error) {
       console.error(
-        "Erreur chargement équipes planning :",
-        equipesResult.error
+        "Erreur chargement affectations événements :",
+        evenementSalariesResult.error
       );
-      setEquipes([]);
+      setEvenementSalaries([]);
     } else {
-      setEquipes((equipesResult.data || []) as FicheSalarie[]);
+      setEvenementSalaries(
+        (evenementSalariesResult.data || []) as PlanningEvenementSalarie[]
+      );
+    }
+
+    if (salariesResult.error) {
+      console.error("Erreur chargement salariés planning :", salariesResult.error);
+      setSalariesDisponibles([]);
+    } else {
+      setSalariesDisponibles((salariesResult.data || []) as SalarieDisponible[]);
     }
   }
 
@@ -740,19 +908,196 @@ export default function PlanningChefPage() {
       }
     }
 
+    for (const salarie of salariesDisponibles) {
+      const libelle = nomSalarieDisponible(salarie);
+      const valeur = `id:${salarie.id}`;
+      if (!options.has(valeur)) options.set(valeur, { valeur, libelle });
+    }
+
     return Array.from(options.values()).sort((a, b) =>
       a.libelle.localeCompare(b.libelle, "fr")
     );
-  }, [equipes, fiches]);
+  }, [equipes, fiches, salariesDisponibles]);
+
+  function salariesEvenement(evenementId: string) {
+    return evenementSalaries.filter((item) => item.evenement_id === evenementId);
+  }
+
+  function ouvrirNouvelEvenement(date = dateReference) {
+    setFormEvenement({
+      ...FORM_EVENEMENT_VIDE,
+      date_debut: date,
+      date_fin: date,
+    });
+    setMessageErreur("");
+    setMessageSucces("");
+    setModalEvenementOuverte(true);
+  }
+
+  function ouvrirEditionEvenement(evenement: PlanningEvenement) {
+    setFormEvenement({
+      id: evenement.id,
+      type_evenement: evenement.type_evenement as TypeEvenementPlanning,
+      titre: evenement.titre || "",
+      description: evenement.description || "",
+      date_debut: evenement.date_debut,
+      date_fin: evenement.date_fin,
+      heure_debut: evenement.heure_debut?.slice(0, 5) || "08:00",
+      heure_fin: evenement.heure_fin?.slice(0, 5) || "09:00",
+      journee_entiere: evenement.journee_entiere === true,
+      lieu: evenement.lieu || "",
+      salaries_ids: salariesEvenement(evenement.id).map((item) => item.salarie_id),
+    });
+    setModalEvenementOuverte(true);
+  }
+
+  function basculerSalarieEvenement(salarieId: string) {
+    setFormEvenement((ancien) => ({
+      ...ancien,
+      salaries_ids: ancien.salaries_ids.includes(salarieId)
+        ? ancien.salaries_ids.filter((id) => id !== salarieId)
+        : [...ancien.salaries_ids, salarieId],
+    }));
+  }
+
+  async function enregistrerEvenement() {
+    if (!entrepriseId || enregistrement) return;
+
+    if (!formEvenement.titre.trim()) {
+      setMessageErreur("Le titre de l’événement est obligatoire.");
+      return;
+    }
+
+    if (!formEvenement.date_debut || !formEvenement.date_fin) {
+      setMessageErreur("Les dates de début et de fin sont obligatoires.");
+      return;
+    }
+
+    if (formEvenement.date_fin < formEvenement.date_debut) {
+      setMessageErreur("La date de fin ne peut pas être antérieure à la date de début.");
+      return;
+    }
+
+    if (
+      !formEvenement.journee_entiere &&
+      formEvenement.date_debut === formEvenement.date_fin &&
+      formEvenement.heure_fin <= formEvenement.heure_debut
+    ) {
+      setMessageErreur("L’heure de fin doit être postérieure à l’heure de début.");
+      return;
+    }
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      setMessageSucces("");
+
+      const payload = {
+        entreprise_id: entrepriseId,
+        type_evenement: formEvenement.type_evenement,
+        titre: formEvenement.titre.trim(),
+        description: formEvenement.description.trim() || null,
+        date_debut: formEvenement.date_debut,
+        date_fin: formEvenement.date_fin,
+        heure_debut: formEvenement.journee_entiere ? null : formEvenement.heure_debut,
+        heure_fin: formEvenement.journee_entiere ? null : formEvenement.heure_fin,
+        journee_entiere: formEvenement.journee_entiere,
+        lieu: formEvenement.lieu.trim() || null,
+        statut: "actif",
+        updated_at: new Date().toISOString(),
+      };
+
+      let evenementId = formEvenement.id;
+
+      if (formEvenement.id) {
+        const { error } = await supabase
+          .from("planning_evenements")
+          .update(payload)
+          .eq("entreprise_id", entrepriseId)
+          .eq("id", formEvenement.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from("planning_evenements")
+          .insert(payload)
+          .select("id")
+          .single();
+        if (error) throw error;
+        evenementId = data.id;
+      }
+
+      const { error: deleteError } = await supabase
+        .from("planning_evenements_salaries")
+        .delete()
+        .eq("entreprise_id", entrepriseId)
+        .eq("evenement_id", evenementId);
+      if (deleteError) throw deleteError;
+
+      if (formEvenement.salaries_ids.length > 0) {
+        const lignes = formEvenement.salaries_ids.map((salarieId) => {
+          const salarie = salariesDisponibles.find((item) => item.id === salarieId);
+          return {
+            entreprise_id: entrepriseId,
+            evenement_id: evenementId,
+            salarie_id: salarieId,
+            salarie_nom: salarie ? nomSalarieDisponible(salarie) : null,
+          };
+        });
+
+        const { error } = await supabase
+          .from("planning_evenements_salaries")
+          .insert(lignes);
+        if (error) throw error;
+      }
+
+      setModalEvenementOuverte(false);
+      setFormEvenement(FORM_EVENEMENT_VIDE);
+      await chargerPlanning(entrepriseId);
+      setMessageSucces(
+        formEvenement.id ? "Événement modifié." : "Événement ajouté au planning."
+      );
+    } catch (error: unknown) {
+      console.error("Erreur enregistrement événement planning :", error);
+      setMessageErreur(
+        messageErreurInconnue(error, "Impossible d’enregistrer cet événement.")
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function supprimerEvenement(evenement: PlanningEvenement) {
+    if (!entrepriseId || enregistrement) return;
+    if (!window.confirm(`Supprimer « ${evenement.titre} » du planning ?`)) return;
+
+    try {
+      setEnregistrement(true);
+      setMessageErreur("");
+      const { error } = await supabase
+        .from("planning_evenements")
+        .update({ statut: "supprime", updated_at: new Date().toISOString() })
+        .eq("entreprise_id", entrepriseId)
+        .eq("id", evenement.id);
+      if (error) throw error;
+      await chargerPlanning(entrepriseId);
+      setMessageSucces("Événement supprimé du planning.");
+    } catch (error: unknown) {
+      setMessageErreur(
+        messageErreurInconnue(error, "Impossible de supprimer cet événement.")
+      );
+    } finally {
+      setEnregistrement(false);
+    }
+  }
 
   const statistiques = useMemo(() => {
     const aujourdhui = dateLocaleIso();
 
     return {
-      total: fiches.length,
-      aujourdHui: fiches.filter(
-        (fiche) => dateFiche(fiche) === aujourdhui
-      ).length,
+      total: fiches.length + evenements.length,
+      aujourdHui:
+        fiches.filter((fiche) => dateFiche(fiche) === aujourdhui).length +
+        evenements.filter((evenement) => dateDansEvenement(aujourdhui, evenement)).length,
       aVenir: fiches.filter((fiche) => {
         const date = dateFiche(fiche);
 
@@ -774,7 +1119,7 @@ export default function PlanningChefPage() {
         (fiche) => fiche.probleme_signale === true
       ).length,
     };
-  }, [fiches]);
+  }, [fiches, evenements]);
 
   const fichesFiltrees = useMemo(() => {
     const texte = recherche.trim().toLowerCase();
@@ -865,17 +1210,82 @@ export default function PlanningChefPage() {
     filtreSalarie,
   ]);
 
-  const fichesParDate = useMemo(() => {
-    const groupes: Record<string, FicheIntervention[]> = {};
+  const evenementsFiltres = useMemo(() => {
+    const texte = recherche.trim().toLowerCase();
+    const aujourdhui = dateLocaleIso();
 
-    for (const fiche of fichesFiltrees) {
-      const date = dateFiche(fiche) || "non_planifiee";
+    return evenements.filter((evenement) => {
+      const affectations = salariesEvenement(evenement.id);
 
-      if (!groupes[date]) {
-        groupes[date] = [];
+      const correspondSalarie =
+        filtreSalarie === "tous" ||
+        affectations.some((item) => `id:${item.salarie_id}` === filtreSalarie);
+
+      const correspondRapide =
+        filtreRapide === "toutes" ||
+        (filtreRapide === "aujourd_hui" && dateDansEvenement(aujourdhui, evenement)) ||
+        (filtreRapide === "a_venir" && evenement.date_fin >= aujourdhui);
+
+      // Les filtres propres aux statuts chantier masquent volontairement
+      // les événements hors chantier.
+      const correspondStatut =
+        filtreStatut === "tous" &&
+        !["en_cours", "terminees", "problemes"].includes(filtreRapide);
+
+      const zoneRecherche = [
+        evenement.titre,
+        evenement.description,
+        evenement.lieu,
+        libelleTypeEvenement(evenement.type_evenement),
+        ...affectations.map((item) => item.salarie_nom || ""),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        correspondSalarie &&
+        correspondRapide &&
+        correspondStatut &&
+        (texte.length === 0 || zoneRecherche.includes(texte))
+      );
+    });
+  }, [
+    evenements,
+    evenementSalaries,
+    recherche,
+    filtreRapide,
+    filtreStatut,
+    filtreSalarie,
+  ]);
+
+  const elementsPlanningFiltres = useMemo<ElementPlanning[]>(() => {
+    return [
+      ...fichesFiltrees.map((fiche) => ({ nature: "fiche" as const, fiche })),
+      ...evenementsFiltres.map((evenement) => ({
+        nature: "evenement" as const,
+        evenement,
+      })),
+    ];
+  }, [fichesFiltrees, evenementsFiltres]);
+
+  const elementsParDate = useMemo(() => {
+    const groupes: Record<string, ElementPlanning[]> = {};
+
+    for (const element of elementsPlanningFiltres) {
+      if (element.nature === "fiche") {
+        const date = dateFiche(element.fiche) || "non_planifiee";
+        if (!groupes[date]) groupes[date] = [];
+        groupes[date].push(element);
+        continue;
       }
 
-      groupes[date].push(fiche);
+      let date = element.evenement.date_debut;
+      while (date <= element.evenement.date_fin) {
+        if (!groupes[date]) groupes[date] = [];
+        groupes[date].push(element);
+        date = ajouterJours(date, 1);
+      }
     }
 
     return Object.entries(groupes).sort(([dateA], [dateB]) => {
@@ -883,7 +1293,7 @@ export default function PlanningChefPage() {
       if (dateB === "non_planifiee") return -1;
       return dateA.localeCompare(dateB);
     });
-  }, [fichesFiltrees]);
+  }, [elementsPlanningFiltres]);
 
   const joursSemaine = useMemo(
     () => construireSemaine(dateReference),
@@ -895,14 +1305,27 @@ export default function PlanningChefPage() {
     [dateReference]
   );
 
-  function fichesPourDate(date: string) {
-    return fichesFiltrees
-      .filter((fiche) => dateFiche(fiche) === date)
-      .sort((a, b) =>
-        (heureDebutFiche(a) || "99:99").localeCompare(
-          heureDebutFiche(b) || "99:99"
-        )
-      );
+  function elementsPlanningPourDate(date: string) {
+    const liste: ElementPlanning[] = [
+      ...fichesFiltrees
+        .filter((fiche) => dateFiche(fiche) === date)
+        .map((fiche) => ({ nature: "fiche" as const, fiche })),
+      ...evenementsFiltres
+        .filter((evenement) => dateDansEvenement(date, evenement))
+        .map((evenement) => ({ nature: "evenement" as const, evenement })),
+    ];
+
+    return liste.sort((a, b) => {
+      const heureA =
+        a.nature === "fiche"
+          ? heureDebutFiche(a.fiche) || "99:99"
+          : heureDebutEvenement(a.evenement);
+      const heureB =
+        b.nature === "fiche"
+          ? heureDebutFiche(b.fiche) || "99:99"
+          : heureDebutEvenement(b.evenement);
+      return heureA.localeCompare(heureB);
+    });
   }
 
   function naviguer(direction: -1 | 1) {
@@ -1220,6 +1643,73 @@ export default function PlanningChefPage() {
     );
   }
 
+  function renduCarteEvenement(
+    evenement: PlanningEvenement,
+    compacte = false
+  ) {
+    const affectations = salariesEvenement(evenement.id);
+
+    return (
+      <article
+        key={`event-${evenement.id}`}
+        className={`relative overflow-hidden rounded-xl border p-2.5 pl-3.5 shadow-sm transition ${classeEvenement(
+          evenement.type_evenement
+        )}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1 ${barreEvenement(
+            evenement.type_evenement
+          )}`}
+        />
+
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-bold text-slate-950">
+              {evenement.journee_entiere
+                ? "Toute la journée"
+                : `${formatHeure(evenement.heure_debut)} · `}
+              {evenement.titre}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] font-medium text-slate-600">
+              {iconeTypeEvenement(evenement.type_evenement)}{" "}
+              {libelleTypeEvenement(evenement.type_evenement)}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => ouvrirEditionEvenement(evenement)}
+            className="shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:bg-white/70 hover:text-slate-900"
+          >
+            Modifier
+          </button>
+        </div>
+
+        {!compacte && (
+          <>
+            {evenement.lieu && (
+              <p className="mt-2 line-clamp-1 text-[10px] text-slate-500">
+                📍 {evenement.lieu}
+              </p>
+            )}
+            {affectations.length > 0 && (
+              <p className="mt-2 line-clamp-1 text-[10px] font-medium text-slate-600">
+                👤 {affectations.map((item) => item.salarie_nom).filter(Boolean).join(", ")}
+              </p>
+            )}
+          </>
+        )}
+      </article>
+    );
+  }
+
+  function renduElementCalendrier(element: ElementPlanning, compacte = false) {
+    return element.nature === "fiche"
+      ? renduCarteCalendrier(element.fiche, compacte)
+      : renduCarteEvenement(element.evenement, compacte);
+  }
+
   function renduCarteListe(fiche: FicheIntervention) {
     const equipe = equipeDeFiche(fiche);
     const terminee = fiche.statut === "terminee";
@@ -1373,7 +1863,7 @@ export default function PlanningChefPage() {
   }
 
   function renduVueJour() {
-    const liste = fichesPourDate(dateReference);
+    const liste = elementsPlanningPourDate(dateReference);
 
     return (
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -1419,7 +1909,7 @@ export default function PlanningChefPage() {
             </div>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-              {liste.map((fiche) => renduCarteCalendrier(fiche))}
+              {liste.map((element) => renduElementCalendrier(element))}
             </div>
           )}
         </div>
@@ -1439,7 +1929,7 @@ export default function PlanningChefPage() {
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
               {joursSemaine.map((date) => {
                 const aujourdhui = date === dateLocaleIso();
-                const liste = fichesPourDate(date);
+                const liste = elementsPlanningPourDate(date);
 
                 return (
                   <button
@@ -1481,7 +1971,7 @@ export default function PlanningChefPage() {
 
             <div className="grid grid-cols-7">
               {joursSemaine.map((date) => {
-                const liste = fichesPourDate(date);
+                const liste = elementsPlanningPourDate(date);
                 const survolee = dateSurvolee === date;
 
                 return (
@@ -1500,7 +1990,7 @@ export default function PlanningChefPage() {
                             : "bg-white"
                     }`}
                   >
-                    {liste.map((fiche) => renduCarteCalendrier(fiche))}
+                    {liste.map((element) => renduElementCalendrier(element))}
 
                     {liste.length === 0 && (
                       <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-200 px-2 text-center text-[10px] text-slate-400">
@@ -1543,7 +2033,7 @@ export default function PlanningChefPage() {
 
         <div className="grid grid-cols-7">
           {joursMois.map((date) => {
-            const liste = fichesPourDate(date);
+            const liste = elementsPlanningPourDate(date);
             const dansMois = date.slice(0, 7) === moisReference;
             const aujourdhui = date === dateLocaleIso();
             const survolee = dateSurvolee === date;
@@ -1594,7 +2084,7 @@ export default function PlanningChefPage() {
                 <div className="space-y-1">
                   {liste
                     .slice(0, 3)
-                    .map((fiche) => renduCarteCalendrier(fiche, true))}
+                    .map((element) => renduElementCalendrier(element, true))}
 
                   {liste.length > 3 && (
                     <button
@@ -1621,17 +2111,17 @@ export default function PlanningChefPage() {
   }
 
   function renduVueListe() {
-    if (fichesFiltrees.length === 0) {
+    if (elementsPlanningFiltres.length === 0) {
       return (
         <section className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
             📅
           </div>
           <p className="mt-4 font-semibold text-slate-900">
-            Aucune intervention trouvée
+            Aucun élément trouvé
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Aucune fiche ne correspond aux filtres ou à la recherche.
+            Aucune intervention ni événement ne correspond aux filtres ou à la recherche.
           </p>
           <Link
             href="/chef/interventions"
@@ -1645,7 +2135,7 @@ export default function PlanningChefPage() {
 
     return (
       <section className="space-y-6">
-        {fichesParDate.map(([date, liste]) => (
+        {elementsParDate.map(([date, liste]) => (
           <section key={date} className="space-y-3">
             <div className="sticky top-2 z-10 rounded-2xl border border-slate-200 bg-slate-50/95 px-4 py-3 shadow-sm backdrop-blur">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -1656,321 +2146,49 @@ export default function PlanningChefPage() {
                 </h2>
 
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  {liste.length} intervention{liste.length > 1 ? "s" : ""}
+                  {liste.length} élément{liste.length > 1 ? "s" : ""}
                 </p>
               </div>
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
-              {liste.map((fiche) => renduCarteListe(fiche))}
+              {liste.map((element) =>
+                element.nature === "fiche"
+                  ? renduCarteListe(element.fiche)
+                  : (
+                    <article
+                      key={`liste-event-${element.evenement.id}`}
+                      className={`relative overflow-hidden rounded-3xl border p-5 pl-6 shadow-sm ${classeEvenement(element.evenement.type_evenement)}`}
+                    >
+                      <span className={`absolute inset-y-0 left-0 w-1.5 ${barreEvenement(element.evenement.type_evenement)}`} />
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                            {iconeTypeEvenement(element.evenement.type_evenement)} {libelleTypeEvenement(element.evenement.type_evenement)}
+                          </p>
+                          <h3 className="mt-1 text-lg font-black text-slate-950">{element.evenement.titre}</h3>
+                          <p className="mt-2 text-sm text-slate-600">
+                            {element.evenement.journee_entiere
+                              ? "Toute la journée"
+                              : `${formatHeure(element.evenement.heure_debut)} → ${formatHeure(element.evenement.heure_fin)}`}
+                            {element.evenement.lieu ? ` · ${element.evenement.lieu}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => ouvrirEditionEvenement(element.evenement)}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                          Modifier
+                        </button>
+                      </div>
+                    </article>
+                  )
+              )}
             </div>
           </section>
         ))}
       </section>
-    );
-  }
-
-  function renduPlanningMobile() {
-    const dates = construireSemaine(
-      dateReference
-    );
-
-    const fichesJour = fichesFiltrees
-      .filter(
-        (fiche) =>
-          dateFiche(fiche) === dateReference
-      )
-      .sort((a, b) =>
-        (heureDebutFiche(a) || "99:99").localeCompare(
-          heureDebutFiche(b) || "99:99"
-        )
-      );
-
-    return (
-      <div className="space-y-4 lg:hidden">
-        <section className="sticky top-2 z-20 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setDateReference(
-                  ajouterJours(dateReference, -1)
-                )
-              }
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-xl font-bold text-slate-600"
-              aria-label="Jour précédent"
-            >
-              ‹
-            </button>
-
-            <div className="min-w-0 flex-1 text-center">
-              <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">
-                Agenda du jour
-              </p>
-              <input
-                type="date"
-                value={dateReference}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    setDateReference(
-                      event.target.value
-                    );
-                  }
-                }}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-bold text-slate-900 outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setDateReference(
-                  ajouterJours(dateReference, 1)
-                )
-              }
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-xl font-bold text-slate-600"
-              aria-label="Jour suivant"
-            >
-              ›
-            </button>
-          </div>
-
-          <div className="mt-3 grid grid-cols-7 gap-1">
-            {dates.map((date) => {
-              const actif =
-                date === dateReference;
-              const nombre = fichesFiltrees.filter(
-                (fiche) =>
-                  dateFiche(fiche) === date
-              ).length;
-
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() =>
-                    setDateReference(date)
-                  }
-                  className={`rounded-xl px-1 py-2 text-center transition ${
-                    actif
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  <span className="block text-[9px] font-bold uppercase">
-                    {formatJourSemaine(date)}
-                  </span>
-                  <span className="mt-0.5 block text-sm font-black">
-                    {formatNumeroJour(date)}
-                  </span>
-                  <span
-                    className={`mt-1 block text-[9px] ${
-                      actif
-                        ? "text-emerald-100"
-                        : "text-slate-400"
-                    }`}
-                  >
-                    {nombre}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50">
-            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-slate-700 [&::-webkit-details-marker]:hidden">
-              Recherche et filtres ▾
-            </summary>
-
-            <div className="grid gap-3 border-t border-slate-200 p-3">
-              <input
-                value={recherche}
-                onChange={(event) =>
-                  setRecherche(
-                    event.target.value
-                  )
-                }
-                placeholder="Client, ville, chantier…"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-emerald-500"
-              />
-
-              <select
-                value={filtreStatut}
-                onChange={(event) =>
-                  setFiltreStatut(
-                    event.target
-                      .value as FiltreStatut
-                  )
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
-              >
-                <option value="tous">
-                  Tous les statuts
-                </option>
-                <option value="brouillon">
-                  Brouillons
-                </option>
-                <option value="planifiee">
-                  Planifiées
-                </option>
-                <option value="en_cours">
-                  En cours
-                </option>
-                <option value="terminee">
-                  Terminées
-                </option>
-                <option value="annulee">
-                  Annulées
-                </option>
-              </select>
-
-              <select
-                value={filtreSalarie}
-                onChange={(event) =>
-                  setFiltreSalarie(
-                    event.target.value
-                  )
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
-              >
-                <option value="tous">
-                  Toute l’équipe
-                </option>
-                {optionsSalaries.map(
-                  (option) => (
-                    <option
-                      key={option.valeur}
-                      value={option.valeur}
-                    >
-                      {option.libelle}
-                    </option>
-                  )
-                )}
-              </select>
-
-              <button
-                type="button"
-                onClick={reinitialiserFiltres}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600"
-              >
-                Réinitialiser les filtres
-              </button>
-            </div>
-          </details>
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <div>
-              <h2 className="font-black capitalize text-slate-950">
-                {formatDate(dateReference)}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {pluraliserIntervention(
-                  fichesJour.length
-                )}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={allerAujourdhui}
-              className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"
-            >
-              Aujourd’hui
-            </button>
-          </div>
-
-          {fichesJour.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-                📅
-              </div>
-              <p className="mt-3 font-bold text-slate-950">
-                Aucun chantier ce jour
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Choisissez une autre date ou
-                modifiez les filtres.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {fichesJour.map((fiche) => {
-                const equipe =
-                  equipeDeFiche(fiche);
-
-                return (
-                  <Link
-                    key={fiche.id}
-                    href={`/chef/interventions/${fiche.id}`}
-                    className="block p-4 transition active:bg-slate-100"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-14 shrink-0 text-center">
-                        <p className="text-sm font-black text-slate-950">
-                          {formatHeure(
-                            heureDebutFiche(fiche)
-                          )}
-                        </p>
-                        <p className="mt-1 text-[10px] text-slate-400">
-                          {formatHeure(
-                            heureFinFiche(fiche)
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="min-w-0 flex-1 border-l-2 border-emerald-300 pl-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-sm font-black text-slate-950">
-                            {titreFiche(fiche)}
-                          </h3>
-
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${badgeStatut(
-                              fiche.statut
-                            )}`}
-                          >
-                            {libelleStatut(
-                              fiche.statut
-                            )}
-                          </span>
-                        </div>
-
-                        <p className="mt-1 truncate text-xs font-semibold text-slate-700">
-                          {fiche.client_nom ||
-                            "Client non renseigné"}
-                        </p>
-
-                        <p className="mt-1 truncate text-xs text-slate-500">
-                          📍 {adresseFiche(fiche)}
-                        </p>
-
-                        <p className="mt-2 truncate text-[10px] text-blue-600">
-                          👥{" "}
-                          {equipe
-                            .map(
-                              (item) =>
-                                item.salarie_nom
-                            )
-                            .filter(Boolean)
-                            .join(", ") ||
-                            fiche.salarie_nom ||
-                            "Non affecté"}
-                        </p>
-                      </div>
-
-                      <span className="text-slate-400">
-                        ›
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
     );
   }
 
@@ -2009,20 +2227,19 @@ export default function PlanningChefPage() {
 
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
-                    Organisation chantier
+                    Organisation générale
                   </p>
                   <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                    Planning chantier
+                    Planning
                   </h1>
-                  <p className="mt-2 hidden max-w-3xl text-sm leading-6 text-slate-500 sm:block">
-                    Organisez les interventions en vue jour, semaine, mois ou
-                    liste. Glissez une fiche vers une autre date pour la
-                    replanifier.
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Centralisez interventions, rendez-vous, congés, absences,
+                    formations et événements internes dans le même planning.
                   </p>
                 </div>
               </div>
 
-              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+              <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto">
                 <Link
                   href="/chef/interventions"
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
@@ -2030,6 +2247,15 @@ export default function PlanningChefPage() {
                   <span aria-hidden="true">＋</span>
                   Nouvelle intervention
                 </Link>
+
+                <button
+                  type="button"
+                  onClick={() => ouvrirNouvelEvenement()}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                >
+                  <span aria-hidden="true">＋</span>
+                  Ajouter au planning
+                </button>
 
                 <button
                   type="button"
@@ -2063,9 +2289,6 @@ export default function PlanningChefPage() {
           </div>
         )}
 
-        {renduPlanningMobile()}
-
-        <div className="hidden space-y-6 lg:block">
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <button
           type="button"
@@ -2295,7 +2518,7 @@ export default function PlanningChefPage() {
         </div>
 
         <div className="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>{pluraliserIntervention(fichesFiltrees.length)} après filtrage</p>
+          <p>{elementsPlanningFiltres.length} élément{elementsPlanningFiltres.length === 1 ? "" : "s"} après filtrage</p>
           <p>
             Glisser-déposer actif pour les fiches brouillon, planifiées et en
             cours.
@@ -2307,7 +2530,125 @@ export default function PlanningChefPage() {
         {vue === "semaine" && renduVueSemaine()}
         {vue === "mois" && renduVueMois()}
         {vue === "liste" && renduVueListe()}
-        </div>
+
+        {modalEvenementOuverte && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3 sm:p-6">
+            <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">Planning</p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    {formEvenement.id ? "Modifier l’élément" : "Ajouter un élément"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalEvenementOuverte(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-lg font-bold text-slate-500 hover:bg-slate-50"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-5 p-5 sm:p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Type</label>
+                    <select
+                      value={formEvenement.type_evenement}
+                      onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, type_evenement: event.target.value as TypeEvenementPlanning }))}
+                      className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="rendez_vous">🤝 Rendez-vous</option>
+                      <option value="conge">🏖️ Congé / vacances</option>
+                      <option value="absence">🚫 Absence</option>
+                      <option value="formation">🎓 Formation</option>
+                      <option value="interne">🏢 Événement interne</option>
+                      <option value="indisponibilite">⛔ Indisponibilité</option>
+                      <option value="autre">📌 Autre</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Titre *</label>
+                    <input
+                      value={formEvenement.titre}
+                      onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, titre: event.target.value }))}
+                      placeholder="Ex. RDV client Dupont, congés Philippe…"
+                      className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Date de début *</label>
+                    <input type="date" value={formEvenement.date_debut} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, date_debut: event.target.value, date_fin: ancien.date_fin < event.target.value ? event.target.value : ancien.date_fin }))} className="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-bold text-slate-700">Date de fin *</label>
+                    <input type="date" value={formEvenement.date_fin} min={formEvenement.date_debut} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, date_fin: event.target.value }))} className="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm" />
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <input type="checkbox" checked={formEvenement.journee_entiere} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, journee_entiere: event.target.checked }))} className="h-5 w-5 rounded border-slate-300" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Toute la journée</p>
+                    <p className="text-xs text-slate-500">Idéal pour congés, absences ou indisponibilités.</p>
+                  </div>
+                </label>
+
+                {!formEvenement.journee_entiere && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div><label className="mb-1.5 block text-sm font-bold text-slate-700">Heure début</label><input type="time" value={formEvenement.heure_debut} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, heure_debut: event.target.value }))} className="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm" /></div>
+                    <div><label className="mb-1.5 block text-sm font-bold text-slate-700">Heure fin</label><input type="time" value={formEvenement.heure_fin} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, heure_fin: event.target.value }))} className="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm" /></div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-700">Lieu</label>
+                  <input value={formEvenement.lieu} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, lieu: event.target.value }))} placeholder="Adresse, dépôt, centre de formation…" className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm" />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-700">Salarié(s) concerné(s)</label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {salariesDisponibles.filter((salarie) => !["archive", "inactif", "supprime"].includes((salarie.statut || "actif").toLowerCase())).map((salarie) => {
+                      const actif = formEvenement.salaries_ids.includes(salarie.id);
+                      return (
+                        <button key={salarie.id} type="button" onClick={() => basculerSalarieEvenement(salarie.id)} className={`rounded-2xl border p-3 text-left text-sm transition ${actif ? "border-emerald-400 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-100" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
+                          <span className="font-bold">{actif ? "✓ " : ""}{nomSalarieDisponible(salarie)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Laissez vide pour un événement général d’entreprise.</p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-slate-700">Description / notes</label>
+                  <textarea rows={4} value={formEvenement.description} onChange={(event) => setFormEvenement((ancien) => ({ ...ancien, description: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" placeholder="Informations utiles…" />
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white p-4 sm:flex-row sm:justify-between sm:px-6">
+                <div>
+                  {formEvenement.id && (
+                    <button type="button" onClick={() => {
+                      const evenement = evenements.find((item) => item.id === formEvenement.id);
+                      if (evenement) void supprimerEvenement(evenement);
+                    }} disabled={enregistrement} className="min-h-11 rounded-xl border border-red-200 px-4 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">Supprimer</button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setModalEvenementOuverte(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-600 hover:bg-slate-50">Annuler</button>
+                  <button type="button" onClick={() => void enregistrerEvenement()} disabled={enregistrement} className="min-h-11 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{enregistrement ? "Enregistrement…" : "Enregistrer"}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

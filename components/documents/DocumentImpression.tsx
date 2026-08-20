@@ -98,6 +98,137 @@ function initialesEntreprise(nom: string) {
     : "AR";
 }
 
+function typeLigne(ligne: LigneDocument) {
+  return String(ligne?.type_ligne || "prestation") === "section"
+    ? "section"
+    : "prestation";
+}
+
+function pourcentage(valeur: unknown) {
+  const resultat = Number(valeur || 0);
+  if (!Number.isFinite(resultat)) return 0;
+  return Math.min(100, Math.max(0, resultat));
+}
+
+function totalBrutLigne(ligne: LigneDocument) {
+  if (typeLigne(ligne) === "section") return 0;
+
+  const totalStocke = Number(ligne.total_brut_ht);
+  if (Number.isFinite(totalStocke) && totalStocke !== 0) {
+    return totalStocke;
+  }
+
+  return (
+    Number(ligne.quantite || 0) *
+    Number(ligne.prix_unitaire_ht || 0)
+  );
+}
+
+function sousTotalSection(
+  lignes: LigneDocument[],
+  indexSection: number
+) {
+  let total = 0;
+
+  for (
+    let index = indexSection + 1;
+    index < lignes.length;
+    index += 1
+  ) {
+    const ligne = lignes[index];
+    if (typeLigne(ligne) === "section") break;
+    total += Number(ligne.total_ht || 0);
+  }
+
+  return Number(total.toFixed(2));
+}
+
+function resumeFinancier(
+  lignes: LigneDocument[],
+  document: DocumentCommercial
+) {
+  const prestations = lignes.filter(
+    (ligne) => typeLigne(ligne) !== "section"
+  );
+
+  const totalBrutHt = prestations.reduce(
+    (total, ligne) => total + totalBrutLigne(ligne),
+    0
+  );
+
+  const totalLignesHt = prestations.reduce(
+    (total, ligne) => total + Number(ligne.total_ht || 0),
+    0
+  );
+
+  const remiseLignes = Math.max(
+    0,
+    totalBrutHt - totalLignesHt
+  );
+
+  const remiseGlobalePourcent = pourcentage(
+    document.remise_globale_pourcent
+  );
+
+  const remiseGlobaleStockee = Number(
+    document.remise_globale_montant || 0
+  );
+
+  const remiseGlobaleMontant =
+    remiseGlobaleStockee > 0
+      ? remiseGlobaleStockee
+      : totalLignesHt * (remiseGlobalePourcent / 100);
+
+  const coefficientGlobal =
+    totalLignesHt > 0
+      ? Math.max(
+          0,
+          (totalLignesHt - remiseGlobaleMontant) /
+            totalLignesHt
+        )
+      : 1;
+
+  const recapMap = new Map<
+    number,
+    { base_ht: number; montant_tva: number }
+  >();
+
+  for (const ligne of prestations) {
+    const taux = Number(ligne.tva || 0);
+    const baseHt =
+      Number(ligne.total_ht || 0) * coefficientGlobal;
+    const montantTva = baseHt * (taux / 100);
+
+    const actuel = recapMap.get(taux) || {
+      base_ht: 0,
+      montant_tva: 0,
+    };
+
+    recapMap.set(taux, {
+      base_ht: actuel.base_ht + baseHt,
+      montant_tva: actuel.montant_tva + montantTva,
+    });
+  }
+
+  return {
+    totalBrutHt: Number(totalBrutHt.toFixed(2)),
+    remiseLignes: Number(remiseLignes.toFixed(2)),
+    remiseGlobalePourcent,
+    remiseGlobaleMontant: Number(
+      remiseGlobaleMontant.toFixed(2)
+    ),
+    recapTva: Array.from(recapMap.entries())
+      .map(([taux, valeur]) => ({
+        taux,
+        base_ht: Number(valeur.base_ht.toFixed(2)),
+        montant_tva: Number(
+          valeur.montant_tva.toFixed(2)
+        ),
+      }))
+      .sort((a, b) => a.taux - b.taux),
+  };
+}
+
 export default function DocumentImpression({
   typeDocument,
   documentId,
@@ -283,6 +414,7 @@ export default function DocumentImpression({
       document.type_facture === "avoir");
 
   const estDevis = typeDocument === "devis";
+  const resume = resumeFinancier(lignes, document);
   const titre = estDevis
     ? "DEVIS"
     : estAvoir
@@ -750,12 +882,19 @@ export default function DocumentImpression({
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr style={enteteTableau}>
-                <th className="px-3 py-3 text-left">Désignation</th>
+                <th className="px-3 py-3 text-left">
+                  Désignation
+                </th>
                 <th className="px-3 py-3 text-right">Qté</th>
                 <th className="px-3 py-3 text-right">Unité</th>
                 <th className="px-3 py-3 text-right">PU HT</th>
+                <th className="px-3 py-3 text-right">
+                  Remise
+                </th>
                 <th className="px-3 py-3 text-right">TVA</th>
-                <th className="px-3 py-3 text-right">Total HT</th>
+                <th className="px-3 py-3 text-right">
+                  Total HT
+                </th>
               </tr>
             </thead>
 
@@ -763,58 +902,133 @@ export default function DocumentImpression({
               {lignes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="border-t border-slate-100 px-3 py-5 text-center text-slate-500"
                   >
                     Aucune ligne renseignée.
                   </td>
                 </tr>
               ) : (
-                lignes.map((ligne, index) => (
-                  <tr
-                    key={ligne.id || index}
-                    className="border-t border-slate-100"
-                  >
-                    <td
-                      className={`px-3 ${
-                        compact ? "py-2" : "py-3"
-                      }`}
-                    >
-                      <p className="font-bold text-slate-900">
-                        {ligne.designation ||
-                          "Ligne sans désignation"}
-                      </p>
-                      {ligne.description && (
-                        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-500">
-                          {ligne.description}
-                        </p>
-                      )}
-                    </td>
+                lignes.map((ligne, index) => {
+                  if (typeLigne(ligne) === "section") {
+                    return (
+                      <tr
+                        key={ligne.id || `section-${index}`}
+                        className="border-t"
+                        style={{
+                          backgroundColor:
+                            design.design_couleur_secondaire,
+                          borderColor:
+                            design.design_couleur_principale,
+                        }}
+                      >
+                        <td
+                          colSpan={5}
+                          className={`px-3 ${
+                            compact ? "py-2" : "py-3"
+                          }`}
+                        >
+                          <p
+                            className="font-black"
+                            style={{
+                              color:
+                                design.design_couleur_principale,
+                            }}
+                          >
+                            {ligne.designation || "Section"}
+                          </p>
 
-                    <td className="px-3 text-right">
-                      {Number(ligne.quantite || 0).toLocaleString(
-                        "fr-FR"
-                      )}
-                    </td>
-                    <td className="px-3 text-right">
-                      {ligne.unite || "u"}
-                    </td>
-                    <td className="px-3 text-right">
-                      {formatMontant(ligne.prix_unitaire_ht)}
-                    </td>
-                    <td className="px-3 text-right">
-                      {Number(ligne.tva || 0)} %
-                    </td>
-                    <td className="px-3 text-right font-bold">
-                      {formatMontant(ligne.total_ht)}
-                    </td>
-                  </tr>
-                ))
+                          {ligne.description && (
+                            <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">
+                              {ligne.description}
+                            </p>
+                          )}
+                        </td>
+
+                        <td
+                          colSpan={2}
+                          className="px-3 text-right"
+                        >
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                            Sous-total HT
+                          </p>
+                          <p
+                            className="mt-1 font-black"
+                            style={{
+                              color:
+                                design.design_couleur_principale,
+                            }}
+                          >
+                            {formatMontant(
+                              sousTotalSection(lignes, index)
+                            )}
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr
+                      key={ligne.id || index}
+                      className="border-t border-slate-100"
+                    >
+                      <td
+                        className={`px-3 ${
+                          compact ? "py-2" : "py-3"
+                        }`}
+                      >
+                        <p className="font-bold text-slate-900">
+                          {ligne.designation ||
+                            "Ligne sans désignation"}
+                        </p>
+                        {ligne.description && (
+                          <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-500">
+                            {ligne.description}
+                          </p>
+                        )}
+                      </td>
+
+                      <td className="px-3 text-right">
+                        {Number(
+                          ligne.quantite || 0
+                        ).toLocaleString("fr-FR")}
+                      </td>
+
+                      <td className="px-3 text-right">
+                        {ligne.unite || "u"}
+                      </td>
+
+                      <td className="px-3 text-right">
+                        {formatMontant(
+                          ligne.prix_unitaire_ht
+                        )}
+                      </td>
+
+                      <td className="px-3 text-right">
+                        {pourcentage(
+                          ligne.remise_pourcent
+                        ) > 0
+                          ? `${pourcentage(
+                              ligne.remise_pourcent
+                            ).toLocaleString("fr-FR")} %`
+                          : "—"}
+                      </td>
+
+                      <td className="px-3 text-right">
+                        {Number(ligne.tva || 0)} %
+                      </td>
+
+                      <td className="px-3 text-right font-bold">
+                        {formatMontant(ligne.total_ht)}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </section>
-
         <section
           className={`mt-7 flex flex-col gap-7 ${
             design.design_position_totaux === "gauche"
@@ -895,15 +1109,90 @@ export default function DocumentImpression({
                 backgroundColor: design.design_couleur_secondaire,
               }}
             >
-              <div className="flex justify-between gap-4 text-sm">
+              {resume.totalBrutHt >
+                Number(document.total_ht || 0) && (
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-slate-500">
+                    Total brut HT
+                  </span>
+                  <span className="font-bold">
+                    {formatMontant(resume.totalBrutHt)}
+                  </span>
+                </div>
+              )}
+
+              {resume.remiseLignes > 0 && (
+                <div className="mt-2 flex justify-between gap-4 text-sm">
+                  <span className="text-emerald-700">
+                    Remises lignes
+                  </span>
+                  <span className="font-bold text-emerald-700">
+                    -{formatMontant(resume.remiseLignes)}
+                  </span>
+                </div>
+              )}
+
+              {resume.remiseGlobaleMontant > 0 && (
+                <div className="mt-2 flex justify-between gap-4 text-sm">
+                  <span className="text-emerald-700">
+                    Remise globale (
+                    {resume.remiseGlobalePourcent.toLocaleString(
+                      "fr-FR"
+                    )}{" "}
+                    %)
+                  </span>
+                  <span className="font-bold text-emerald-700">
+                    -
+                    {formatMontant(
+                      resume.remiseGlobaleMontant
+                    )}
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-2 flex justify-between gap-4 border-t border-slate-200 pt-2 text-sm">
                 <span className="text-slate-500">Total HT</span>
                 <span className="font-bold">
                   {formatMontant(document.total_ht)}
                 </span>
               </div>
 
+              {resume.recapTva.length > 0 && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white/70 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    Récapitulatif TVA
+                  </p>
+
+                  <div className="mt-2 space-y-1.5">
+                    {resume.recapTva.map((ligneTva) => (
+                      <div
+                        key={ligneTva.taux}
+                        className="flex justify-between gap-3 text-[11px]"
+                      >
+                        <span className="text-slate-500">
+                          {ligneTva.taux.toLocaleString(
+                            "fr-FR"
+                          )}{" "}
+                          % · base{" "}
+                          {formatMontant(
+                            ligneTva.base_ht
+                          )}
+                        </span>
+                        <span className="font-bold">
+                          {formatMontant(
+                            ligneTva.montant_tva
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-2 flex justify-between gap-4 text-sm">
-                <span className="text-slate-500">TVA</span>
+                <span className="text-slate-500">
+                  Total TVA
+                </span>
                 <span className="font-bold">
                   {formatMontant(document.total_tva)}
                 </span>

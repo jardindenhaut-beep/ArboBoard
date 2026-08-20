@@ -154,9 +154,9 @@ function nomFichierPdf(
 }
 
 async function renduPdfEnBuffer(
-  element: React.ReactElement
+  element: React.ReactElement<any>
 ) {
-  const resultat = await pdf(element as any).toBuffer();
+  const resultat = await pdf(element).toBuffer();
 
   if (Buffer.isBuffer(resultat)) {
     return resultat;
@@ -551,6 +551,118 @@ function creerStyles(design: DesignDocuments) {
   });
 }
 
+function typeLigneDocument(ligne: Record<string, any>) {
+  return String(ligne?.type_ligne || "prestation") === "section"
+    ? "section"
+    : "prestation";
+}
+
+function pourcentage(valeur: unknown) {
+  const nombre = Number(valeur || 0);
+  if (!Number.isFinite(nombre)) return 0;
+  return Math.min(100, Math.max(0, nombre));
+}
+
+function totalBrutLigne(ligne: Record<string, any>) {
+  if (typeLigneDocument(ligne) === "section") return 0;
+
+  const stocke = Number(ligne.total_brut_ht);
+  if (Number.isFinite(stocke) && stocke !== 0) return stocke;
+
+  return Number(ligne.quantite || 0) * Number(ligne.prix_unitaire_ht || 0);
+}
+
+function sousTotalSectionPdf(
+  lignes: Array<Record<string, any>>,
+  indexSection: number
+) {
+  let total = 0;
+
+  for (let index = indexSection + 1; index < lignes.length; index += 1) {
+    const ligne = lignes[index];
+    if (typeLigneDocument(ligne) === "section") break;
+    total += Number(ligne.total_ht || 0);
+  }
+
+  return Number(total.toFixed(2));
+}
+
+function resumeFinancierPdf(
+  lignes: Array<Record<string, any>>,
+  document: Record<string, any>
+) {
+  const prestations = lignes.filter(
+    (ligne) => typeLigneDocument(ligne) !== "section"
+  );
+
+  const totalBrutHt = prestations.reduce(
+    (total, ligne) => total + totalBrutLigne(ligne),
+    0
+  );
+
+  const totalLignesHt = prestations.reduce(
+    (total, ligne) => total + Number(ligne.total_ht || 0),
+    0
+  );
+
+  const remiseLignes = Math.max(0, totalBrutHt - totalLignesHt);
+  const remiseGlobalePourcent = pourcentage(
+    document.remise_globale_pourcent
+  );
+
+  const remiseGlobaleMontantStocke = Number(
+    document.remise_globale_montant || 0
+  );
+
+  const remiseGlobaleMontant =
+    remiseGlobaleMontantStocke > 0
+      ? remiseGlobaleMontantStocke
+      : totalLignesHt * (remiseGlobalePourcent / 100);
+
+  const coefficientGlobal =
+    totalLignesHt > 0
+      ? Math.max(
+          0,
+          (totalLignesHt - remiseGlobaleMontant) / totalLignesHt
+        )
+      : 1;
+
+  const recap = new Map<
+    number,
+    { base_ht: number; montant_tva: number }
+  >();
+
+  for (const ligne of prestations) {
+    const taux = Number(ligne.tva || 0);
+    const base =
+      Number(ligne.total_ht || 0) * coefficientGlobal;
+    const montantTva = base * (taux / 100);
+    const actuel = recap.get(taux) || {
+      base_ht: 0,
+      montant_tva: 0,
+    };
+
+    recap.set(taux, {
+      base_ht: actuel.base_ht + base,
+      montant_tva: actuel.montant_tva + montantTva,
+    });
+  }
+
+  return {
+    totalBrutHt: Number(totalBrutHt.toFixed(2)),
+    remiseLignes: Number(remiseLignes.toFixed(2)),
+    remiseGlobalePourcent,
+    remiseGlobaleMontant: Number(remiseGlobaleMontant.toFixed(2)),
+    recapTva: Array.from(recap.entries())
+      .map(([taux, valeur]) => ({
+        taux,
+        base_ht: Number(valeur.base_ht.toFixed(2)),
+        montant_tva: Number(valeur.montant_tva.toFixed(2)),
+      }))
+      .sort((a, b) => a.taux - b.taux),
+  };
+}
+
 function DocumentPdf({
   typeDocument,
   entreprise,
@@ -563,6 +675,7 @@ function DocumentPdf({
   const styles = creerStyles(design);
   const estDevis = typeDocument === "devis";
   const estAvoir = typeDocument === "avoir";
+  const resumeFinancier = resumeFinancierPdf(lignes, document);
 
   const adresseEntreprise = adresseComplete(
     entreprise.adresse,
@@ -826,13 +939,13 @@ function DocumentPdf({
 
         <View style={styles.tableWrap}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.th, { width: "38%" }]}>
+            <Text style={[styles.th, { width: "32%" }]}>
               Désignation
             </Text>
             <Text
               style={[
                 styles.th,
-                { width: "9%", textAlign: "right" },
+                { width: "8%", textAlign: "right" },
               ]}
             >
               Qté
@@ -840,7 +953,7 @@ function DocumentPdf({
             <Text
               style={[
                 styles.th,
-                { width: "9%", textAlign: "right" },
+                { width: "8%", textAlign: "right" },
               ]}
             >
               Unité
@@ -848,7 +961,7 @@ function DocumentPdf({
             <Text
               style={[
                 styles.th,
-                { width: "15%", textAlign: "right" },
+                { width: "14%", textAlign: "right" },
               ]}
             >
               PU HT
@@ -857,6 +970,14 @@ function DocumentPdf({
               style={[
                 styles.th,
                 { width: "10%", textAlign: "right" },
+              ]}
+            >
+              Remise
+            </Text>
+            <Text
+              style={[
+                styles.th,
+                { width: "9%", textAlign: "right" },
               ]}
             >
               TVA
@@ -878,77 +999,168 @@ function DocumentPdf({
               </Text>
             </View>
           ) : (
-            lignes.map((ligne, index) => (
-              <View
-                key={ligne.id || index}
-                style={styles.row}
-                wrap={false}
-              >
-                <View style={[styles.cell, { width: "38%" }]}>
-                  <Text style={styles.designation}>
-                    {texte(
-                      ligne.designation,
-                      "Ligne sans désignation"
-                    )}
+            lignes.map((ligne, index) => {
+              if (typeLigneDocument(ligne) === "section") {
+                return (
+                  <View
+                    key={ligne.id || `section-${index}`}
+                    style={[
+                      styles.row,
+                      {
+                        backgroundColor:
+                          design.design_couleur_secondaire,
+                        borderBottomColor:
+                          design.design_couleur_principale,
+                        minHeight: 30,
+                      },
+                    ]}
+                    wrap={false}
+                  >
+                    <View
+                      style={[
+                        styles.cell,
+                        { width: "76%" },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.designation,
+                          {
+                            color:
+                              design.design_couleur_principale,
+                          },
+                        ]}
+                      >
+                        {texte(ligne.designation, "Section")}
+                      </Text>
+
+                      {ligne.description ? (
+                        <Text style={styles.description}>
+                          {ligne.description}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <View
+                      style={[
+                        styles.cell,
+                        {
+                          width: "24%",
+                          textAlign: "right",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 6.8,
+                          color: "#64748b",
+                        }}
+                      >
+                        Sous-total HT
+                      </Text>
+                      <Text
+                        style={{
+                          marginTop: 2,
+                          fontSize: 9,
+                          fontWeight: "bold",
+                          color:
+                            design.design_couleur_principale,
+                        }}
+                      >
+                        {formatMontant(
+                          sousTotalSectionPdf(lignes, index)
+                        )}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+
+              return (
+                <View
+                  key={ligne.id || index}
+                  style={styles.row}
+                  wrap={false}
+                >
+                  <View style={[styles.cell, { width: "32%" }]}>
+                    <Text style={styles.designation}>
+                      {texte(
+                        ligne.designation,
+                        "Ligne sans désignation"
+                      )}
+                    </Text>
+
+                    {ligne.description ? (
+                      <Text style={styles.description}>
+                        {ligne.description}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.cell,
+                      { width: "8%", textAlign: "right" },
+                    ]}
+                  >
+                    {formatNombre(ligne.quantite)}
                   </Text>
 
-                  {ligne.description ? (
-                    <Text style={styles.description}>
-                      {ligne.description}
-                    </Text>
-                  ) : null}
+                  <Text
+                    style={[
+                      styles.cell,
+                      { width: "8%", textAlign: "right" },
+                    ]}
+                  >
+                    {texte(ligne.unite, "u")}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.cell,
+                      { width: "14%", textAlign: "right" },
+                    ]}
+                  >
+                    {formatMontant(ligne.prix_unitaire_ht)}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.cell,
+                      { width: "10%", textAlign: "right" },
+                    ]}
+                  >
+                    {pourcentage(ligne.remise_pourcent) > 0
+                      ? `${formatNombre(
+                          pourcentage(ligne.remise_pourcent)
+                        )} %`
+                      : "-"}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.cell,
+                      { width: "9%", textAlign: "right" },
+                    ]}
+                  >
+                    {formatNombre(ligne.tva)} %
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.cell,
+                      {
+                        width: "19%",
+                        textAlign: "right",
+                        fontWeight: "bold",
+                      },
+                    ]}
+                  >
+                    {formatMontant(ligne.total_ht)}
+                  </Text>
                 </View>
-
-                <Text
-                  style={[
-                    styles.cell,
-                    { width: "9%", textAlign: "right" },
-                  ]}
-                >
-                  {formatNombre(ligne.quantite)}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cell,
-                    { width: "9%", textAlign: "right" },
-                  ]}
-                >
-                  {texte(ligne.unite, "u")}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cell,
-                    { width: "15%", textAlign: "right" },
-                  ]}
-                >
-                  {formatMontant(ligne.prix_unitaire_ht)}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cell,
-                    { width: "10%", textAlign: "right" },
-                  ]}
-                >
-                  {formatNombre(ligne.tva)} %
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cell,
-                    {
-                      width: "19%",
-                      textAlign: "right",
-                      fontWeight: "bold",
-                    },
-                  ]}
-                >
-                  {formatMontant(ligne.total_ht)}
-                </Text>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 
@@ -1002,12 +1214,67 @@ function DocumentPdf({
 
           <View style={styles.totaux}>
             <View style={styles.totalCard}>
+              {resumeFinancier.totalBrutHt >
+              Number(document.total_ht || 0) ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    Total brut HT
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    {formatMontant(resumeFinancier.totalBrutHt)}
+                  </Text>
+                </View>
+              ) : null}
+
+              {resumeFinancier.remiseLignes > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    Remises lignes
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    -{formatMontant(resumeFinancier.remiseLignes)}
+                  </Text>
+                </View>
+              ) : null}
+
+              {resumeFinancier.remiseGlobaleMontant > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    Remise globale (
+                    {formatNombre(
+                      resumeFinancier.remiseGlobalePourcent
+                    )}{" "}
+                    %)
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    -{formatMontant(
+                      resumeFinancier.remiseGlobaleMontant
+                    )}
+                  </Text>
+                </View>
+              ) : null}
+
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total HT</Text>
                 <Text style={styles.totalValue}>
                   {formatMontant(document.total_ht)}
                 </Text>
               </View>
+
+              {resumeFinancier.recapTva.map((ligneTva) => (
+                <View
+                  key={`tva-${ligneTva.taux}`}
+                  style={styles.totalRow}
+                >
+                  <Text style={styles.totalLabel}>
+                    TVA {formatNombre(ligneTva.taux)} % · base{" "}
+                    {formatMontant(ligneTva.base_ht)}
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    {formatMontant(ligneTva.montant_tva)}
+                  </Text>
+                </View>
+              ))}
 
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total TVA</Text>

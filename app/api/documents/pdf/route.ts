@@ -214,6 +214,8 @@ export async function POST(request: NextRequest) {
             "total_ht",
             "total_tva",
             "total_ttc",
+            "remise_globale_pourcent",
+            "remise_globale_montant",
           ].join(", ")
         )
         .eq("id", documentId)
@@ -243,13 +245,17 @@ export async function POST(request: NextRequest) {
         .select(
           [
             "id",
+            "type_ligne",
             "designation",
             "description",
             "quantite",
             "unite",
             "prix_unitaire_ht",
+            "remise_pourcent",
+            "total_brut_ht",
             "tva",
             "total_ht",
+            "total_tva",
             "total_ttc",
             "ordre",
           ].join(", ")
@@ -295,6 +301,8 @@ export async function POST(request: NextRequest) {
             "total_ht",
             "total_tva",
             "total_ttc",
+            "remise_globale_pourcent",
+            "remise_globale_montant",
             "montant_paye",
             "reste_a_payer",
           ].join(", ")
@@ -345,13 +353,17 @@ export async function POST(request: NextRequest) {
         .select(
           [
             "id",
+            "type_ligne",
             "designation",
             "description",
             "quantite",
             "unite",
             "prix_unitaire_ht",
+            "remise_pourcent",
+            "total_brut_ht",
             "tva",
             "total_ht",
+            "total_tva",
             "total_ttc",
             "ordre",
           ].join(", ")

@@ -936,7 +936,7 @@ export default function DetailFicheInterventionPage() {
       categorie === "materiel" || categorie === "materiaux";
 
     return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section key={categorie} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl">
             {icone}

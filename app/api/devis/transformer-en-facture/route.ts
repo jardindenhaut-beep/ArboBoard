@@ -114,7 +114,10 @@ export async function POST(request: NextRequest) {
       );
 
       return reponseErreur(
-        "Impossible de transformer le devis en facture.",
+        rpcError.message ||
+          rpcError.details ||
+          rpcError.hint ||
+          "Impossible de transformer le devis en facture.",
         400
       );
     }

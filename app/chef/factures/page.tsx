@@ -1109,7 +1109,7 @@ function ContenuPageFactures() {
         client_id: form.client_id || null,
         client_nom: clientNom,
         numero: numeroFinal,
-        objet: form.objet.trim() || null,
+        objet: form.objet.trim(),
         description: form.description.trim() || null,
         adresse_chantier: form.adresse_chantier.trim() || null,
         code_postal_chantier: form.code_postal_chantier.trim() || null,

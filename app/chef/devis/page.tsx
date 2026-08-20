@@ -1138,7 +1138,7 @@ function ContenuPageDevis() {
         client_id: form.client_id || null,
         client_nom: clientNom,
         numero: numeroFinal,
-        objet: form.objet.trim() || null,
+        objet: form.objet.trim(),
         description: form.description.trim() || null,
         adresse_chantier: form.adresse_chantier.trim() || null,
         code_postal_chantier: form.code_postal_chantier.trim() || null,
@@ -1256,26 +1256,33 @@ function ContenuPageDevis() {
   }
 
   async function changerStatut(item: Devis, statut: string) {
-    try {
-      setMessageErreur("");
-      setMessageSucces("");
+    setMessageErreur("");
+    setMessageSucces("");
 
-      const { error } = await supabase
-        .from("devis")
-        .update({ statut })
-        .eq("id", item.id)
-        .eq("entreprise_id", item.entreprise_id);
+    const { error } = await supabase
+      .from("devis")
+      .update({ statut })
+      .eq("id", item.id)
+      .eq("entreprise_id", item.entreprise_id);
 
-      if (error) throw error;
-
-      setMessageSucces(
-        `Devis marqué comme ${libelleStatut(statut).toLowerCase()}.`
+    if (error) {
+      const message = messageErreurSupabase(
+        error,
+        "Impossible de modifier le statut."
       );
-      await chargerDevis();
-    } catch (error: any) {
-      console.error("Erreur changement statut devis :", error);
-      setMessageErreur(error?.message || "Impossible de modifier le statut.");
+
+      console.warn("Erreur changement statut devis :", {
+        message,
+        error,
+      });
+      setMessageErreur(message);
+      return;
     }
+
+    setMessageSucces(
+      `Devis marqué comme ${libelleStatut(statut).toLowerCase()}.`
+    );
+    await chargerDevis();
   }
 
   async function transformerEnFacture(item: Devis) {
@@ -1307,9 +1314,17 @@ function ContenuPageDevis() {
       const resultat = await response.json().catch(() => null);
 
       if (!response.ok || !resultat?.success) {
-        throw new Error(
-          resultat?.error || "Impossible de transformer le devis en facture."
-        );
+        const message =
+          resultat?.error ||
+          "Impossible de transformer le devis en facture.";
+
+        console.warn("Erreur transformation devis en facture :", {
+          status: response.status,
+          message,
+          resultat,
+        });
+        setMessageErreur(message);
+        return;
       }
 
       setMessageSucces(
@@ -1318,11 +1333,17 @@ function ContenuPageDevis() {
       );
 
       await chargerDevis();
-    } catch (error: any) {
-      console.error("Erreur transformation devis en facture :", error);
-      setMessageErreur(
-        error?.message || "Impossible de transformer le devis en facture."
+    } catch (error: unknown) {
+      const message = messageErreurSupabase(
+        error,
+        "Impossible de transformer le devis en facture."
       );
+
+      console.warn("Erreur transformation devis en facture :", {
+        message,
+        error,
+      });
+      setMessageErreur(message);
     } finally {
       setChargementAction(false);
     }
@@ -2990,6 +3011,45 @@ function ChargementPageDevis() {
       </div>
     </div>
   );
+}
+
+function messageErreurSupabase(
+  error: unknown,
+  fallback: string
+) {
+  if (!error) return fallback;
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  if (typeof error === "object") {
+    const objet = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const morceaux = [
+      objet.message,
+      objet.details,
+      objet.hint,
+      typeof objet.code === "string" ? `Code ${objet.code}` : null,
+    ]
+      .filter(
+        (valeur): valeur is string =>
+          typeof valeur === "string" &&
+          valeur.trim().length > 0
+      )
+      .map((valeur) => valeur.trim());
+
+    if (morceaux.length > 0) {
+      return Array.from(new Set(morceaux)).join(" · ");
+    }
+  }
+
+  return fallback;
 }
 
 export default function PageDevis() {

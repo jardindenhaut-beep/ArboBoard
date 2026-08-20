@@ -220,6 +220,45 @@ function SignaturePad({
   );
 }
 
+function messageErreurSupabase(
+  error: unknown,
+  fallback: string
+) {
+  if (!error) return fallback;
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  if (typeof error === "object") {
+    const objet = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const morceaux = [
+      objet.message,
+      objet.details,
+      objet.hint,
+      objet.code ? `Code ${objet.code}` : null,
+    ]
+      .filter(
+        (valeur): valeur is string =>
+          typeof valeur === "string" &&
+          valeur.trim().length > 0
+      )
+      .map((valeur) => valeur.trim());
+
+    if (morceaux.length > 0) {
+      return Array.from(new Set(morceaux)).join(" · ");
+    }
+  }
+
+  return fallback;
+}
+
 function formatDateHeure(date: string | null | undefined) {
   if (!date) return "";
 
@@ -403,7 +442,7 @@ export default function BlocPvFinChantier({
         pvCharge.client_email?.trim() || emailClientSource
       );
     } catch (error: any) {
-      console.error("Erreur chargement PV fin chantier :", error);
+      console.warn("Erreur chargement PV fin chantier :", error);
       setMessageErreur(
         error?.message || "Impossible de charger le PV de fin de chantier."
       );
@@ -427,13 +466,13 @@ export default function BlocPvFinChantier({
         .maybeSingle();
 
       if (error) {
-        console.error("Erreur chargement email client PV :", error);
+        console.warn("Erreur chargement email client PV :", error);
         return "";
       }
 
       return data?.email?.trim() || "";
     } catch (error) {
-      console.error("Erreur chargement email client PV :", error);
+      console.warn("Erreur chargement email client PV :", error);
       return "";
     }
   }
@@ -610,12 +649,18 @@ export default function BlocPvFinChantier({
       setPv(pvEnregistre);
       setClientEmailCharge(pvEnregistre?.client_email || "");
       setMessageSucces("PV de fin de chantier enregistré.");
-    } catch (error: any) {
-      console.error("Erreur enregistrement PV fin chantier :", error);
-      setMessageErreur(
-        error?.message ||
-          "Impossible d’enregistrer le PV de fin de chantier."
+    } catch (error: unknown) {
+      const message = messageErreurSupabase(
+        error,
+        "Impossible d’enregistrer le PV de fin de chantier."
       );
+
+      console.warn("Erreur enregistrement PV fin chantier :", {
+        message,
+        error,
+      });
+
+      setMessageErreur(message);
     } finally {
       setEnregistrement(false);
     }
@@ -670,7 +715,7 @@ export default function BlocPvFinChantier({
       setSignataireEntreprise(signataireEntrepriseNom || "");
       setMessageSucces("PV supprimé.");
     } catch (error: any) {
-      console.error("Erreur suppression PV fin chantier :", error);
+      console.warn("Erreur suppression PV fin chantier :", error);
       setMessageErreur(
         error?.message || "Impossible de supprimer le PV de fin de chantier."
       );

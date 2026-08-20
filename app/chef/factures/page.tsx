@@ -8,9 +8,14 @@ import { chargerParametresEntrepriseClient } from "@/lib/parametresEntrepriseCli
 
 import BoutonEnvoyerDocumentEmail from "@/components/documents/BoutonEnvoyerDocumentEmail";
 import HistoriqueEmailsDocument from "@/components/documents/HistoriqueEmailsDocument";
+import BoutonEncaisserFacture from "@/components/documents/BoutonEncaisserFacture";
+import HistoriquePaiementsFacture from "@/components/documents/HistoriquePaiementsFacture";
+import BoutonCreerAvoirFacture from "@/components/documents/BoutonCreerAvoirFacture";
+import HistoriqueAvoirsFacture from "@/components/documents/HistoriqueAvoirsFacture";
+import BoutonRelancerFacture from "@/components/documents/BoutonRelancerFacture";
 import BoutonTelechargerDocumentPdf from "@/components/documents/BoutonTelechargerDocumentPdf";
 import ChampNumeroDocumentVerrouille from "@/components/documents/ChampNumeroDocumentVerrouille";
-import BoutonCreerFicheInterventionDepuisDevis from "@/components/devis/BoutonCreerFicheInterventionDepuisDevis";
+import BoutonDemandePaiementUrssaf from "@/components/urssaf/BoutonDemandePaiementUrssaf";
 
 type Client = {
   id: string;
@@ -29,27 +34,7 @@ type Client = {
   notes_chantier?: string | null;
 };
 
-type FactureLiee = {
-  id: string;
-  devis_id?: string | null;
-  numero?: string | null;
-  statut?: string | null;
-};
-
-type FicheInterventionLiee = {
-  id: string;
-  devis_id: string | null;
-  numero?: string | null;
-  titre?: string | null;
-  type_intervention?: string | null;
-  statut?: string | null;
-  date_prevue?: string | null;
-  date_intervention?: string | null;
-  client_nom?: string | null;
-  created_at?: string | null;
-};
-
-type Devis = {
+type Facture = {
   id: string;
   entreprise_id: string;
   client_id?: string | null;
@@ -61,20 +46,26 @@ type Devis = {
   code_postal_chantier?: string | null;
   ville_chantier?: string | null;
   notes_chantier?: string | null;
-  date_devis?: string | null;
-  date_validite?: string | null;
+  date_facture?: string | null;
+  date_echeance?: string | null;
   statut?: string | null;
+  type_facture?: string | null;
   total_ht?: number | null;
   total_tva?: number | null;
   total_ttc?: number | null;
   remise_globale_pourcent?: number | null;
   remise_globale_montant?: number | null;
+  montant_paye?: number | null;
+  reste_a_payer?: number | null;
   conditions?: string | null;
+  est_avoir?: boolean | null;
+  facture_origine_id?: string | null;
+  devis_id?: string | null;
+  motif_avoir?: string | null;
+  avoir_annule_facture?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
   client?: Client | null;
-  facture_liee?: FactureLiee | null;
-  fiches_liees?: FicheInterventionLiee[];
 };
 
 type CategoriePrestation = {
@@ -100,7 +91,7 @@ type PrestationCatalogue = {
   categorie?: CategoriePrestation | null;
 };
 
-type LigneDevisForm = {
+type LigneFactureForm = {
   id?: string;
   type_ligne: "prestation" | "section";
   prestation_tarif_id?: string | null;
@@ -120,7 +111,7 @@ type LigneDevisForm = {
   total_ttc: number;
 };
 
-type FormDevis = {
+type FormFacture = {
   client_id: string;
   numero: string;
   objet: string;
@@ -129,22 +120,23 @@ type FormDevis = {
   code_postal_chantier: string;
   ville_chantier: string;
   notes_chantier: string;
-  date_devis: string;
-  date_validite: string;
-  statut: "brouillon" | "envoye";
+  date_facture: string;
+  date_echeance: string;
+  statut: "brouillon" | "envoyee";
+  type_facture: "simple" | "acompte" | "solde";
   conditions: string;
   remise_globale_pourcent: number;
 };
 
 type ModeEnregistrementDocument = "brouillon" | "apercu" | "finaliser";
 
-type FiltreDevis =
-  | "tous"
+type FiltreFactures =
+  | "toutes"
   | "brouillon"
-  | "envoye"
-  | "accepte"
-  | "facture"
-  | "refuse"
+  | "envoyee"
+  | "en_retard"
+  | "payee"
+  | "avoirs"
   | "archive";
 
 function dateAujourdhui() {
@@ -157,7 +149,7 @@ function ajouterJours(dateIso: string, jours: number) {
   return date.toISOString().slice(0, 10);
 }
 
-const formVide: FormDevis = {
+const formVide: FormFacture = {
   client_id: "",
   numero: "",
   objet: "",
@@ -166,9 +158,10 @@ const formVide: FormDevis = {
   code_postal_chantier: "",
   ville_chantier: "",
   notes_chantier: "",
-  date_devis: dateAujourdhui(),
-  date_validite: ajouterJours(dateAujourdhui(), 30),
+  date_facture: dateAujourdhui(),
+  date_echeance: ajouterJours(dateAujourdhui(), 30),
   statut: "brouillon",
+  type_facture: "simple",
   conditions: "",
   remise_globale_pourcent: 0,
 };
@@ -194,8 +187,8 @@ function formatDate(date: string | null | undefined) {
   }
 }
 
-function nomClient(client?: Client | null, devis?: Devis | null) {
-  if (devis?.client_nom) return devis.client_nom;
+function nomClient(client?: Client | null, facture?: Facture | null) {
+  if (facture?.client_nom) return facture.client_nom;
 
   if (!client) return "Client non renseigné";
 
@@ -212,13 +205,17 @@ function nomClient(client?: Client | null, devis?: Devis | null) {
   );
 }
 
+function estAvoirFacture(facture: Facture) {
+  return !!facture.est_avoir || facture.type_facture === "avoir";
+}
+
 function libelleStatut(statut?: string | null) {
   if (statut === "brouillon") return "Brouillon";
-  if (statut === "envoye") return "Envoyé";
-  if (statut === "accepte") return "Accepté";
-  if (statut === "facture") return "Facturé";
-  if (statut === "refuse") return "Refusé";
-  if (statut === "archive") return "Archivé";
+  if (statut === "envoyee") return "Envoyée";
+  if (statut === "payee") return "Payée";
+  if (statut === "en_retard") return "En retard";
+  if (statut === "annulee") return "Annulée";
+  if (statut === "archive") return "Archivée";
   return "Inconnu";
 }
 
@@ -227,20 +224,20 @@ function classeStatut(statut?: string | null) {
     return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
-  if (statut === "envoye") {
+  if (statut === "envoyee") {
     return "border-blue-200 bg-blue-50 text-blue-700";
   }
 
-  if (statut === "accepte") {
+  if (statut === "payee") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (statut === "facture") {
-    return "border-purple-200 bg-purple-50 text-purple-700";
+  if (statut === "en_retard") {
+    return "border-red-200 bg-red-50 text-red-700";
   }
 
-  if (statut === "refuse") {
-    return "border-red-200 bg-red-50 text-red-700";
+  if (statut === "annulee") {
+    return "border-purple-200 bg-purple-50 text-purple-700";
   }
 
   if (statut === "archive") {
@@ -248,6 +245,13 @@ function classeStatut(statut?: string | null) {
   }
 
   return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function libelleTypeFacture(type?: string | null) {
+  if (type === "acompte") return "Acompte";
+  if (type === "solde") return "Solde";
+  if (type === "avoir") return "Avoir";
+  return "Facture";
 }
 
 function normaliserRechercheCatalogue(valeur: string) {
@@ -274,7 +278,7 @@ function uniteDocumentDepuisReference(reference: string | null | undefined) {
   return reference?.trim() || "u";
 }
 
-function ligneVide(tvaDefaut = 20): LigneDevisForm {
+function ligneVide(tvaDefaut = 20): LigneFactureForm {
   return {
     type_ligne: "prestation",
     prestation_tarif_id: null,
@@ -295,7 +299,7 @@ function ligneVide(tvaDefaut = 20): LigneDevisForm {
   };
 }
 
-function ligneSectionVide(): LigneDevisForm {
+function ligneSectionVide(): LigneFactureForm {
   return {
     type_ligne: "section",
     prestation_tarif_id: null,
@@ -322,7 +326,7 @@ function bornerPourcentage(valeur: unknown) {
   return Math.min(100, Math.max(0, nombre));
 }
 
-function recalculerLigne(ligne: LigneDevisForm): LigneDevisForm {
+function recalculerLigne(ligne: LigneFactureForm): LigneFactureForm {
   if (ligne.type_ligne === "section") {
     return {
       ...ligne,
@@ -367,7 +371,7 @@ function recalculerLigne(ligne: LigneDevisForm): LigneDevisForm {
 }
 
 function calculerTotaux(
-  lignes: LigneDevisForm[],
+  lignes: LigneFactureForm[],
   remiseGlobalePourcent = 0
 ) {
   const lignesCalculees = lignes.map(recalculerLigne);
@@ -434,7 +438,7 @@ function calculerTotaux(
   };
 }
 
-function sousTotalSection(lignes: LigneDevisForm[], indexSection: number) {
+function sousTotalSection(lignes: LigneFactureForm[], indexSection: number) {
   let total = 0;
 
   for (let index = indexSection + 1; index < lignes.length; index += 1) {
@@ -465,10 +469,10 @@ function champsChantierDepuisClient(client?: Client | null) {
   };
 }
 
-function adresseChantierTexte(item: Devis) {
+function adresseChantierTexte(facture: Facture) {
   return [
-    item.adresse_chantier,
-    [item.code_postal_chantier, item.ville_chantier]
+    facture.adresse_chantier,
+    [facture.code_postal_chantier, facture.ville_chantier]
       .filter(Boolean)
       .join(" "),
   ]
@@ -476,94 +480,66 @@ function adresseChantierTexte(item: Devis) {
     .join(" ");
 }
 
-function iconeStatut(statut?: string | null) {
-  if (statut === "brouillon") return "📝";
-  if (statut === "envoye") return "✉️";
-  if (statut === "accepte") return "✅";
-  if (statut === "facture") return "🧾";
-  if (statut === "refuse") return "⛔";
-  if (statut === "archive") return "🗄️";
-  return "📄";
+function iconeStatutFacture(facture: Facture) {
+  if (estAvoirFacture(facture)) return "↩️";
+  if (facture.statut === "brouillon") return "📝";
+  if (facture.statut === "envoyee") return "✉️";
+  if (facture.statut === "payee") return "✅";
+  if (facture.statut === "en_retard") return "⏰";
+  if (facture.statut === "annulee") return "⛔";
+  if (facture.statut === "archive") return "🗄️";
+  return "🧾";
 }
 
-function barreStatut(statut?: string | null) {
-  if (statut === "brouillon") return "bg-slate-400";
-  if (statut === "envoye") return "bg-blue-500";
-  if (statut === "accepte") return "bg-emerald-600";
-  if (statut === "facture") return "bg-purple-600";
-  if (statut === "refuse") return "bg-red-500";
-  if (statut === "archive") return "bg-zinc-400";
+function barreStatutFacture(facture: Facture) {
+  if (estAvoirFacture(facture)) return "bg-purple-600";
+  if (facture.statut === "brouillon") return "bg-slate-400";
+  if (facture.statut === "envoyee") return "bg-blue-500";
+  if (facture.statut === "payee") return "bg-emerald-600";
+  if (facture.statut === "en_retard") return "bg-red-500";
+  if (facture.statut === "annulee") return "bg-purple-500";
+  if (facture.statut === "archive") return "bg-zinc-400";
   return "bg-slate-300";
 }
 
-function dateDepassee(date?: string | null) {
-  if (!date) return false;
+function resteAPayerFacture(facture: Facture) {
+  if (estAvoirFacture(facture)) return 0;
 
-  try {
-    const aujourdHui = new Date();
-    aujourdHui.setHours(0, 0, 0, 0);
-
-    const dateValidite = new Date(`${date.slice(0, 10)}T00:00:00`);
-
-    return dateValidite.getTime() < aujourdHui.getTime();
-  } catch {
-    return false;
-  }
-}
-
-function libelleStatutFiche(statut?: string | null) {
-  if (statut === "planifiee") return "Planifiée";
-  if (statut === "en_cours") return "En cours";
-  if (statut === "terminee") return "Terminée";
-  if (statut === "annulee") return "Annulée";
-  if (statut === "archivee") return "Archivée";
-  return "Brouillon";
-}
-
-function classeStatutFiche(statut?: string | null) {
-  if (statut === "planifiee") {
-    return "border-blue-200 bg-blue-50 text-blue-700";
+  if (
+    facture.reste_a_payer !== null &&
+    facture.reste_a_payer !== undefined
+  ) {
+    return Math.max(0, Number(facture.reste_a_payer || 0));
   }
 
-  if (statut === "en_cours") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (statut === "terminee") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (statut === "annulee") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (statut === "archivee") {
-    return "border-slate-200 bg-slate-100 text-slate-600";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-700";
-}
-
-function titreFicheLiee(fiche: FicheInterventionLiee) {
-  return (
-    fiche.titre ||
-    fiche.type_intervention ||
-    fiche.numero ||
-    "Fiche d’intervention"
+  return Math.max(
+    0,
+    Number(facture.total_ttc || 0) - Number(facture.montant_paye || 0)
   );
 }
 
-function ContenuPageDevis() {
+function progressionPaiementFacture(facture: Facture) {
+  const totalTtc = Math.max(0, Number(facture.total_ttc || 0));
+  const montantPaye = Math.max(0, Number(facture.montant_paye || 0));
+
+  if (totalTtc <= 0) return facture.statut === "payee" ? 100 : 0;
+
+  return Math.min(100, Math.max(0, (montantPaye / totalTtc) * 100));
+}
+
+function ContenuPageFactures() {
   const searchParams = useSearchParams();
-  const devisSelectionneId = searchParams.get("devisId");
+  const factureSelectionneeId = searchParams.get("factureId");
+
   const [entrepriseId, setEntrepriseId] = useState("");
-  const [devis, setDevis] = useState<Devis[]>([]);
+  const [factures, setFactures] = useState<Facture[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [prestationsCatalogue, setPrestationsCatalogue] = useState<PrestationCatalogue[]>([]);
   const [rechercheCatalogue, setRechercheCatalogue] = useState("");
 
   const [tvaDefaut, setTvaDefaut] = useState(20);
-  const [conditionsDevisDefaut, setConditionsDevisDefaut] = useState("");
+  const [delaiPaiementDefaut, setDelaiPaiementDefaut] = useState(30);
+  const [conditionsFacturesDefaut, setConditionsFacturesDefaut] = useState("");
 
   const [chargement, setChargement] = useState(true);
   const [chargementAction, setChargementAction] = useState(false);
@@ -571,14 +547,14 @@ function ContenuPageDevis() {
   const [messageSucces, setMessageSucces] = useState("");
 
   const [recherche, setRecherche] = useState("");
-  const [filtre, setFiltre] = useState<FiltreDevis>("tous");
+  const [filtre, setFiltre] = useState<FiltreFactures>("toutes");
 
   const [modalOuverte, setModalOuverte] = useState(false);
-  const [devisEdition, setDevisEdition] = useState<Devis | null>(null);
-  const [form, setForm] = useState<FormDevis>(formVide);
-  const [lignes, setLignes] = useState<LigneDevisForm[]>([ligneVide()]);
+  const [factureEdition, setFactureEdition] = useState<Facture | null>(null);
+  const [form, setForm] = useState<FormFacture>(formVide);
+  const [lignes, setLignes] = useState<LigneFactureForm[]>([ligneVide()]);
 
-  const chargerDevis = useCallback(async () => {
+  const chargerFactures = useCallback(async () => {
     try {
       setChargement(true);
       setMessageErreur("");
@@ -617,15 +593,14 @@ function ContenuPageDevis() {
       );
 
       setTvaDefaut(parametresEntreprise.tva_defaut);
-      setConditionsDevisDefaut(
-        parametresEntreprise.conditions_generales_devis
+      setDelaiPaiementDefaut(parametresEntreprise.delai_paiement_defaut);
+      setConditionsFacturesDefaut(
+        parametresEntreprise.conditions_generales_factures
       );
 
       const [
         { data: clientsData, error: clientsError },
-        { data: devisData, error: devisError },
         { data: facturesData, error: facturesError },
-        { data: fichesData, error: fichesError },
         { data: categoriesPrestationsData, error: categoriesPrestationsError },
         { data: prestationsData, error: prestationsError },
       ] = await Promise.all([
@@ -636,27 +611,10 @@ function ContenuPageDevis() {
           .order("created_at", { ascending: false }),
 
         supabase
-          .from("devis")
+          .from("factures")
           .select("*")
           .eq("entreprise_id", profil.entreprise_id)
-          .order("date_devis", { ascending: false })
-          .order("created_at", { ascending: false }),
-
-        supabase
-          .from("factures")
-          .select("id, devis_id, numero, statut")
-          .eq("entreprise_id", profil.entreprise_id)
-          .not("devis_id", "is", null)
-          .or("est_avoir.is.false,est_avoir.is.null"),
-
-        supabase
-          .from("fiches_intervention")
-          .select(
-            "id, devis_id, numero, titre, type_intervention, statut, date_prevue, date_intervention, client_nom, created_at"
-          )
-          .eq("entreprise_id", profil.entreprise_id)
-          .not("devis_id", "is", null)
-          .order("date_prevue", { ascending: true })
+          .order("date_facture", { ascending: false })
           .order("created_at", { ascending: false }),
 
         supabase
@@ -676,9 +634,7 @@ function ContenuPageDevis() {
       ]);
 
       if (clientsError) throw clientsError;
-      if (devisError) throw devisError;
       if (facturesError) throw facturesError;
-      if (fichesError) throw fichesError;
       if (categoriesPrestationsError) throw categoriesPrestationsError;
       if (prestationsError) throw prestationsError;
 
@@ -687,38 +643,14 @@ function ContenuPageDevis() {
         listeClients.map((client) => [client.id, client])
       );
 
-      const listeFacturesLiees = (facturesData || []) as FactureLiee[];
-
-      const mapFacturesParDevis = new Map(
-        listeFacturesLiees
-          .filter((facture) => facture.devis_id)
-          .map((facture) => [facture.devis_id as string, facture])
+      const listeFactures = ((facturesData || []) as Facture[]).map(
+        (facture) => ({
+          ...facture,
+          client: facture.client_id
+            ? mapClients.get(facture.client_id) || null
+            : null,
+        })
       );
-
-      const listeFichesLiees =
-        (fichesData || []) as FicheInterventionLiee[];
-
-      const mapFichesParDevis = new Map<
-        string,
-        FicheInterventionLiee[]
-      >();
-
-      for (const fiche of listeFichesLiees) {
-        if (!fiche.devis_id) continue;
-
-        const listeExistante =
-          mapFichesParDevis.get(fiche.devis_id) || [];
-
-        listeExistante.push(fiche);
-        mapFichesParDevis.set(fiche.devis_id, listeExistante);
-      }
-
-      const listeDevis = ((devisData || []) as Devis[]).map((item) => ({
-        ...item,
-        client: item.client_id ? mapClients.get(item.client_id) || null : null,
-        facture_liee: mapFacturesParDevis.get(item.id) || null,
-        fiches_liees: mapFichesParDevis.get(item.id) || [],
-      }));
 
       const categoriesPrestations =
         (categoriesPrestationsData || []) as CategoriePrestation[];
@@ -734,42 +666,51 @@ function ContenuPageDevis() {
       );
 
       setClients(listeClients);
-      setDevis(listeDevis);
+      setFactures(listeFactures);
       setPrestationsCatalogue(prestationsChargees);
     } catch (error: any) {
-      console.error("Erreur chargement devis :", error);
-      setMessageErreur(error?.message || "Impossible de charger les devis.");
+      console.error("Erreur chargement factures :", error);
+      setMessageErreur(error?.message || "Impossible de charger les factures.");
     } finally {
       setChargement(false);
     }
   }, []);
 
   useEffect(() => {
-    chargerDevis();
-  }, [chargerDevis]);
+    chargerFactures();
+  }, [chargerFactures]);
 
-  const devisFiltres = useMemo(() => {
+  const facturesFiltrees = useMemo(() => {
     const rechercheNormalisee = recherche.trim().toLowerCase();
 
-    return devis.filter((item) => {
-      if (filtre !== "tous" && item.statut !== filtre) {
+    return factures.filter((facture) => {
+      const estAvoir = estAvoirFacture(facture);
+
+      if (filtre === "avoirs" && !estAvoir) return false;
+
+      if (
+        filtre !== "toutes" &&
+        filtre !== "avoirs" &&
+        facture.statut !== filtre
+      ) {
         return false;
       }
 
       if (!rechercheNormalisee) return true;
 
       const texte = [
-        item.numero,
-        item.objet,
-        item.description,
-        item.statut,
-        item.adresse_chantier,
-        item.code_postal_chantier,
-        item.ville_chantier,
-        item.notes_chantier,
-        nomClient(item.client, item),
-        item.client?.email,
-        item.client?.telephone,
+        facture.numero,
+        facture.objet,
+        facture.description,
+        facture.statut,
+        facture.type_facture,
+        facture.adresse_chantier,
+        facture.code_postal_chantier,
+        facture.ville_chantier,
+        facture.notes_chantier,
+        nomClient(facture.client, facture),
+        facture.client?.email,
+        facture.client?.telephone,
       ]
         .filter(Boolean)
         .join(" ")
@@ -777,7 +718,7 @@ function ContenuPageDevis() {
 
       return texte.includes(rechercheNormalisee);
     });
-  }, [devis, filtre, recherche]);
+  }, [factures, filtre, recherche]);
 
   const prestationsCatalogueFiltrees = useMemo(() => {
     const rechercheNormalisee = normaliserRechercheCatalogue(rechercheCatalogue);
@@ -822,17 +763,29 @@ function ContenuPageDevis() {
   }, [prestationsCatalogue, rechercheCatalogue]);
 
   const statistiques = useMemo(() => {
+    const facturesClassiques = factures.filter(
+      (facture) => !estAvoirFacture(facture)
+    );
+
+    const avoirs = factures.filter(estAvoirFacture);
+
     return {
-      total: devis.length,
-      brouillons: devis.filter((item) => item.statut === "brouillon").length,
-      envoyes: devis.filter((item) => item.statut === "envoye").length,
-      acceptes: devis.filter((item) => item.statut === "accepte").length,
-      factures: devis.filter((item) => item.statut === "facture").length,
-      totalAccepteTtc: devis
-        .filter((item) => item.statut === "accepte")
-        .reduce((total, item) => total + Number(item.total_ttc || 0), 0),
+      totalFactures: facturesClassiques.length,
+      totalAvoirs: avoirs.length,
+      caTtc: facturesClassiques.reduce(
+        (total, facture) => total + Number(facture.total_ttc || 0),
+        0
+      ),
+      resteAPayer: facturesClassiques.reduce(
+        (total, facture) => total + resteAPayerFacture(facture),
+        0
+      ),
+      totalAvoirsTtc: avoirs.reduce(
+        (total, facture) => total + Number(facture.total_ttc || 0),
+        0
+      ),
     };
-  }, [devis]);
+  }, [factures]);
 
   function ouvrirCreation() {
     setMessageErreur("");
@@ -840,13 +793,13 @@ function ContenuPageDevis() {
 
     const dateDuJour = dateAujourdhui();
 
-    setDevisEdition(null);
+    setFactureEdition(null);
     setForm({
       ...formVide,
       numero: "",
-      date_devis: dateDuJour,
-      date_validite: ajouterJours(dateDuJour, 30),
-      conditions: conditionsDevisDefaut,
+      date_facture: dateDuJour,
+      date_echeance: ajouterJours(dateDuJour, delaiPaiementDefaut),
+      conditions: conditionsFacturesDefaut,
       adresse_chantier: "",
       code_postal_chantier: "",
       ville_chantier: "",
@@ -858,40 +811,56 @@ function ContenuPageDevis() {
     setModalOuverte(true);
   }
 
-  async function ouvrirEdition(item: Devis) {
+  async function ouvrirEdition(facture: Facture) {
     try {
       setMessageErreur("");
       setMessageSucces("");
 
-      if (item.statut !== "brouillon") {
-        setMessageErreur("Seuls les devis en brouillon peuvent être modifiés.");
+      if (estAvoirFacture(facture)) {
+        setMessageErreur("Un avoir ne peut pas être modifié.");
+        return;
+      }
+
+      if (facture.statut !== "brouillon") {
+        setMessageErreur(
+          "Seules les factures en brouillon peuvent être modifiées."
+        );
         return;
       }
 
       const { data: lignesData, error: lignesError } = await supabase
-        .from("devis_lignes")
+        .from("factures_lignes")
         .select("*")
-        .eq("devis_id", item.id)
-        .eq("entreprise_id", item.entreprise_id)
+        .eq("facture_id", facture.id)
+        .eq("entreprise_id", facture.entreprise_id)
         .order("ordre", { ascending: true });
 
       if (lignesError) throw lignesError;
 
-      setDevisEdition(item);
+      setFactureEdition(facture);
       setForm({
-        client_id: item.client_id || "",
-        numero: item.numero || "",
-        objet: item.objet || "",
-        description: item.description || "",
-        adresse_chantier: item.adresse_chantier || "",
-        code_postal_chantier: item.code_postal_chantier || "",
-        ville_chantier: item.ville_chantier || "",
-        notes_chantier: item.notes_chantier || "",
-        date_devis: item.date_devis || dateAujourdhui(),
-        date_validite: item.date_validite || ajouterJours(dateAujourdhui(), 30),
+        client_id: facture.client_id || "",
+        numero: facture.numero || "",
+        objet: facture.objet || "",
+        description: facture.description || "",
+        adresse_chantier: facture.adresse_chantier || "",
+        code_postal_chantier: facture.code_postal_chantier || "",
+        ville_chantier: facture.ville_chantier || "",
+        notes_chantier: facture.notes_chantier || "",
+        date_facture: facture.date_facture || dateAujourdhui(),
+        date_echeance:
+          facture.date_echeance ||
+          ajouterJours(
+            facture.date_facture || dateAujourdhui(),
+            delaiPaiementDefaut
+          ),
         statut: "brouillon",
-        conditions: item.conditions || "",
-        remise_globale_pourcent: Number(item.remise_globale_pourcent || 0),
+        type_facture:
+          facture.type_facture === "acompte" || facture.type_facture === "solde"
+            ? facture.type_facture
+            : "simple",
+        conditions: facture.conditions || "",
+        remise_globale_pourcent: Number(facture.remise_globale_pourcent || 0),
       });
 
       const lignesForm = (lignesData || []).map((ligne: any) =>
@@ -923,14 +892,14 @@ function ContenuPageDevis() {
       setRechercheCatalogue("");
       setModalOuverte(true);
     } catch (error: any) {
-      console.error("Erreur ouverture édition devis :", error);
-      setMessageErreur(error?.message || "Impossible d’ouvrir le devis.");
+      console.error("Erreur ouverture édition facture :", error);
+      setMessageErreur(error?.message || "Impossible d’ouvrir la facture.");
     }
   }
 
   function reinitialiserModal() {
     setModalOuverte(false);
-    setDevisEdition(null);
+    setFactureEdition(null);
     setForm(formVide);
     setLignes([ligneVide(tvaDefaut)]);
     setRechercheCatalogue("");
@@ -1022,7 +991,7 @@ function ContenuPageDevis() {
 
   function modifierLigne(
     index: number,
-    champ: keyof LigneDevisForm,
+    champ: keyof LigneFactureForm,
     valeur: any
   ) {
     setLignes((anciennesLignes) =>
@@ -1072,7 +1041,7 @@ function ContenuPageDevis() {
     });
   }
 
-  async function enregistrerDevis(
+  async function enregistrerFacture(
     mode: ModeEnregistrementDocument = "brouillon"
   ) {
     const fenetreApercu =
@@ -1093,7 +1062,7 @@ function ContenuPageDevis() {
 
       if (mode === "finaliser") {
         const confirmation = window.confirm(
-          "Finaliser ce devis ? Une fois finalisé, son contenu sera verrouillé et ne pourra plus être modifié."
+          "Finaliser cette facture ? Une fois finalisé, son contenu sera verrouillé et ne pourra plus être modifié."
         );
 
         if (!confirmation) {
@@ -1112,7 +1081,7 @@ function ContenuPageDevis() {
       );
 
       if (prestationsValides.length === 0) {
-        setMessageErreur("Veuillez ajouter au moins une prestation au devis.");
+        setMessageErreur("Veuillez ajouter au moins une prestation à la facture.");
         fenetreApercu?.close();
         return;
       }
@@ -1131,9 +1100,11 @@ function ContenuPageDevis() {
       const client = clients.find((item) => item.id === form.client_id) || null;
       const clientNom = client ? nomClient(client, null) : null;
 
+      const montantPaye = Number(factureEdition?.montant_paye || 0);
+      const resteAPayer = Number((total_ttc - montantPaye).toFixed(2));
       const numeroFinal = form.numero.trim() || null;
 
-      const payloadDevis: any = {
+      const payloadFacture: any = {
         entreprise_id: entrepriseId,
         client_id: form.client_id || null,
         client_nom: clientNom,
@@ -1144,9 +1115,10 @@ function ContenuPageDevis() {
         code_postal_chantier: form.code_postal_chantier.trim() || null,
         ville_chantier: form.ville_chantier.trim() || null,
         notes_chantier: form.notes_chantier.trim() || null,
-        date_devis: form.date_devis,
-        date_validite: form.date_validite,
+        date_facture: form.date_facture,
+        date_echeance: form.date_echeance,
         statut: "brouillon",
+        type_facture: form.type_facture,
         total_ht,
         total_tva,
         total_ttc,
@@ -1154,42 +1126,45 @@ function ContenuPageDevis() {
           form.remise_globale_pourcent
         ),
         remise_globale_montant,
+        montant_paye: montantPaye,
+        reste_a_payer: resteAPayer,
         conditions: form.conditions.trim() || null,
+        est_avoir: false,
       };
 
-      let devisId = devisEdition?.id || "";
+      let factureId = factureEdition?.id || "";
 
-      if (devisEdition) {
-        const { error: devisError } = await supabase
-          .from("devis")
-          .update(payloadDevis)
-          .eq("id", devisEdition.id)
+      if (factureEdition) {
+        const { error: factureError } = await supabase
+          .from("factures")
+          .update(payloadFacture)
+          .eq("id", factureEdition.id)
           .eq("entreprise_id", entrepriseId);
 
-        if (devisError) throw devisError;
+        if (factureError) throw factureError;
 
         const { error: deleteLignesError } = await supabase
-          .from("devis_lignes")
+          .from("factures_lignes")
           .delete()
-          .eq("devis_id", devisEdition.id)
+          .eq("facture_id", factureEdition.id)
           .eq("entreprise_id", entrepriseId);
 
         if (deleteLignesError) throw deleteLignesError;
       } else {
-        const { data: devisCree, error: devisError } = await supabase
-          .from("devis")
-          .insert(payloadDevis)
+        const { data: factureCreee, error: factureError } = await supabase
+          .from("factures")
+          .insert(payloadFacture)
           .select("id, numero")
           .single();
 
-        if (devisError) throw devisError;
+        if (factureError) throw factureError;
 
-        devisId = devisCree.id;
+        factureId = factureCreee.id;
       }
 
       const lignesPayload = lignesCalculees.map((ligne, index) => ({
         entreprise_id: entrepriseId,
-        devis_id: devisId,
+        facture_id: factureId,
         type_ligne: ligne.type_ligne,
         prestation_tarif_id:
           ligne.type_ligne === "section"
@@ -1213,72 +1188,80 @@ function ContenuPageDevis() {
       }));
 
       const { error: lignesInsertError } = await supabase
-        .from("devis_lignes")
+        .from("factures_lignes")
         .insert(lignesPayload);
 
       if (lignesInsertError) throw lignesInsertError;
 
       if (mode === "finaliser") {
         const { error: statutError } = await supabase
-          .from("devis")
+          .from("factures")
           .update({
-            statut: "envoye",
+            statut: "envoyee",
           })
-          .eq("id", devisId)
+          .eq("id", factureId)
           .eq("entreprise_id", entrepriseId);
 
         if (statutError) throw statutError;
       }
 
       if (mode === "apercu" && fenetreApercu) {
-        fenetreApercu.location.href = `/chef/devis/${devisId}/impression`;
+        fenetreApercu.location.href = `/chef/factures/${factureId}/impression`;
       }
 
       setMessageSucces(
         mode === "finaliser"
-          ? "Devis finalisé et verrouillé."
+          ? "Facture finalisée et verrouillée."
           : mode === "apercu"
-            ? "Devis enregistré. Aperçu ouvert dans un nouvel onglet."
-            : devisEdition
+            ? "Facture enregistrée. Aperçu ouvert dans un nouvel onglet."
+            : factureEdition
               ? "Brouillon modifié avec succès."
               : "Brouillon créé avec succès."
       );
 
       reinitialiserModal();
-      await chargerDevis();
+      await chargerFactures();
     } catch (error: any) {
       fenetreApercu?.close();
-      console.error("Erreur enregistrement devis :", error);
-      setMessageErreur(error?.message || "Impossible d’enregistrer le devis.");
+      console.error("Erreur enregistrement facture :", error);
+      setMessageErreur(error?.message || "Impossible d’enregistrer la facture.");
     } finally {
       setChargementAction(false);
     }
   }
 
-  async function changerStatut(item: Devis, statut: string) {
+  async function archiverFacture(facture: Facture) {
     try {
       setMessageErreur("");
       setMessageSucces("");
 
+      if (estAvoirFacture(facture)) {
+        setMessageErreur("Un avoir ne peut pas être archivé depuis cette action.");
+        return;
+      }
+
+      if (facture.statut !== "payee") {
+        setMessageErreur("Seules les factures payées peuvent être archivées.");
+        return;
+      }
+
       const { error } = await supabase
-        .from("devis")
-        .update({ statut })
-        .eq("id", item.id)
-        .eq("entreprise_id", item.entreprise_id);
+        .from("factures")
+        .update({ statut: "archive" })
+        .eq("id", facture.id)
+        .eq("entreprise_id", facture.entreprise_id);
 
       if (error) throw error;
 
-      setMessageSucces(
-        `Devis marqué comme ${libelleStatut(statut).toLowerCase()}.`
-      );
-      await chargerDevis();
+      setMessageSucces("Facture archivée.");
+      await chargerFactures();
     } catch (error: any) {
-      console.error("Erreur changement statut devis :", error);
-      setMessageErreur(error?.message || "Impossible de modifier le statut.");
+      console.error("Erreur archivage facture :", error);
+      setMessageErreur(error?.message || "Impossible d’archiver la facture.");
     }
   }
 
-  async function transformerEnFacture(item: Devis) {
+  async function synchroniserRetards() {
     try {
       setChargementAction(true);
       setMessageErreur("");
@@ -1293,57 +1276,82 @@ function ContenuPageDevis() {
         return;
       }
 
-      const response = await fetch("/api/devis/transformer-en-facture", {
+      const response = await fetch("/api/factures/synchroniser-retards", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          devisId: item.id,
-        }),
       });
 
       const resultat = await response.json().catch(() => null);
 
       if (!response.ok || !resultat?.success) {
         throw new Error(
-          resultat?.error || "Impossible de transformer le devis en facture."
+          resultat?.error || "Impossible de synchroniser les retards."
         );
       }
 
-      setMessageSucces(
-        resultat.message ||
-          `Facture ${resultat.numero || ""} créée depuis le devis.`
-      );
-
-      await chargerDevis();
+      setMessageSucces(resultat.message || "Retards synchronisés.");
+      await chargerFactures();
     } catch (error: any) {
-      console.error("Erreur transformation devis en facture :", error);
+      console.error("Erreur synchronisation retards :", error);
       setMessageErreur(
-        error?.message || "Impossible de transformer le devis en facture."
+        error?.message || "Impossible de synchroniser les retards."
       );
     } finally {
       setChargementAction(false);
     }
   }
 
-  useEffect(() => {
-    if (!devisSelectionneId || chargement) return;
+  const totauxFormulaire = useMemo(
+    () => calculerTotaux(lignes, form.remise_globale_pourcent),
+    [lignes, form.remise_globale_pourcent]
+  );
 
-    setFiltre("tous");
+  const nombresParFiltre = useMemo(
+    () => ({
+      toutes: factures.length,
+      brouillon: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "brouillon"
+      ).length,
+      envoyee: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "envoyee"
+      ).length,
+      en_retard: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "en_retard"
+      ).length,
+      payee: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "payee"
+      ).length,
+      avoirs: factures.filter(estAvoirFacture).length,
+      archive: factures.filter(
+        (facture) =>
+          !estAvoirFacture(facture) && facture.statut === "archive"
+      ).length,
+    }),
+    [factures]
+  );
+
+  useEffect(() => {
+    if (!factureSelectionneeId || chargement) return;
+
+    setFiltre("toutes");
     setRecherche("");
 
     let surbrillanceTimer: number | null = null;
 
     const timer = window.setTimeout(() => {
       const element = document.getElementById(
-        `devis-${devisSelectionneId}`
+        `facture-${factureSelectionneeId}`
       );
 
       if (!element) {
         setMessageErreur(
-          "Le devis demandé n’a pas été trouvé dans cette entreprise."
+          "La facture demandée n’a pas été trouvée dans cette entreprise."
         );
         return;
       }
@@ -1355,14 +1363,14 @@ function ContenuPageDevis() {
 
       element.classList.add(
         "ring-4",
-        "ring-emerald-400",
+        "ring-purple-300",
         "ring-offset-2"
       );
 
       surbrillanceTimer = window.setTimeout(() => {
         element.classList.remove(
           "ring-4",
-          "ring-emerald-400",
+          "ring-purple-300",
           "ring-offset-2"
         );
       }, 4000);
@@ -1375,25 +1383,7 @@ function ContenuPageDevis() {
         window.clearTimeout(surbrillanceTimer);
       }
     };
-  }, [devisSelectionneId, chargement, devis]);
-
-  const totauxFormulaire = useMemo(
-    () => calculerTotaux(lignes, form.remise_globale_pourcent),
-    [lignes, form.remise_globale_pourcent]
-  );
-
-  const nombresParFiltre = useMemo(
-    () => ({
-      tous: devis.length,
-      brouillon: devis.filter((item) => item.statut === "brouillon").length,
-      envoye: devis.filter((item) => item.statut === "envoye").length,
-      accepte: devis.filter((item) => item.statut === "accepte").length,
-      facture: devis.filter((item) => item.statut === "facture").length,
-      refuse: devis.filter((item) => item.statut === "refuse").length,
-      archive: devis.filter((item) => item.statut === "archive").length,
-    }),
-    [devis]
-  );
+  }, [factureSelectionneeId, chargement, factures]);
 
   return (
     <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
@@ -1405,34 +1395,46 @@ function ContenuPageDevis() {
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-start gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
-                  📄
+                  🧾
                 </div>
 
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
-                    Documents commerciaux
+                    Facturation
                   </p>
 
                   <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                    Devis clients
+                    Factures et avoirs
                   </h1>
 
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                    Créez, envoyez, imprimez et transformez vos devis en
-                    factures ou en fiches d’intervention.
+                    Gérez les factures, encaissements, relances, avoirs,
+                    emails et documents PDF depuis un seul espace.
                   </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={ouvrirCreation}
-                disabled={chargementAction}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
-                <span aria-hidden="true">＋</span>
-                Nouveau devis
-              </button>
+              <div className="grid w-full gap-2 sm:grid-cols-2 lg:w-auto">
+                <button
+                  type="button"
+                  onClick={() => void synchroniserRetards()}
+                  disabled={chargementAction}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true">↻</span>
+                  Synchroniser les retards
+                </button>
+
+                <button
+                  type="button"
+                  onClick={ouvrirCreation}
+                  disabled={chargementAction}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span aria-hidden="true">＋</span>
+                  Nouvelle facture
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -1459,100 +1461,111 @@ function ContenuPageDevis() {
           </div>
         )}
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          {[
-            {
-              filtre: "tous" as FiltreDevis,
-              label: "Total devis",
-              valeur: statistiques.total,
-              icone: "📄",
-              classeValeur: "text-slate-950",
-            },
-            {
-              filtre: "brouillon" as FiltreDevis,
-              label: "Brouillons",
-              valeur: statistiques.brouillons,
-              icone: "📝",
-              classeValeur: "text-slate-950",
-            },
-            {
-              filtre: "envoye" as FiltreDevis,
-              label: "Envoyés",
-              valeur: statistiques.envoyes,
-              icone: "✉️",
-              classeValeur: "text-blue-700",
-            },
-            {
-              filtre: "accepte" as FiltreDevis,
-              label: "Acceptés",
-              valeur: statistiques.acceptes,
-              icone: "✅",
-              classeValeur: "text-emerald-700",
-            },
-            {
-              filtre: "facture" as FiltreDevis,
-              label: "Facturés",
-              valeur: nombresParFiltre.facture,
-              icone: "🧾",
-              classeValeur: "text-purple-700",
-            },
-          ].map((carte) => (
-            <button
-              key={carte.filtre}
-              type="button"
-              onClick={() => {
-                setFiltre(carte.filtre);
-                setRecherche("");
-              }}
-              className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                filtre === carte.filtre
-                  ? "border-emerald-400 ring-2 ring-emerald-100"
-                  : "border-slate-200"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {carte.label}
-                  </p>
-                  <p className={`mt-2 text-2xl font-black ${carte.classeValeur}`}>
-                    {carte.valeur}
-                  </p>
-                </div>
-
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-xl">
-                  {carte.icone}
-                </span>
-              </div>
-            </button>
-          ))}
-
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <button
             type="button"
             onClick={() => {
-              setFiltre("accepte");
+              setFiltre("toutes");
               setRecherche("");
             }}
             className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              filtre === "accepte"
+              filtre === "toutes"
                 ? "border-emerald-400 ring-2 ring-emerald-100"
                 : "border-slate-200"
             }`}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Accepté TTC
-                </p>
-                <p className="mt-2 truncate text-xl font-black text-emerald-700">
-                  {formatMontant(statistiques.totalAccepteTtc)}
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                💶
-              </span>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Factures
+            </p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-2xl font-black text-slate-950">
+                {statistiques.totalFactures}
+              </p>
+              <span className="text-xl">🧾</span>
             </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("avoirs");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "avoirs"
+                ? "border-purple-400 ring-2 ring-purple-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Avoirs
+            </p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <p className="text-2xl font-black text-purple-700">
+                {statistiques.totalAvoirs}
+              </p>
+              <span className="text-xl">↩️</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("toutes");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "toutes"
+                ? "border-emerald-400 ring-2 ring-emerald-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Total facturé TTC
+            </p>
+            <p className="mt-2 truncate text-xl font-black text-slate-950">
+              {formatMontant(statistiques.caTtc)}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("en_retard");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "en_retard"
+                ? "border-red-400 ring-2 ring-red-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Reste à payer
+            </p>
+            <p className="mt-2 truncate text-xl font-black text-red-600">
+              {formatMontant(statistiques.resteAPayer)}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFiltre("avoirs");
+              setRecherche("");
+            }}
+            className={`rounded-3xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              filtre === "avoirs"
+                ? "border-purple-400 ring-2 ring-purple-100"
+                : "border-slate-200"
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Total avoirs TTC
+            </p>
+            <p className="mt-2 truncate text-xl font-black text-purple-700">
+              {formatMontant(statistiques.totalAvoirsTtc)}
+            </p>
           </button>
         </section>
 
@@ -1567,7 +1580,7 @@ function ContenuPageDevis() {
                 type="search"
                 value={recherche}
                 onChange={(event) => setRecherche(event.target.value)}
-                placeholder="Rechercher un devis, un client, une adresse..."
+                placeholder="Rechercher une facture, un client, une adresse..."
                 className="w-full rounded-2xl border border-slate-200 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
               />
             </div>
@@ -1575,18 +1588,18 @@ function ContenuPageDevis() {
             <div className="overflow-x-auto">
               <div className="flex min-w-max gap-2">
                 {[
-                  ["tous", "Tous"],
+                  ["toutes", "Toutes"],
                   ["brouillon", "Brouillons"],
-                  ["envoye", "Envoyés"],
-                  ["accepte", "Acceptés"],
-                  ["facture", "Facturés"],
-                  ["refuse", "Refusés"],
+                  ["envoyee", "Envoyées"],
+                  ["en_retard", "Retards"],
+                  ["payee", "Payées"],
+                  ["avoirs", "Avoirs"],
                   ["archive", "Archives"],
                 ].map(([valeur, label]) => (
                   <button
                     key={valeur}
                     type="button"
-                    onClick={() => setFiltre(valeur as FiltreDevis)}
+                    onClick={() => setFiltre(valeur as FiltreFactures)}
                     className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
                       filtre === valeur
                         ? "bg-slate-950 text-white shadow-sm"
@@ -1595,7 +1608,7 @@ function ContenuPageDevis() {
                   >
                     {label}{" "}
                     <span className="opacity-70">
-                      ({nombresParFiltre[valeur as FiltreDevis]})
+                      ({nombresParFiltre[valeur as FiltreFactures]})
                     </span>
                   </button>
                 ))}
@@ -1604,16 +1617,14 @@ function ContenuPageDevis() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-            <span>
-              {devisFiltres.length} devis affiché(s)
-            </span>
+            <span>{facturesFiltrees.length} document(s) affiché(s)</span>
 
-            {(recherche || filtre !== "tous") && (
+            {(recherche || filtre !== "toutes") && (
               <button
                 type="button"
                 onClick={() => {
                   setRecherche("");
-                  setFiltre("tous");
+                  setFiltre("toutes");
                 }}
                 className="font-semibold text-emerald-700 hover:text-emerald-800"
               >
@@ -1629,24 +1640,24 @@ function ContenuPageDevis() {
               ⏳
             </div>
             <p className="font-semibold text-slate-900">
-              Chargement des devis…
+              Chargement des factures…
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Récupération des documents et des clients.
+              Récupération des documents, paiements et clients.
             </p>
           </section>
-        ) : devisFiltres.length === 0 ? (
+        ) : facturesFiltrees.length === 0 ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
-              📄
+              🧾
             </div>
 
             <p className="text-lg font-bold text-slate-950">
-              Aucun devis trouvé
+              Aucune facture trouvée
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
-              Créez un devis ou modifiez les critères de recherche.
+              Créez une facture ou modifiez les critères de recherche.
             </p>
 
             <button
@@ -1654,94 +1665,116 @@ function ContenuPageDevis() {
               onClick={ouvrirCreation}
               className="mt-5 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              Créer un devis
+              Créer une facture
             </button>
           </section>
         ) : (
           <section className="space-y-4">
-            {devisFiltres.map((item) => {
-              const client = item.client || null;
+            {facturesFiltrees.map((facture) => {
+              const estAvoir = estAvoirFacture(facture);
+              const client = facture.client || null;
               const emailClient = client?.email || "";
-              const adresseChantier = adresseChantierTexte(item);
-              const fichesLiees = item.fiches_liees || [];
-              const validiteDepassee =
-                dateDepassee(item.date_validite) &&
-                item.statut !== "accepte" &&
-                item.statut !== "facture" &&
-                item.statut !== "archive";
+              const estEnvoyeeOuRetard =
+                facture.statut === "envoyee" ||
+                facture.statut === "en_retard";
+              const resteAPayer = resteAPayerFacture(facture);
+              const montantPaye = Math.max(
+                0,
+                Number(facture.montant_paye || 0)
+              );
+              const progressionPaiement = progressionPaiementFacture(facture);
+              const adresseChantier = adresseChantierTexte(facture);
 
-              const messageEmailParDefaut = `Bonjour,
+              const messageEmailParDefaut = estAvoir
+                ? `Bonjour,
 
-Veuillez trouver ci-joint votre devis ${item.numero || ""} au format PDF.
+Veuillez trouver ci-joint votre avoir ${facture.numero || ""} au format PDF.
+
+Cet avoir vient rectifier ou annuler une facture précédemment émise.
+
+Cordialement.`
+                : `Bonjour,
+
+Veuillez trouver ci-joint votre facture ${facture.numero || ""} au format PDF.
 
 Cordialement.`;
 
               return (
                 <article
-                  id={`devis-${item.id}`}
-                  key={item.id}
+                  id={`facture-${facture.id}`}
+                  key={facture.id}
                   className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-white shadow-sm transition-all duration-500 hover:shadow-md ${
-                    devisSelectionneId === item.id
-                      ? "border-emerald-400"
-                      : "border-slate-200"
+                    factureSelectionneeId === facture.id
+                      ? "border-purple-400"
+                      : estAvoir
+                        ? "border-purple-200"
+                        : "border-slate-200"
                   }`}
                 >
-                  <div className={`h-1.5 ${barreStatut(item.statut)}`} />
+                  <div className={`h-1.5 ${barreStatutFacture(facture)}`} />
 
                   <div className="p-4 sm:p-5">
                     <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-xl">
-                            {iconeStatut(item.statut)}
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl ${
+                              estAvoir ? "bg-purple-50" : "bg-slate-50"
+                            }`}
+                          >
+                            {iconeStatutFacture(facture)}
                           </div>
 
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span
                                 className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatut(
-                                  item.statut
+                                  facture.statut
                                 )}`}
                               >
-                                {libelleStatut(item.statut)}
+                                {libelleStatut(facture.statut)}
                               </span>
 
-                              {fichesLiees.length > 0 && (
-                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                                  {fichesLiees.length === 1
-                                    ? "1 fiche liée"
-                                    : `${fichesLiees.length} fiches liées`}
+                              <span
+                                className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                                  estAvoir
+                                    ? "border-purple-200 bg-purple-50 text-purple-700"
+                                    : "border-blue-200 bg-blue-50 text-blue-700"
+                                }`}
+                              >
+                                {estAvoir
+                                  ? "Avoir"
+                                  : libelleTypeFacture(facture.type_facture)}
+                              </span>
+
+                              {factureSelectionneeId === facture.id && (
+                                <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
+                                  Facture sélectionnée
                                 </span>
                               )}
 
-                              {devisSelectionneId === item.id && (
-                                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                                  Devis sélectionné
-                                </span>
-                              )}
-
-                              {validiteDepassee && (
-                                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-                                  Validité dépassée
+                              {facture.avoir_annule_facture && (
+                                <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700">
+                                  Annulée par avoir
                                 </span>
                               )}
                             </div>
 
                             <h2 className="mt-3 break-words text-xl font-black text-slate-950">
-                              {item.numero || "Sans numéro"}
+                              {facture.numero || "Sans numéro"}
                             </h2>
 
                             <p className="mt-1 break-words text-sm font-semibold text-slate-700">
-                              {item.objet || "Sans objet"}
+                              {facture.objet || "Sans objet"}
                             </p>
 
                             <p className="mt-1 text-sm text-slate-500">
-                              {nomClient(client, item)}
+                              {nomClient(client, facture)}
                             </p>
                           </div>
                         </div>
 
-                        {(adresseChantier || item.notes_chantier) && (
+                        {(adresseChantier || facture.notes_chantier) && (
                           <div className="mt-4 grid gap-2 lg:grid-cols-2">
                             {adresseChantier && (
                               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
@@ -1750,10 +1783,10 @@ Cordialement.`;
                               </div>
                             )}
 
-                            {item.notes_chantier && (
+                            {facture.notes_chantier && (
                               <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3 text-sm text-amber-800">
                                 <span className="font-bold">⚠️ Notes :</span>{" "}
-                                {item.notes_chantier}
+                                {facture.notes_chantier}
                               </div>
                             )}
                           </div>
@@ -1762,206 +1795,242 @@ Cordialement.`;
                         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                           <div className="rounded-2xl bg-slate-50 p-3">
                             <p className="text-xs font-medium text-slate-400">
-                              Date du devis
+                              Date
                             </p>
                             <p className="mt-1 font-bold text-slate-900">
-                              {formatDate(item.date_devis)}
+                              {formatDate(facture.date_facture)}
                             </p>
                           </div>
 
                           <div
                             className={`rounded-2xl p-3 ${
-                              validiteDepassee
-                                ? "bg-amber-50"
+                              facture.statut === "en_retard"
+                                ? "bg-red-50"
                                 : "bg-slate-50"
                             }`}
                           >
                             <p className="text-xs font-medium text-slate-400">
-                              Date de validité
+                              Échéance
                             </p>
                             <p
                               className={`mt-1 font-bold ${
-                                validiteDepassee
-                                  ? "text-amber-800"
+                                facture.statut === "en_retard"
+                                  ? "text-red-700"
                                   : "text-slate-900"
                               }`}
                             >
-                              {formatDate(item.date_validite)}
+                              {estAvoir ? "—" : formatDate(facture.date_echeance)}
                             </p>
                           </div>
 
                           <div className="rounded-2xl bg-slate-50 p-3">
                             <p className="text-xs font-medium text-slate-400">
-                              Total HT
+                              Total TTC
                             </p>
-                            <p className="mt-1 font-bold text-slate-900">
-                              {formatMontant(item.total_ht)}
+                            <p
+                              className={`mt-1 text-lg font-black ${
+                                estAvoir
+                                  ? "text-purple-700"
+                                  : "text-slate-950"
+                              }`}
+                            >
+                              {formatMontant(facture.total_ttc)}
                             </p>
                           </div>
 
-                          <div className="rounded-2xl bg-emerald-50 p-3">
-                            <p className="text-xs font-medium text-emerald-600">
-                              Total TTC
+                          <div
+                            className={`rounded-2xl p-3 ${
+                              estAvoir
+                                ? "bg-purple-50"
+                                : resteAPayer > 0
+                                  ? "bg-red-50"
+                                  : "bg-emerald-50"
+                            }`}
+                          >
+                            <p className="text-xs font-medium text-slate-400">
+                              Reste à payer
                             </p>
-                            <p className="mt-1 text-lg font-black text-emerald-800">
-                              {formatMontant(item.total_ttc)}
+                            <p
+                              className={`mt-1 text-lg font-black ${
+                                estAvoir
+                                  ? "text-purple-700"
+                                  : resteAPayer > 0
+                                    ? "text-red-700"
+                                    : "text-emerald-700"
+                              }`}
+                            >
+                              {estAvoir ? "—" : formatMontant(resteAPayer)}
                             </p>
                           </div>
                         </div>
+
+                        {!estAvoir && (
+                          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <span className="font-semibold text-slate-600">
+                                Paiement : {formatMontant(montantPaye)} encaissé
+                              </span>
+
+                              <span className="font-bold text-slate-900">
+                                {Math.round(progressionPaiement)} %
+                              </span>
+                            </div>
+
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className={`h-full rounded-full ${
+                                  progressionPaiement >= 100
+                                    ? "bg-emerald-600"
+                                    : facture.statut === "en_retard"
+                                      ? "bg-red-500"
+                                      : "bg-blue-500"
+                                }`}
+                                style={{
+                                  width: `${progressionPaiement}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="w-full xl:max-w-md">
                         <div className="grid gap-2 sm:grid-cols-2">
                           <BoutonTelechargerDocumentPdf
-                            typeDocument="devis"
-                            documentId={item.id}
-                            numero={item.numero}
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={facture.id}
+                            numero={facture.numero}
                           />
 
                           <Link
-                            href={`/chef/devis/${item.id}/impression`}
+                            href={`/chef/factures/${facture.id}/impression`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
                           >
                             Imprimer
                           </Link>
 
                           <BoutonEnvoyerDocumentEmail
-                            typeDocument="devis"
-                            documentId={item.id}
-                            numero={item.numero}
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={facture.id}
+                            numero={facture.numero}
                             defaultEmail={emailClient}
                             defaultMessage={messageEmailParDefaut}
-                            onEnvoye={chargerDevis}
+                            onEnvoye={chargerFactures}
                           />
 
                           <HistoriqueEmailsDocument
-                            typeDocument="devis"
-                            documentId={item.id}
-                            numero={item.numero}
+                            typeDocument={estAvoir ? "avoir" : "facture"}
+                            documentId={facture.id}
+                            numero={facture.numero}
                           />
                         </div>
 
                         <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-                            Chantier et documents liés
+                            Documents et services liés
                           </p>
 
                           <div className="grid gap-2">
-                            <BoutonCreerFicheInterventionDepuisDevis
-                              devisId={item.id}
-                              statut={item.statut}
-                              factureLiee={item.facture_liee || null}
-                            />
-
-                            {fichesLiees.length > 0 ? (
-                              <div className="grid gap-2">
-                                {fichesLiees.map((fiche) => (
-                                  <Link
-                                    key={fiche.id}
-                                    href={`/chef/interventions/${fiche.id}`}
-                                    className="rounded-xl border border-emerald-200 bg-white px-3 py-3 transition hover:bg-emerald-50"
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-xs font-black text-emerald-800">
-                                          {titreFicheLiee(fiche)}
-                                        </p>
-
-                                        <p className="mt-1 text-[11px] text-slate-500">
-                                          {fiche.numero
-                                            ? `${fiche.numero} · `
-                                            : ""}
-                                          {formatDate(
-                                            fiche.date_prevue ||
-                                              fiche.date_intervention
-                                          )}
-                                        </p>
-                                      </div>
-
-                                      <span
-                                        className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${classeStatutFiche(
-                                          fiche.statut
-                                        )}`}
-                                      >
-                                        {libelleStatutFiche(fiche.statut)}
-                                      </span>
-                                    </div>
-
-                                    <p className="mt-2 text-[11px] font-semibold text-emerald-700">
-                                      Ouvrir la fiche →
-                                    </p>
-                                  </Link>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2.5 text-center text-[11px] font-medium text-slate-400">
-                                Aucune fiche d’intervention liée à ce devis
-                              </div>
+                            {!estAvoir && facture.devis_id && (
+                              <Link
+                                href={`/chef/devis?devisId=${facture.devis_id}`}
+                                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
+                              >
+                                Voir le devis d’origine
+                              </Link>
                             )}
 
-                            {item.facture_liee && (
-                              <Link
-                                href={`/chef/factures?factureId=${item.facture_liee.id}`}
-                                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 py-2 text-xs font-medium text-purple-700 transition hover:bg-purple-50"
-                              >
-                                Voir facture {item.facture_liee.numero || ""}
-                              </Link>
+                            {!estAvoir && (
+                              <BoutonDemandePaiementUrssaf
+                                factureId={facture.id}
+                                numero={facture.numero}
+                                clientType={client?.type_client}
+                                statut={facture.statut}
+                                totalHt={Number(facture.total_ht || 0)}
+                                totalTtc={Number(facture.total_ttc || 0)}
+                                estAvoir={estAvoir}
+                                onMiseAJour={chargerFactures}
+                              />
                             )}
                           </div>
                         </div>
 
+                        {!estAvoir && estEnvoyeeOuRetard && resteAPayer > 0 && (
+                          <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50/50 p-3">
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-orange-600">
+                              Relance client
+                            </p>
+
+                            <BoutonRelancerFacture
+                              factureId={facture.id}
+                              numero={facture.numero}
+                              defaultEmail={emailClient}
+                              resteAPayer={resteAPayer}
+                              dateEcheance={facture.date_echeance}
+                              onRelanceEnvoyee={chargerFactures}
+                            />
+                          </div>
+                        )}
+
+                        {!estAvoir && (
+                          <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                              Paiements et avoirs
+                            </p>
+
+                            <div className="grid gap-2">
+                              <HistoriquePaiementsFacture
+                                factureId={facture.id}
+                                numero={facture.numero}
+                                onPaiementSupprime={chargerFactures}
+                              />
+
+                              {resteAPayer > 0 &&
+                                facture.statut !== "brouillon" && (
+                                  <BoutonEncaisserFacture
+                                    factureId={facture.id}
+                                    numero={facture.numero}
+                                    totalTtc={Number(facture.total_ttc || 0)}
+                                    montantPaye={montantPaye}
+                                    resteAPayer={resteAPayer}
+                                    onPaiementEnregistre={chargerFactures}
+                                  />
+                                )}
+
+                              {facture.statut !== "brouillon" &&
+                                facture.statut !== "archive" && (
+                                  <BoutonCreerAvoirFacture
+                                    factureId={facture.id}
+                                    numero={facture.numero}
+                                    onAvoirCree={chargerFactures}
+                                  />
+                                )}
+
+                              <HistoriqueAvoirsFacture
+                                factureId={facture.id}
+                                numero={facture.numero}
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {item.statut === "brouillon" && (
+                          {!estAvoir && facture.statut === "brouillon" && (
                             <button
                               type="button"
-                              onClick={() => void ouvrirEdition(item)}
+                              onClick={() => void ouvrirEdition(facture)}
                               className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
                             >
                               Modifier
                             </button>
                           )}
 
-                          {item.statut === "envoye" && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void changerStatut(item, "accepte")
-                                }
-                                className="min-h-10 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50"
-                              >
-                                Accepter
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void changerStatut(item, "refuse")
-                                }
-                                className="min-h-10 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
-                              >
-                                Refuser
-                              </button>
-                            </>
-                          )}
-
-                          {item.statut === "accepte" && (
+                          {!estAvoir && facture.statut === "payee" && (
                             <button
                               type="button"
-                              onClick={() => void transformerEnFacture(item)}
-                              disabled={chargementAction}
-                              className="min-h-10 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
-                            >
-                              Transformer en facture
-                            </button>
-                          )}
-
-                          {item.statut !== "archive" && (
-                            <button
-                              type="button"
-                              onClick={() => void changerStatut(item, "archive")}
+                              onClick={() => void archiverFacture(facture)}
                               className="min-h-10 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                             >
                               Archiver
@@ -1996,14 +2065,14 @@ Cordialement.`;
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="truncate text-lg font-black text-slate-950 sm:text-xl">
-                          {devisEdition ? "Modifier le devis" : "Nouveau devis"}
+                          {factureEdition ? "Modifier la facture" : "Nouvelle facture"}
                         </h2>
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
                           Éditeur document
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        Modifiez le document à gauche et ses paramètres à droite.
+                        Modifiez la facture à gauche et ses paramètres à droite.
                       </p>
                     </div>
                   </div>
@@ -2015,7 +2084,7 @@ Cordialement.`;
 
                     <button
                       type="button"
-                      onClick={() => void enregistrerDevis("brouillon")}
+                      onClick={() => void enregistrerFacture("brouillon")}
                       disabled={chargementAction}
                       className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -2024,7 +2093,7 @@ Cordialement.`;
 
                     <button
                       type="button"
-                      onClick={() => void enregistrerDevis("apercu")}
+                      onClick={() => void enregistrerFacture("apercu")}
                       disabled={chargementAction}
                       className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -2033,7 +2102,7 @@ Cordialement.`;
 
                     <button
                       type="button"
-                      onClick={() => void enregistrerDevis("finaliser")}
+                      onClick={() => void enregistrerFacture("finaliser")}
                       disabled={chargementAction}
                       className="min-h-10 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -2087,11 +2156,18 @@ Cordialement.`;
 
                           <div className="text-left md:min-w-56 md:text-right">
                             <p className="text-3xl font-black tracking-tight text-slate-950">
-                              DEVIS
+                              FACTURE
                             </p>
                             <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
                               {form.numero || "Numéro généré à l’enregistrement"}
                             </p>
+                            <span className="mt-2 inline-flex rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700">
+                              {form.type_facture === "acompte"
+                                ? "Facture d’acompte"
+                                : form.type_facture === "solde"
+                                  ? "Facture de solde"
+                                  : "Facture simple"}
+                            </span>
                           </div>
                         </div>
 
@@ -2139,15 +2215,15 @@ Cordialement.`;
                                   Date
                                 </p>
                                 <p className="mt-1 font-black text-slate-800">
-                                  {formatDate(form.date_devis)}
+                                  {formatDate(form.date_facture)}
                                 </p>
                               </div>
                               <div>
                                 <p className="font-bold uppercase tracking-wide text-slate-400">
-                                  Valable jusqu’au
+                                  Échéance
                                 </p>
                                 <p className="mt-1 font-black text-slate-800">
-                                  {formatDate(form.date_validite)}
+                                  {formatDate(form.date_echeance)}
                                 </p>
                               </div>
                             </div>
@@ -2167,7 +2243,7 @@ Cordialement.`;
 
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                            Objet du devis · facultatif
+                            Objet de la facture · facultatif
                           </label>
                           <input
                             value={form.objet}
@@ -2177,7 +2253,7 @@ Cordialement.`;
                                 objet: event.target.value,
                               }))
                             }
-                            placeholder="Ex. Taille de haie, élagage, création paysagère…"
+                            placeholder="Ex. Entretien espaces verts, élagage, création…"
                             className="mt-2 w-full border-0 border-b-2 border-slate-200 bg-transparent px-0 py-2 text-xl font-black text-slate-950 outline-none transition placeholder:text-slate-300 focus:border-emerald-500"
                           />
 
@@ -2190,7 +2266,7 @@ Cordialement.`;
                               }))
                             }
                             rows={2}
-                            placeholder="Description générale du devis…"
+                            placeholder="Description générale de la facture…"
                             className="mt-2 w-full resize-y rounded-xl border border-transparent bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600 outline-none transition focus:border-emerald-200 focus:bg-white focus:ring-4 focus:ring-emerald-50"
                           />
                         </div>
@@ -2202,7 +2278,7 @@ Cordialement.`;
                                 Prestations
                               </p>
                               <h3 className="mt-1 text-base font-black text-slate-950">
-                                Lignes du devis
+                                Lignes de facture
                               </h3>
                             </div>
 
@@ -2592,7 +2668,7 @@ Cordialement.`;
                         <div className="grid gap-5 md:grid-cols-[1fr_320px]">
                           <div>
                             <label className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                              Conditions
+                              Conditions de paiement
                             </label>
                             <textarea
                               value={form.conditions}
@@ -2603,7 +2679,7 @@ Cordialement.`;
                                 }))
                               }
                               rows={7}
-                              placeholder="Conditions particulières, modalités d’acceptation…"
+                              placeholder="Délai de paiement, pénalités, modalités…"
                               className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
                             />
                           </div>
@@ -2702,10 +2778,10 @@ Cordialement.`;
                     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
                       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
                         <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                          Paramètres du devis
+                          Paramètres de la facture
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
-                          Informations générales et chantier
+                          Client, échéance et chantier
                         </p>
                       </div>
 
@@ -2736,9 +2812,29 @@ Cordialement.`;
                           </div>
 
                           <ChampNumeroDocumentVerrouille
-                            typeDocument="devis"
+                            typeDocument="facture"
                             numero={form.numero}
                           />
+
+                          <div>
+                            <label className="mb-1 block text-xs font-bold text-slate-500">
+                              Type de facture
+                            </label>
+                            <select
+                              value={form.type_facture}
+                              onChange={(event) =>
+                                setForm((ancien) => ({
+                                  ...ancien,
+                                  type_facture: event.target.value as FormFacture["type_facture"],
+                                }))
+                              }
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                            >
+                              <option value="simple">Facture simple</option>
+                              <option value="acompte">Facture d’acompte</option>
+                              <option value="solde">Facture de solde</option>
+                            </select>
+                          </div>
 
                           <div className="grid grid-cols-2 gap-2">
                             <div>
@@ -2747,11 +2843,11 @@ Cordialement.`;
                               </label>
                               <input
                                 type="date"
-                                value={form.date_devis}
+                                value={form.date_facture}
                                 onChange={(event) =>
                                   setForm((ancien) => ({
                                     ...ancien,
-                                    date_devis: event.target.value,
+                                    date_facture: event.target.value,
                                   }))
                                 }
                                 className="w-full rounded-xl border border-slate-200 px-2.5 py-2.5 text-xs outline-none focus:border-emerald-500"
@@ -2760,15 +2856,15 @@ Cordialement.`;
 
                             <div>
                               <label className="mb-1 block text-xs font-bold text-slate-500">
-                                Validité
+                                Échéance
                               </label>
                               <input
                                 type="date"
-                                value={form.date_validite}
+                                value={form.date_echeance}
                                 onChange={(event) =>
                                   setForm((ancien) => ({
                                     ...ancien,
-                                    date_validite: event.target.value,
+                                    date_echeance: event.target.value,
                                   }))
                                 }
                                 className="w-full rounded-xl border border-slate-200 px-2.5 py-2.5 text-xs outline-none focus:border-emerald-500"
@@ -2811,9 +2907,9 @@ Cordialement.`;
                               Cycle du document
                             </p>
                             <p className="mt-1 text-[11px] leading-5 text-amber-800">
-                              « Enregistrer » conserve le devis en brouillon. « Aperçu »
+                              « Enregistrer » conserve la facture en brouillon. « Aperçu »
                               enregistre le brouillon puis ouvre l’impression. « Finaliser »
-                              passe le devis en envoyé et verrouille définitivement son contenu.
+                              passe la facture en envoyée et verrouille définitivement son contenu.
                             </p>
                           </div>
                         </section>
@@ -2932,7 +3028,7 @@ Cordialement.`;
 
                           <button
                             type="button"
-                            onClick={() => void enregistrerDevis("brouillon")}
+                            onClick={() => void enregistrerFacture("brouillon")}
                             disabled={chargementAction}
                             className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                           >
@@ -2941,7 +3037,7 @@ Cordialement.`;
 
                           <button
                             type="button"
-                            onClick={() => void enregistrerDevis("apercu")}
+                            onClick={() => void enregistrerFacture("apercu")}
                             disabled={chargementAction}
                             className="min-h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                           >
@@ -2950,7 +3046,7 @@ Cordialement.`;
 
                           <button
                             type="button"
-                            onClick={() => void enregistrerDevis("finaliser")}
+                            onClick={() => void enregistrerFacture("finaliser")}
                             disabled={chargementAction}
                             className="min-h-11 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
                           >
@@ -2970,7 +3066,8 @@ Cordialement.`;
   );
 }
 
-function ChargementPageDevis() {
+
+function ChargementPageFactures() {
   return (
     <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
       <div className="mx-auto max-w-7xl">
@@ -2980,7 +3077,7 @@ function ChargementPageDevis() {
           </div>
 
           <p className="font-semibold text-slate-900">
-            Chargement des devis…
+            Chargement des factures…
           </p>
 
           <p className="mt-1 text-sm text-slate-500">
@@ -2992,10 +3089,10 @@ function ChargementPageDevis() {
   );
 }
 
-export default function PageDevis() {
+export default function PageFactures() {
   return (
-    <Suspense fallback={<ChargementPageDevis />}>
-      <ContenuPageDevis />
+    <Suspense fallback={<ChargementPageFactures />}>
+      <ContenuPageFactures />
     </Suspense>
   );
 }

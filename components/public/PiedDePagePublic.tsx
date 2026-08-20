@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LogoArboboard from "@/components/branding/LogoArboboard";
 
 const LIENS_JURIDIQUES = [
   {
@@ -58,21 +59,11 @@ export default function PiedDePagePublic({
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr]">
           <div>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-3"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-2xl">
-                🌳
-              </span>
-              <span>
-                <span className="block text-lg font-bold">
-                  Arboboard
-                </span>
-                <span className="block text-xs text-slate-400">
-                  Gestion des entreprises d’espaces verts
-                </span>
-              </span>
+            <Link href="/" className="inline-flex">
+              <LogoArboboard
+                inverse
+                subtitle="Gestion des entreprises d’espaces verts"
+              />
             </Link>
 
             <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">

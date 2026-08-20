@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import PiedDePagePublic from "@/components/public/PiedDePagePublic";
+import LogoArboboard, { MarqueArboboard } from "@/components/branding/LogoArboboard";
 import {
   useEffect,
   useState,
@@ -296,7 +297,7 @@ export default function InscriptionPage() {
     !versionConfidentialite;
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-100">
+    <main className="flex min-h-screen flex-col bg-gradient-to-br from-emerald-50 via-slate-50 to-white">
       <div className="mx-auto flex w-full flex-1 max-w-2xl flex-col justify-center px-6 py-12">
         <div className="mb-6 text-center">
           <Link
@@ -307,10 +308,18 @@ export default function InscriptionPage() {
           </Link>
         </div>
 
-        <div className="rounded-3xl bg-white p-8 shadow-sm">
+        <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-xl shadow-emerald-950/5">
+          <div className="h-1.5 bg-emerald-600" />
+          <div className="p-8">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
-              🌱
+            <div className="mb-6 flex justify-center">
+              <LogoArboboard
+                subtitle="Votre entreprise, mieux organisée"
+              />
+            </div>
+
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50">
+              <MarqueArboboard className="h-12 w-12" />
             </div>
 
             <h1 className="text-3xl font-bold text-slate-900">
@@ -557,6 +566,7 @@ export default function InscriptionPage() {
                 Se connecter
               </Link>
             </p>
+          </div>
           </div>
         </div>
       </div>

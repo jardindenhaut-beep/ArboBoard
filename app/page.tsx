@@ -1,19 +1,17 @@
 import Link from "next/link";
 import PiedDePagePublic from "@/components/public/PiedDePagePublic";
+import LogoArboboard, { MarqueArboboard } from "@/components/branding/LogoArboboard";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-white">
       <section className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-10">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              🌱 Arboboard
-            </h1>
-            <p className="text-sm text-slate-500">
-              Logiciel SaaS pour paysagistes et élagueurs
-            </p>
-          </div>
+          <Link href="/" className="inline-flex">
+            <LogoArboboard
+              subtitle="Logiciel métier paysage & élagage"
+            />
+          </Link>
 
           <div className="flex flex-wrap gap-3">
             <Link
@@ -32,7 +30,7 @@ export default function HomePage() {
 
             <Link
               href="/inscription"
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800"
             >
               Créer mon espace
             </Link>
@@ -58,7 +56,7 @@ export default function HomePage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/inscription"
-                className="rounded-xl bg-slate-900 px-6 py-3 text-center font-semibold text-white hover:bg-slate-700"
+                className="rounded-xl bg-emerald-700 px-6 py-3 text-center font-semibold text-white shadow-sm transition hover:bg-emerald-800"
               >
                 Commencer maintenant
               </Link>
@@ -101,7 +99,12 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="relative overflow-hidden rounded-[32px] border border-emerald-100 bg-white p-6 shadow-xl shadow-emerald-950/5">
+            <div className="absolute -right-12 -top-12 opacity-[0.06]">
+              <MarqueArboboard className="h-52 w-52" />
+            </div>
+
+            <div className="relative">
             <h3 className="text-2xl font-bold text-slate-900">
               Ce que permet Arboboard
             </h3>
@@ -137,15 +140,16 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-slate-900 p-5 text-white">
+              <div className="rounded-2xl bg-emerald-950 p-5 text-white">
                 <h4 className="font-semibold">
                   Objectif
                 </h4>
-                <p className="mt-2 text-sm text-slate-300">
+                <p className="mt-2 text-sm text-emerald-100">
                   Faire gagner du temps aux professionnels du paysage sur
                   l’administratif, l’organisation et le suivi de leur activité.
                 </p>
               </div>
+            </div>
             </div>
           </div>
         </div>

@@ -18,6 +18,7 @@ import {
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
 import AcceptationsObligatoires from "@/components/juridique/AcceptationsObligatoires";
+import LogoArboboard, { MarqueArboboard } from "@/components/branding/LogoArboboard";
 
 type ResultatContexteEntreprise = Awaited<
   ReturnType<typeof chargerContexteEntreprise>
@@ -822,19 +823,11 @@ export default function ChefLayout({ children }: { children: ReactNode }) {
       <div className="lg:pl-72">
         <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
-            <Link
-              href="/chef"
-              className="flex items-center gap-2"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-xl">
-                🌳
-              </div>
-              <div>
-                <p className="font-bold leading-tight">Arboboard</p>
-                <p className="text-xs text-slate-500">
-                  Espace chef
-                </p>
-              </div>
+            <Link href="/chef" className="block min-w-0">
+              <LogoArboboard
+                compact
+                subtitle="Espace chef"
+              />
             </Link>
 
             <div ref={menuUtilisateurMobileRef}>

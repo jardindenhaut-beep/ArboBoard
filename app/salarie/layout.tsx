@@ -12,6 +12,7 @@ import {
   chargerContexteEntreprise,
 } from "@/lib/entreprise";
 import AcceptationsObligatoires from "@/components/juridique/AcceptationsObligatoires";
+import LogoArboboard, { MarqueArboboard } from "@/components/branding/LogoArboboard";
 
 type ContexteEntreprise = {
   profil: any;
@@ -248,7 +249,7 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
-          <div className="text-3xl mb-3">🌳</div>
+          <MarqueArboboard className="mx-auto mb-4 h-14 w-14" />
           <h1 className="text-xl font-semibold text-slate-900">
             Chargement de votre espace salarié
           </h1>
@@ -341,14 +342,8 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
       <AcceptationsObligatoires />
       <aside className="fixed left-0 top-0 hidden h-screen w-72 border-r border-slate-200 bg-white lg:flex lg:flex-col">
         <div className="border-b border-slate-200 p-5">
-          <Link href="/salarie/dashboard" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
-              🌳
-            </div>
-            <div>
-              <p className="text-lg font-bold leading-tight">Arboboard</p>
-              <p className="text-xs text-slate-500">Espace salarié</p>
-            </div>
+          <Link href="/salarie/dashboard" className="block">
+            <LogoArboboard subtitle="Espace salarié" />
           </Link>
         </div>
 
@@ -417,14 +412,11 @@ export default function SalarieLayout({ children }: { children: ReactNode }) {
       <div className="lg:pl-72">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
-            <Link href="/salarie/dashboard" className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-xl">
-                🌳
-              </div>
-              <div>
-                <p className="font-bold leading-tight">Arboboard</p>
-                <p className="text-xs text-slate-500">Espace salarié</p>
-              </div>
+            <Link href="/salarie/dashboard" className="block min-w-0">
+              <LogoArboboard
+                compact
+                subtitle="Espace salarié"
+              />
             </Link>
 
             <button type="button"

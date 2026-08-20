@@ -136,6 +136,8 @@ type FormDevis = {
   remise_globale_pourcent: number;
 };
 
+type ModeEnregistrementDocument = "brouillon" | "apercu" | "finaliser";
+
 type FiltreDevis =
   | "tous"
   | "brouillon"
@@ -1070,7 +1072,14 @@ function ContenuPageDevis() {
     });
   }
 
-  async function enregistrerDevis() {
+  async function enregistrerDevis(
+    mode: ModeEnregistrementDocument = "brouillon"
+  ) {
+    const fenetreApercu =
+      mode === "apercu"
+        ? window.open("about:blank", "_blank")
+        : null;
+
     try {
       setChargementAction(true);
       setMessageErreur("");
@@ -1078,13 +1087,21 @@ function ContenuPageDevis() {
 
       if (!entrepriseId) {
         setMessageErreur("Entreprise introuvable.");
+        fenetreApercu?.close();
         return;
       }
 
-      if (!form.objet.trim()) {
-        setMessageErreur("Veuillez renseigner l’objet du devis.");
-        return;
+      if (mode === "finaliser") {
+        const confirmation = window.confirm(
+          "Finaliser ce devis ? Une fois finalisé, son contenu sera verrouillé et ne pourra plus être modifié."
+        );
+
+        if (!confirmation) {
+          fenetreApercu?.close();
+          return;
+        }
       }
+
 
       const lignesValides = lignes
         .map(recalculerLigne)
@@ -1096,6 +1113,7 @@ function ContenuPageDevis() {
 
       if (prestationsValides.length === 0) {
         setMessageErreur("Veuillez ajouter au moins une prestation au devis.");
+        fenetreApercu?.close();
         return;
       }
 
@@ -1120,7 +1138,7 @@ function ContenuPageDevis() {
         client_id: form.client_id || null,
         client_nom: clientNom,
         numero: numeroFinal,
-        objet: form.objet.trim(),
+        objet: form.objet.trim() || null,
         description: form.description.trim() || null,
         adresse_chantier: form.adresse_chantier.trim() || null,
         code_postal_chantier: form.code_postal_chantier.trim() || null,
@@ -1200,7 +1218,7 @@ function ContenuPageDevis() {
 
       if (lignesInsertError) throw lignesInsertError;
 
-      if (form.statut === "envoye") {
+      if (mode === "finaliser") {
         const { error: statutError } = await supabase
           .from("devis")
           .update({
@@ -1212,13 +1230,24 @@ function ContenuPageDevis() {
         if (statutError) throw statutError;
       }
 
+      if (mode === "apercu" && fenetreApercu) {
+        fenetreApercu.location.href = `/chef/devis/${devisId}/impression`;
+      }
+
       setMessageSucces(
-        devisEdition ? "Devis modifié avec succès." : "Devis créé avec succès."
+        mode === "finaliser"
+          ? "Devis finalisé et verrouillé."
+          : mode === "apercu"
+            ? "Devis enregistré. Aperçu ouvert dans un nouvel onglet."
+            : devisEdition
+              ? "Brouillon modifié avec succès."
+              : "Brouillon créé avec succès."
       );
 
       reinitialiserModal();
       await chargerDevis();
     } catch (error: any) {
+      fenetreApercu?.close();
       console.error("Erreur enregistrement devis :", error);
       setMessageErreur(error?.message || "Impossible d’enregistrer le devis.");
     } finally {
@@ -1980,27 +2009,35 @@ Cordialement.`;
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full border px-3 py-1.5 text-xs font-black ${
-                        form.statut === "envoye"
-                          ? "border-blue-200 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-slate-50 text-slate-600"
-                      }`}
-                    >
-                      {form.statut === "envoye" ? "Prêt à envoyer" : "Brouillon"}
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-600">
+                      Brouillon modifiable
                     </span>
 
                     <button
                       type="button"
-                      onClick={enregistrerDevis}
+                      onClick={() => void enregistrerDevis("brouillon")}
+                      disabled={chargementAction}
+                      className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {chargementAction ? "Enregistrement…" : "Enregistrer"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void enregistrerDevis("apercu")}
+                      disabled={chargementAction}
+                      className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Aperçu
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void enregistrerDevis("finaliser")}
                       disabled={chargementAction}
                       className="min-h-10 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {chargementAction
-                        ? "Enregistrement…"
-                        : devisEdition
-                          ? "Enregistrer"
-                          : "Créer le devis"}
+                      Finaliser
                     </button>
                   </div>
                 </div>
@@ -2130,7 +2167,7 @@ Cordialement.`;
 
                         <div>
                           <label className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                            Objet du devis
+                            Objet du devis · facultatif
                           </label>
                           <input
                             value={form.objet}
@@ -2769,23 +2806,15 @@ Cordialement.`;
                             </p>
                           </div>
 
-                          <div>
-                            <label className="mb-1 block text-xs font-bold text-slate-500">
-                              État à l’enregistrement
-                            </label>
-                            <select
-                              value={form.statut}
-                              onChange={(event) =>
-                                setForm((ancien) => ({
-                                  ...ancien,
-                                  statut: event.target.value as FormDevis["statut"],
-                                }))
-                              }
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-                            >
-                              <option value="brouillon">Brouillon</option>
-                              <option value="envoye">Envoyé</option>
-                            </select>
+                          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-xs font-black text-amber-900">
+                              Cycle du document
+                            </p>
+                            <p className="mt-1 text-[11px] leading-5 text-amber-800">
+                              « Enregistrer » conserve le devis en brouillon. « Aperçu »
+                              enregistre le brouillon puis ouvre l’impression. « Finaliser »
+                              passe le devis en envoyé et verrouille définitivement son contenu.
+                            </p>
                           </div>
                         </section>
 
@@ -2900,13 +2929,32 @@ Cordialement.`;
                           >
                             Annuler
                           </button>
+
                           <button
                             type="button"
-                            onClick={enregistrerDevis}
+                            onClick={() => void enregistrerDevis("brouillon")}
+                            disabled={chargementAction}
+                            className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {chargementAction ? "Enregistrement…" : "Enregistrer"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void enregistrerDevis("apercu")}
+                            disabled={chargementAction}
+                            className="min-h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                          >
+                            Aperçu
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void enregistrerDevis("finaliser")}
                             disabled={chargementAction}
                             className="min-h-11 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
                           >
-                            {chargementAction ? "Enregistrement…" : "Enregistrer"}
+                            Finaliser
                           </button>
                         </div>
                       </div>

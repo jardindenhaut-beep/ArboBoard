@@ -29,6 +29,7 @@ export type FichePvPdf = {
   titre: string | null;
   type_intervention: string | null;
   date_prevue: string | null;
+  date_fin_prevue?: string | null;
   date_intervention: string | null;
   heure_debut_prevue: string | null;
   heure_fin_prevue: string | null;
@@ -51,10 +52,6 @@ export type PvFinChantierPdf = {
   client_email?: string | null;
   client_present: boolean | null;
   chantier_termine: boolean | null;
-
-  /**
-   * Colonnes actuelles de la table pv_fin_chantier.
-   */
   reserves?: string | null;
   commentaire_client: string | null;
   commentaire_entreprise: string | null;
@@ -63,9 +60,7 @@ export type PvFinChantierPdf = {
   signataire_entreprise_nom?: string | null;
   signature_entreprise?: string | null;
 
-  /**
-   * Colonnes conservées pour les anciens enregistrements.
-   */
+  // Compatibilité anciens enregistrements
   reserves_client?: string | null;
   nom_signataire_client?: string | null;
   signature_client_data_url?: string | null;
@@ -119,563 +114,271 @@ type Props = {
   equipe: SalariePv[];
 };
 
-const NOMBRE_MAX_PHOTOS_PDF = 6;
-
 const styles = StyleSheet.create({
   page: {
     paddingTop: 28,
-    paddingRight: 32,
-    paddingBottom: 52,
-    paddingLeft: 32,
+    paddingRight: 34,
+    paddingBottom: 48,
+    paddingLeft: 34,
     fontSize: 9.5,
     fontFamily: "Helvetica",
     color: "#0f172a",
     backgroundColor: "#ffffff",
   },
-
   topBar: {
     height: 5,
     borderRadius: 999,
-    backgroundColor: "#059669",
-    marginBottom: 15,
+    backgroundColor: "#047857",
+    marginBottom: 16,
   },
-
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#d1d5db",
     paddingBottom: 14,
-    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#dbe4df",
   },
-
-  companyColumn: {
-    width: "56%",
-    paddingRight: 14,
+  headerLeft: {
+    width: "58%",
+    paddingRight: 16,
   },
-
-  documentColumn: {
-    width: "40%",
+  headerRight: {
+    width: "38%",
+    alignItems: "flex-end",
+    textAlign: "right",
   },
-
   logo: {
     width: 82,
-    height: 56,
+    height: 58,
     objectFit: "contain",
-    marginBottom: 7,
+    marginBottom: 6,
   },
-
   companyName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
     color: "#064e3b",
     marginBottom: 4,
   },
-
-  companyLine: {
-    fontSize: 8.4,
+  small: {
+    fontSize: 8.2,
     lineHeight: 1.4,
-    color: "#475569",
+    color: "#64748b",
   },
-
-  titleBlock: {
-    textAlign: "right",
-    alignItems: "flex-end",
-  },
-
   title: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#064e3b",
   },
-
   subtitle: {
-    marginTop: 4,
-    fontSize: 8.8,
+    marginTop: 5,
+    fontSize: 8.5,
     color: "#64748b",
   },
-
-  statusBadge: {
-    marginTop: 9,
-    paddingVertical: 6,
-    paddingHorizontal: 9,
-    borderRadius: 6,
-    fontSize: 8.6,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-
-  badgeOk: {
-    backgroundColor: "#dcfce7",
-    color: "#166534",
-  },
-
-  badgeWarning: {
-    backgroundColor: "#fef3c7",
-    color: "#92400e",
-  },
-
-  badgeDanger: {
-    backgroundColor: "#fee2e2",
-    color: "#991b1b",
-  },
-
   section: {
-    marginTop: 10,
+    marginTop: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 9,
-    padding: 11,
+    borderColor: "#dbe4df",
+    borderRadius: 10,
+    padding: 12,
   },
-
-  sectionHeader: {
-    marginBottom: 8,
+  sectionGreen: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
   },
-
   sectionTitle: {
     fontSize: 12,
     fontWeight: "bold",
     color: "#064e3b",
+    marginBottom: 9,
   },
-
-  sectionSubtitle: {
-    marginTop: 2,
-    fontSize: 8,
-    lineHeight: 1.35,
-    color: "#64748b",
-  },
-
-  row: {
+  twoCols: {
     flexDirection: "row",
   },
-
   col: {
     flex: 1,
   },
-
   colLeft: {
-    paddingRight: 8,
+    paddingRight: 10,
   },
-
   colRight: {
-    paddingLeft: 8,
+    paddingLeft: 10,
   },
-
-  infoCard: {
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 7,
-    backgroundColor: "#f8fafc",
-    padding: 8,
-    marginBottom: 7,
-  },
-
   label: {
-    fontSize: 7.3,
-    color: "#64748b",
+    fontSize: 7.5,
     textTransform: "uppercase",
+    color: "#64748b",
     marginBottom: 2,
   },
-
   value: {
-    fontSize: 9.4,
+    fontSize: 9.5,
+    lineHeight: 1.4,
     color: "#0f172a",
-    lineHeight: 1.35,
-  },
-
-  valueSpacing: {
     marginBottom: 7,
   },
-
-  paragraph: {
-    fontSize: 9.3,
+  summaryTitle: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#064e3b",
+    marginBottom: 4,
+  },
+  summaryMeta: {
+    fontSize: 8.5,
+    color: "#475569",
     lineHeight: 1.45,
+    marginBottom: 9,
+  },
+  summaryText: {
+    fontSize: 11,
+    lineHeight: 1.6,
+    color: "#1e293b",
+  },
+  validationBox: {
+    marginTop: 8,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: "#ecfdf5",
+    borderWidth: 1,
+    borderColor: "#a7f3d0",
+  },
+  validationMain: {
+    fontSize: 10.5,
+    fontWeight: "bold",
+    lineHeight: 1.45,
+    color: "#065f46",
+  },
+  validationText: {
+    marginTop: 6,
+    fontSize: 9.2,
+    lineHeight: 1.5,
     color: "#334155",
   },
-
-  element: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    paddingBottom: 6,
-    marginBottom: 6,
+  reserveBox: {
+    marginTop: 8,
+    borderRadius: 7,
+    padding: 8,
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
   },
-
-  elementLast: {
-    borderBottomWidth: 0,
-    paddingBottom: 0,
-    marginBottom: 0,
-  },
-
-  elementTitle: {
-    fontSize: 9.5,
+  reserveTitle: {
+    fontSize: 8.5,
     fontWeight: "bold",
-    color: "#0f172a",
+    color: "#9a3412",
+    marginBottom: 3,
   },
-
-  muted: {
-    fontSize: 8.3,
-    lineHeight: 1.35,
-    color: "#64748b",
-  },
-
-  commentBox: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 5,
-    backgroundColor: "#f8fafc",
-    padding: 6,
-  },
-
-  warningBox: {
-    marginTop: 7,
-    borderWidth: 1,
-    borderColor: "#fcd34d",
-    borderRadius: 7,
-    backgroundColor: "#fffbeb",
-    padding: 8,
-  },
-
-  warningText: {
+  reserveText: {
     fontSize: 9,
-    lineHeight: 1.4,
-    color: "#92400e",
-  },
-
-  dangerBox: {
-    marginTop: 7,
-    borderWidth: 1,
-    borderColor: "#fecaca",
-    borderRadius: 7,
-    backgroundColor: "#fef2f2",
-    padding: 8,
-  },
-
-  dangerText: {
-    fontSize: 9,
-    lineHeight: 1.4,
-    color: "#991b1b",
-  },
-
-  confirmationBox: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: "#bbf7d0",
-    borderRadius: 7,
-    backgroundColor: "#f0fdf4",
-    padding: 8,
-  },
-
-  confirmationText: {
-    fontSize: 8.7,
     lineHeight: 1.45,
-    color: "#166534",
+    color: "#7c2d12",
   },
-
-  photoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 8,
-  },
-
-  photoCard: {
-    width: "48%",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 8,
-    padding: 6,
-    marginRight: "4%",
-    marginBottom: 8,
-  },
-
-  photoCardRight: {
-    marginRight: 0,
-  },
-
-  photoImage: {
-    width: "100%",
-    height: 104,
-    objectFit: "cover",
-    borderRadius: 5,
-    marginBottom: 5,
-  },
-
-  photoMeta: {
-    marginTop: 2,
-    fontSize: 7.6,
-    lineHeight: 1.3,
-    color: "#64748b",
-  },
-
   signatureRow: {
     flexDirection: "row",
-    marginTop: 4,
   },
-
   signatureBox: {
     width: "48%",
     minHeight: 122,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 9,
-    padding: 9,
+    padding: 10,
   },
-
-  signatureBoxLeft: {
+  signatureLeft: {
     marginRight: "4%",
   },
-
-  signatureBoxFull: {
-    width: "100%",
-    minHeight: 122,
-  },
-
   signatureTitle: {
     fontSize: 10.5,
     fontWeight: "bold",
-    marginBottom: 6,
     color: "#0f172a",
+    marginBottom: 6,
   },
-
   signatureImage: {
     width: "100%",
-    height: 58,
+    height: 62,
     objectFit: "contain",
-    marginVertical: 5,
+    marginVertical: 6,
   },
-
-  signatureAbsent: {
-    marginTop: 12,
-    marginBottom: 12,
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "#f1f5f9",
-    fontSize: 8.5,
-    lineHeight: 1.4,
-    color: "#475569",
-    textAlign: "center",
-  },
-
-  legalBlock: {
-    marginTop: 10,
-    paddingTop: 7,
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-  },
-
   footer: {
     position: "absolute",
-    left: 32,
-    right: 32,
+    left: 34,
+    right: 34,
     bottom: 18,
+    paddingTop: 7,
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
-    paddingTop: 7,
-    fontSize: 7.4,
+    fontSize: 7.2,
     color: "#64748b",
     textAlign: "center",
   },
 });
 
-function texte(
-  valeur?: string | null,
-  defaut = "—"
-) {
-  const propre = String(
-    valeur ?? ""
-  ).trim();
-
+function texte(valeur?: string | null, defaut = "—") {
+  const propre = String(valeur ?? "").trim();
   return propre || defaut;
 }
 
-function formatDate(
-  date?: string | null
-) {
+function formatDate(date?: string | null) {
   if (!date) return "—";
 
   try {
-    const valeur = date.includes("T")
-      ? date.slice(0, 10)
-      : date;
-
-    return new Intl.DateTimeFormat(
-      "fr-FR",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }
-    ).format(
-      new Date(
-        `${valeur}T00:00:00`
-      )
-    );
+    const valeur = date.includes("T") ? date.slice(0, 10) : date;
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(`${valeur}T00:00:00`));
   } catch {
     return "—";
   }
 }
 
-function formatDateHeure(
-  date?: string | null
-) {
+function formatDateHeure(date?: string | null) {
   if (!date) return "—";
 
   try {
-    return new Intl.DateTimeFormat(
-      "fr-FR",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    ).format(new Date(date));
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(date));
   } catch {
     return "—";
   }
 }
 
-function formatHeure(
-  heure?: string | null
-) {
-  if (!heure) return "—";
-
-  return heure.slice(0, 5);
-}
-
-function formatQuantite(
-  valeur:
-    | number
-    | null
-    | undefined
-) {
-  const nombre = Number(
-    valeur ?? 0
-  );
-
-  return new Intl.NumberFormat(
-    "fr-FR",
-    {
-      maximumFractionDigits: 2,
-    }
-  ).format(nombre);
-}
-
-function adresseEntreprise(
-  entreprise:
-    | ParametresEntreprisePv
-    | null
-) {
+function adresseEntreprise(entreprise: ParametresEntreprisePv | null) {
   return [
     entreprise?.adresse,
-    [
-      entreprise?.code_postal,
-      entreprise?.ville,
-    ]
-      .filter(Boolean)
-      .join(" "),
+    [entreprise?.code_postal, entreprise?.ville].filter(Boolean).join(" "),
   ]
     .filter(Boolean)
     .join(", ");
 }
 
-function adresseChantier(
-  fiche: FichePvPdf
-) {
-  const adresse =
-    fiche.adresse_chantier ||
-    fiche.adresse;
+function adresseChantier(fiche: FichePvPdf) {
+  const adresse = fiche.adresse_chantier || fiche.adresse;
+  const cp = fiche.code_postal_chantier || fiche.code_postal;
+  const ville = fiche.ville_chantier || fiche.ville;
 
-  const cp =
-    fiche.code_postal_chantier ||
-    fiche.code_postal;
-
-  const ville =
-    fiche.ville_chantier ||
-    fiche.ville;
-
-  return [
-    adresse,
-    [cp, ville]
-      .filter(Boolean)
-      .join(" "),
-  ]
+  return [adresse, [cp, ville].filter(Boolean).join(" ")]
     .filter(Boolean)
     .join(", ");
 }
 
-function elementsCategorie(
-  elements:
-    ElementFichePv[],
-  categorie: string
-) {
-  return elements.filter(
-    (element) =>
-      element.categorie ===
-      categorie
-  );
+function reservesPv(pv: PvFinChantierPdf) {
+  return pv.reserves || pv.reserves_client || null;
 }
 
-function photosCategorieLabel(
-  categorie?: string | null
-) {
-  if (categorie === "avant") {
-    return "Avant chantier";
-  }
-
-  if (categorie === "pendant") {
-    return "Pendant chantier";
-  }
-
-  if (categorie === "apres") {
-    return "Après chantier";
-  }
-
-  if (categorie === "probleme") {
-    return "Problème signalé";
-  }
-
-  if (categorie === "signature") {
-    return "Signature";
-  }
-
-  return "Autre";
+function nomSignataireClient(pv: PvFinChantierPdf) {
+  return pv.signataire_client_nom || pv.nom_signataire_client || null;
 }
 
-function reservesPv(
-  pv: PvFinChantierPdf
-) {
-  return (
-    pv.reserves ||
-    pv.reserves_client ||
-    null
-  );
+function signatureClient(pv: PvFinChantierPdf) {
+  return pv.signature_client || pv.signature_client_data_url || null;
 }
 
-function nomSignataireClient(
-  pv: PvFinChantierPdf
-) {
-  return (
-    pv.signataire_client_nom ||
-    pv.nom_signataire_client ||
-    null
-  );
-}
-
-function signatureClient(
-  pv: PvFinChantierPdf
-) {
-  return (
-    pv.signature_client ||
-    pv.signature_client_data_url ||
-    null
-  );
-}
-
-function nomSignataireEntreprise(
-  pv: PvFinChantierPdf
-) {
+function nomSignataireEntreprise(pv: PvFinChantierPdf) {
   return (
     pv.signataire_entreprise_nom ||
     pv.nom_signataire_entreprise ||
@@ -683,9 +386,7 @@ function nomSignataireEntreprise(
   );
 }
 
-function signatureEntreprise(
-  pv: PvFinChantierPdf
-) {
+function signatureEntreprise(pv: PvFinChantierPdf) {
   return (
     pv.signature_entreprise ||
     pv.signature_entreprise_data_url ||
@@ -693,249 +394,40 @@ function signatureEntreprise(
   );
 }
 
-function dateSignatureClient(
-  pv: PvFinChantierPdf
-) {
-  return (
-    pv.signe_client_at ||
-    pv.updated_at ||
-    pv.created_at
-  );
+function dateSignatureClient(pv: PvFinChantierPdf) {
+  return pv.signe_client_at || pv.updated_at || pv.created_at;
 }
 
-function dateSignatureEntreprise(
-  pv: PvFinChantierPdf
-) {
-  return (
-    pv.signe_entreprise_at ||
-    pv.updated_at ||
-    pv.created_at
-  );
+function dateSignatureEntreprise(pv: PvFinChantierPdf) {
+  return pv.signe_entreprise_at || pv.updated_at || pv.created_at;
 }
 
-function SectionHeader({
-  titre,
-  description,
-}: {
-  titre: string;
-  description?: string;
-}) {
-  return (
-    <View
-      style={styles.sectionHeader}
-      minPresenceAhead={40}
-    >
-      <Text style={styles.sectionTitle}>
-        {titre}
-      </Text>
+function periodeIntervention(fiche: FichePvPdf) {
+  const debut = fiche.date_prevue || fiche.date_intervention;
+  const fin = fiche.date_fin_prevue || debut;
 
-      {description ? (
-        <Text style={styles.sectionSubtitle}>
-          {description}
-        </Text>
-      ) : null}
-    </View>
-  );
+  if (!debut) return "Date non renseignée";
+  if (!fin || fin === debut) return formatDate(debut);
+  return `Du ${formatDate(debut)} au ${formatDate(fin)}`;
 }
 
-function BlocElements({
-  titre,
-  description,
-  elements,
-  fallback,
-}: {
-  titre: string;
-  description: string;
-  elements: ElementFichePv[];
-  fallback?: string | null;
-}) {
-  if (
-    elements.length === 0 &&
-    !fallback
-  ) {
-    return null;
+function resumeIntervention(fiche: FichePvPdf, pv: PvFinChantierPdf) {
+  const travaux = String(fiche.travaux_prevus || "").trim();
+  const commentaireEntreprise = String(
+    pv.commentaire_entreprise || ""
+  ).trim();
+
+  if (travaux && commentaireEntreprise) {
+    return `${travaux}\n\nCompte rendu : ${commentaireEntreprise}`;
   }
 
+  if (travaux) return travaux;
+  if (commentaireEntreprise) return commentaireEntreprise;
+
   return (
-    <View style={styles.section}>
-      <SectionHeader
-        titre={titre}
-        description={description}
-      />
-
-      {elements.length > 0 ? (
-        elements.map(
-          (element, index) => {
-            const quantitePrevue =
-              Number(
-                element.quantite_prevue ??
-                  1
-              );
-
-            const quantiteReelle =
-              element.quantite_reelle;
-
-            return (
-              <View
-                key={element.id}
-                style={[
-                  styles.element,
-                  index ===
-                  elements.length - 1
-                    ? styles.elementLast
-                    : {},
-                ]}
-                wrap={false}
-              >
-                <Text
-                  style={
-                    styles.elementTitle
-                  }
-                >
-                  {element.nom}
-                </Text>
-
-                <Text style={styles.muted}>
-                  Prévu :{" "}
-                  {formatQuantite(
-                    quantitePrevue
-                  )}{" "}
-                  {element.unite || "u"}
-                  {quantiteReelle !==
-                    null &&
-                  quantiteReelle !==
-                    undefined
-                    ? ` · Réel : ${formatQuantite(
-                        quantiteReelle
-                      )} ${
-                        element.unite ||
-                        "u"
-                      }`
-                    : ""}
-                </Text>
-
-                {element.commentaire_chef ? (
-                  <View
-                    style={
-                      styles.commentBox
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.muted
-                      }
-                    >
-                      Consigne entreprise
-                    </Text>
-                    <Text
-                      style={
-                        styles.paragraph
-                      }
-                    >
-                      {
-                        element.commentaire_chef
-                      }
-                    </Text>
-                  </View>
-                ) : null}
-
-                {element.commentaire_salarie ? (
-                  <View
-                    style={
-                      styles.commentBox
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.muted
-                      }
-                    >
-                      Retour terrain
-                    </Text>
-                    <Text
-                      style={
-                        styles.paragraph
-                      }
-                    >
-                      {
-                        element.commentaire_salarie
-                      }
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            );
-          }
-        )
-      ) : (
-        <Text style={styles.paragraph}>
-          {fallback}
-        </Text>
-      )}
-    </View>
-  );
-}
-
-function BlocSignature({
-  titre,
-  nom,
-  signature,
-  date,
-  clientAbsent = false,
-  pleineLargeur = false,
-  gauche = false,
-}: {
-  titre: string;
-  nom?: string | null;
-  signature?: string | null;
-  date?: string | null;
-  clientAbsent?: boolean;
-  pleineLargeur?: boolean;
-  gauche?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.signatureBox,
-        gauche
-          ? styles.signatureBoxLeft
-          : {},
-        pleineLargeur
-          ? styles.signatureBoxFull
-          : {},
-      ]}
-      wrap={false}
-    >
-      <Text style={styles.signatureTitle}>
-        {titre}
-      </Text>
-
-      <Text style={styles.muted}>
-        Nom : {texte(nom)}
-      </Text>
-
-      {clientAbsent ? (
-        <Text style={styles.signatureAbsent}>
-          Client absent lors de la
-          réception. Signature client non
-          requise.
-        </Text>
-      ) : signature ? (
-        <Image
-          src={signature}
-          style={styles.signatureImage}
-        />
-      ) : (
-        <Text style={styles.signatureAbsent}>
-          Signature non renseignée
-        </Text>
-      )}
-
-      <Text style={styles.muted}>
-        Enregistrée le :{" "}
-        {formatDateHeure(date)}
-      </Text>
-    </View>
+    String(fiche.titre || "").trim() ||
+    String(fiche.type_intervention || "").trim() ||
+    "Intervention réalisée conformément à la fiche de chantier."
   );
 }
 
@@ -947,906 +439,218 @@ export function PvFinChantierDocument({
   photos,
   equipe,
 }: Props) {
-  const dateFiche =
-    fiche.date_prevue ||
-    fiche.date_intervention;
+  // Conservés dans la signature du composant pour ne casser aucune route
+  // existante. Ils ne sont volontairement plus imprimés sur le PV simplifié.
+  void elements;
+  void photos;
+  void equipe;
 
-  const clientPresent =
-    pv.client_present !== false;
+  const valeurReserves = reservesPv(pv);
+  const valeurSignatureClient = signatureClient(pv);
+  const valeurSignatureEntreprise = signatureEntreprise(pv);
 
-  const chantierTermine =
-    pv.chantier_termine !== false;
+  const validationPrincipale = !pv.chantier_termine
+    ? "Chantier indiqué comme non terminé"
+    : valeurReserves
+      ? "Chantier réceptionné avec réserves"
+      : "Chantier réceptionné et validé";
 
-  const travaux =
-    elementsCategorie(
-      elements,
-      "travaux"
-    );
-
-  const materiel = [
-    ...elementsCategorie(
-      elements,
-      "materiel"
-    ),
-    ...elementsCategorie(
-      elements,
-      "materiaux"
-    ),
-  ];
-
-  const consignes = [
-    ...elementsCategorie(
-      elements,
-      "consigne_securite"
-    ),
-    ...elementsCategorie(
-      elements,
-      "consigne_chantier"
-    ),
-  ];
-
-  const photosAffichables =
-    photos
-      .filter((photo) =>
-        Boolean(photo.signed_url)
-      )
-      .slice(
-        0,
-        NOMBRE_MAX_PHOTOS_PDF
-      );
-
-  const valeurReserves =
-    reservesPv(pv);
-
-  const receptionAvecReserves =
-    Boolean(
-      texte(
-        valeurReserves,
-        ""
-      )
-    );
-
-  const valeurSignatureClient =
-    signatureClient(pv);
-
-  const valeurSignatureEntreprise =
-    signatureEntreprise(pv);
-
-  const statutReception =
-    !chantierTermine
-      ? "CHANTIER NON TERMINÉ — RÉSERVES À LEVER"
-      : receptionAvecReserves
-        ? "CHANTIER TERMINÉ AVEC RÉSERVES"
-        : "CHANTIER TERMINÉ SANS RÉSERVE";
-
-  const styleStatut =
-    !chantierTermine
-      ? styles.badgeDanger
-      : receptionAvecReserves
-        ? styles.badgeWarning
-        : styles.badgeOk;
+  const validationTexte = valeurSignatureClient
+    ? "Par sa signature, le client confirme avoir pris connaissance du résumé de l’intervention et valide la réception du chantier selon les éléments indiqués sur ce PV."
+    : "La validation du chantier sera considérée comme complète après signature du client.";
 
   return (
     <Document
-      title={`PV de fin de chantier ${texte(
-        fiche.numero ||
-          fiche.id,
-        ""
-      )}`}
-      author={texte(
-        entreprise?.nom_entreprise,
-        "Arboboard"
-      )}
-      subject={texte(
-        fiche.titre,
-        "PV de fin de chantier"
-      )}
-      creator="Arboboard"
-      producer="Arboboard"
+      title={`PV fin de chantier ${fiche.numero || fiche.id}`}
+      author={entreprise?.nom_entreprise || "ArboBoard"}
+      subject="Procès-verbal de fin de chantier"
     >
-      <Page
-        size="A4"
-        style={styles.page}
-        wrap
-      >
+      <Page size="A4" style={styles.page}>
         <View style={styles.topBar} />
 
-        <View
-          style={styles.header}
-          wrap={false}
-        >
-          <View
-            style={
-              styles.companyColumn
-            }
-          >
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
             {entreprise?.logo_url ? (
-              <Image
-                src={
-                  entreprise.logo_url
-                }
-                style={styles.logo}
-              />
+              <Image src={entreprise.logo_url} style={styles.logo} />
             ) : null}
 
-            <Text
-              style={
-                styles.companyName
-              }
-            >
-              {texte(
-                entreprise?.nom_entreprise,
-                "Entreprise"
-              )}
+            <Text style={styles.companyName}>
+              {texte(entreprise?.nom_entreprise, "Entreprise")}
             </Text>
 
-            {adresseEntreprise(
-              entreprise
-            ) ? (
-              <Text
-                style={
-                  styles.companyLine
-                }
-              >
-                {adresseEntreprise(
-                  entreprise
-                )}
+            {adresseEntreprise(entreprise) ? (
+              <Text style={styles.small}>
+                {adresseEntreprise(entreprise)}
               </Text>
             ) : null}
 
-            {entreprise?.telephone ||
-            entreprise?.email ? (
-              <Text
-                style={
-                  styles.companyLine
-                }
-              >
-                {entreprise?.telephone
-                  ? `Tél. : ${entreprise.telephone}`
-                  : ""}
-                {entreprise?.telephone &&
-                entreprise?.email
-                  ? " · "
-                  : ""}
-                {entreprise?.email
-                  ? `Email : ${entreprise.email}`
-                  : ""}
+            {entreprise?.telephone ? (
+              <Text style={styles.small}>
+                Tél. {entreprise.telephone}
+              </Text>
+            ) : null}
+
+            {entreprise?.email ? (
+              <Text style={styles.small}>
+                {entreprise.email}
               </Text>
             ) : null}
 
             {entreprise?.siret ? (
-              <Text
-                style={
-                  styles.companyLine
-                }
-              >
-                SIRET :{" "}
-                {entreprise.siret}
-              </Text>
-            ) : null}
-
-            {entreprise?.forme_juridique ? (
-              <Text
-                style={
-                  styles.companyLine
-                }
-              >
-                Forme juridique :{" "}
-                {
-                  entreprise.forme_juridique
-                }
+              <Text style={styles.small}>
+                SIRET : {entreprise.siret}
               </Text>
             ) : null}
           </View>
 
-          <View
-            style={[
-              styles.documentColumn,
-              styles.titleBlock,
-            ]}
-          >
-            <Text style={styles.title}>
-              PV de fin de chantier
+          <View style={styles.headerRight}>
+            <Text style={styles.title}>PV de fin de chantier</Text>
+            <Text style={styles.subtitle}>
+              Fiche {texte(fiche.numero || fiche.id)}
+            </Text>
+            <Text style={styles.subtitle}>
+              {periodeIntervention(fiche)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Informations client
+          </Text>
+
+          <View style={styles.twoCols}>
+            <View style={[styles.col, styles.colLeft]}>
+              <Text style={styles.label}>Client</Text>
+              <Text style={styles.value}>
+                {texte(fiche.client_nom)}
+              </Text>
+
+              <Text style={styles.label}>Email</Text>
+              <Text style={styles.value}>
+                {texte(pv.client_email || pv.envoye_client_email)}
+              </Text>
+            </View>
+
+            <View style={[styles.col, styles.colRight]}>
+              <Text style={styles.label}>Adresse du chantier</Text>
+              <Text style={styles.value}>
+                {texte(adresseChantier(fiche))}
+              </Text>
+
+              <Text style={styles.label}>Période d’intervention</Text>
+              <Text style={styles.value}>
+                {periodeIntervention(fiche)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.section, styles.sectionGreen]}>
+          <Text style={styles.summaryTitle}>
+            Résumé de l’intervention
+          </Text>
+
+          <Text style={styles.summaryMeta}>
+            {texte(fiche.titre, "Intervention")}
+            {fiche.type_intervention
+              ? ` · ${fiche.type_intervention}`
+              : ""}
+            {adresseChantier(fiche)
+              ? ` · ${adresseChantier(fiche)}`
+              : ""}
+          </Text>
+
+          <Text style={styles.summaryText}>
+            {resumeIntervention(fiche, pv)}
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Validation du chantier par le client
+          </Text>
+
+          <View style={styles.validationBox}>
+            <Text style={styles.validationMain}>
+              {validationPrincipale}
             </Text>
 
-            <Text
-              style={styles.subtitle}
-            >
-              Fiche :{" "}
-              {texte(
-                fiche.numero ||
-                  fiche.id
+            <Text style={styles.validationText}>
+              {validationTexte}
+            </Text>
+          </View>
+
+          {valeurReserves ? (
+            <View style={styles.reserveBox}>
+              <Text style={styles.reserveTitle}>
+                Réserves du client
+              </Text>
+              <Text style={styles.reserveText}>
+                {valeurReserves}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Signatures</Text>
+
+          <View style={styles.signatureRow}>
+            <View style={[styles.signatureBox, styles.signatureLeft]}>
+              <Text style={styles.signatureTitle}>Client</Text>
+              <Text style={styles.small}>
+                Nom : {texte(nomSignataireClient(pv))}
+              </Text>
+
+              {valeurSignatureClient ? (
+                <Image
+                  src={valeurSignatureClient}
+                  style={styles.signatureImage}
+                />
+              ) : (
+                <Text style={[styles.small, { marginTop: 20, marginBottom: 20 }]}>
+                  Signature non renseignée
+                </Text>
               )}
-            </Text>
 
-            <Text
-              style={styles.subtitle}
-            >
-              Date d’intervention :{" "}
-              {formatDate(dateFiche)}
-            </Text>
+              <Text style={styles.small}>
+                Signé le {formatDateHeure(dateSignatureClient(pv))}
+              </Text>
+            </View>
 
-            <Text
-              style={[
-                styles.statusBadge,
-                styleStatut,
-              ]}
-            >
-              {statutReception}
-            </Text>
-          </View>
-        </View>
+            <View style={styles.signatureBox}>
+              <Text style={styles.signatureTitle}>Entreprise</Text>
+              <Text style={styles.small}>
+                Nom : {texte(nomSignataireEntreprise(pv))}
+              </Text>
 
-        <View style={styles.section}>
-          <SectionHeader
-            titre="Informations chantier"
-            description="Identification du client, du lieu et des horaires de l’intervention."
-          />
-
-          <View style={styles.row}>
-            <View
-              style={[
-                styles.col,
-                styles.colLeft,
-              ]}
-            >
-              <View
-                style={styles.infoCard}
-                wrap={false}
-              >
-                <Text
-                  style={styles.label}
-                >
-                  Client
+              {valeurSignatureEntreprise ? (
+                <Image
+                  src={valeurSignatureEntreprise}
+                  style={styles.signatureImage}
+                />
+              ) : (
+                <Text style={[styles.small, { marginTop: 20, marginBottom: 20 }]}>
+                  Signature non renseignée
                 </Text>
-                <Text
-                  style={styles.value}
-                >
-                  {texte(
-                    fiche.client_nom
-                  )}
-                </Text>
+              )}
 
-                {pv.client_email ? (
-                  <>
-                    <Text
-                      style={[
-                        styles.label,
-                        {
-                          marginTop: 6,
-                        },
-                      ]}
-                    >
-                      Email client
-                    </Text>
-                    <Text
-                      style={styles.value}
-                    >
-                      {pv.client_email}
-                    </Text>
-                  </>
-                ) : null}
-              </View>
-
-              <Text style={styles.label}>
-                Titre intervention
-              </Text>
-              <Text
-                style={[
-                  styles.value,
-                  styles.valueSpacing,
-                ]}
-              >
-                {texte(fiche.titre)}
-              </Text>
-
-              <Text style={styles.label}>
-                Type d’intervention
-              </Text>
-              <Text style={styles.value}>
-                {texte(
-                  fiche.type_intervention
-                )}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.col,
-                styles.colRight,
-              ]}
-            >
-              <Text style={styles.label}>
-                Adresse chantier
-              </Text>
-              <Text
-                style={[
-                  styles.value,
-                  styles.valueSpacing,
-                ]}
-              >
-                {texte(
-                  adresseChantier(fiche)
-                )}
-              </Text>
-
-              <Text style={styles.label}>
-                Horaires prévus
-              </Text>
-              <Text
-                style={[
-                  styles.value,
-                  styles.valueSpacing,
-                ]}
-              >
-                {formatHeure(
-                  fiche.heure_debut_prevue
-                )}{" "}
-                →{" "}
-                {formatHeure(
-                  fiche.heure_fin_prevue
-                )}
-              </Text>
-
-              <Text style={styles.label}>
-                Horaires réels
-              </Text>
-              <Text style={styles.value}>
-                {formatHeure(
-                  fiche.heure_debut_reelle
-                )}{" "}
-                →{" "}
-                {formatHeure(
-                  fiche.heure_fin_reelle
-                )}
+              <Text style={styles.small}>
+                Signé le {formatDateHeure(dateSignatureEntreprise(pv))}
               </Text>
             </View>
           </View>
-
-          {fiche.notes_chantier ? (
-            <View
-              style={{
-                marginTop: 7,
-              }}
-              wrap={false}
-            >
-              <Text style={styles.label}>
-                Notes chantier
-              </Text>
-              <Text
-                style={styles.paragraph}
-              >
-                {fiche.notes_chantier}
-              </Text>
-            </View>
-          ) : null}
         </View>
-
-        {equipe.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              titre="Équipe affectée"
-              description={`${equipe.length} intervenant(s) enregistré(s) sur la fiche.`}
-            />
-
-            {equipe.map(
-              (item, index) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.element,
-                    index ===
-                    equipe.length - 1
-                      ? styles.elementLast
-                      : {},
-                  ]}
-                  wrap={false}
-                >
-                  <Text
-                    style={
-                      styles.elementTitle
-                    }
-                  >
-                    {texte(
-                      item.salarie_nom,
-                      "Salarié"
-                    )}
-                  </Text>
-
-                  <Text
-                    style={styles.muted}
-                  >
-                    Rôle :{" "}
-                    {texte(
-                      item.role_chantier
-                    )}{" "}
-                    · Prévu :{" "}
-                    {formatHeure(
-                      item.heure_arrivee_prevue
-                    )}{" "}
-                    →{" "}
-                    {formatHeure(
-                      item.heure_depart_prevue
-                    )}{" "}
-                    · Réel :{" "}
-                    {formatHeure(
-                      item.heure_arrivee_reelle
-                    )}{" "}
-                    →{" "}
-                    {formatHeure(
-                      item.heure_depart_reelle
-                    )}
-                  </Text>
-                </View>
-              )
-            )}
-          </View>
-        ) : null}
-
-        <BlocElements
-          titre="Travaux réalisés ou prévus"
-          description="Prestations et tâches rattachées à la fiche d’intervention."
-          elements={travaux}
-          fallback={
-            fiche.travaux_prevus
-          }
-        />
-
-        <BlocElements
-          titre="Matériel et matériaux"
-          description="Machines, outils, équipements et fournitures prévus pour le chantier."
-          elements={materiel}
-          fallback={
-            fiche.materiel_prevu
-          }
-        />
-
-        <BlocElements
-          titre="Consignes chantier et sécurité"
-          description="Consignes internes, accès, balisage et mesures de sécurité."
-          elements={consignes}
-          fallback={
-            fiche.consignes_securite
-          }
-        />
-
-        <View style={styles.section}>
-          <SectionHeader
-            titre="Réception des travaux"
-            description="État déclaré du chantier, réserves et observations des parties."
-          />
-
-          <View style={styles.row}>
-            <View
-              style={[
-                styles.col,
-                styles.colLeft,
-              ]}
-            >
-              <Text style={styles.label}>
-                Client présent
-              </Text>
-              <Text
-                style={[
-                  styles.value,
-                  styles.valueSpacing,
-                ]}
-              >
-                {clientPresent
-                  ? "Oui"
-                  : "Non"}
-              </Text>
-
-              <Text style={styles.label}>
-                Chantier terminé
-              </Text>
-              <Text style={styles.value}>
-                {chantierTermine
-                  ? "Oui"
-                  : "Non"}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.col,
-                styles.colRight,
-              ]}
-            >
-              <Text style={styles.label}>
-                Réception
-              </Text>
-              <Text
-                style={[
-                  styles.value,
-                  styles.valueSpacing,
-                ]}
-              >
-                {receptionAvecReserves
-                  ? "Avec réserves"
-                  : "Sans réserve"}
-              </Text>
-
-              <Text style={styles.label}>
-                Dernière mise à jour
-              </Text>
-              <Text style={styles.value}>
-                {formatDateHeure(
-                  pv.updated_at ||
-                    pv.created_at
-                )}
-              </Text>
-            </View>
-          </View>
-
-          {receptionAvecReserves ? (
-            <View
-              style={
-                chantierTermine
-                  ? styles.warningBox
-                  : styles.dangerBox
-              }
-              wrap={false}
-            >
-              <Text
-                style={
-                  chantierTermine
-                    ? styles.warningText
-                    : styles.dangerText
-                }
-              >
-                Réserves :{" "}
-                {texte(
-                  valeurReserves
-                )}
-              </Text>
-            </View>
-          ) : (
-            <View
-              style={
-                styles.confirmationBox
-              }
-              wrap={false}
-            >
-              <Text
-                style={
-                  styles.confirmationText
-                }
-              >
-                Le chantier est déclaré
-                réceptionné sans réserve.
-              </Text>
-            </View>
-          )}
-
-          {pv.commentaire_client ? (
-            <View
-              style={{
-                marginTop: 8,
-              }}
-              wrap={false}
-            >
-              <Text style={styles.label}>
-                Commentaire client
-              </Text>
-              <Text
-                style={styles.paragraph}
-              >
-                {
-                  pv.commentaire_client
-                }
-              </Text>
-            </View>
-          ) : null}
-
-          {pv.commentaire_entreprise ? (
-            <View
-              style={{
-                marginTop: 8,
-              }}
-              wrap={false}
-            >
-              <Text style={styles.label}>
-                Commentaire entreprise
-              </Text>
-              <Text
-                style={styles.paragraph}
-              >
-                {
-                  pv.commentaire_entreprise
-                }
-              </Text>
-            </View>
-          ) : null}
-
-          {!clientPresent ? (
-            <View
-              style={styles.warningBox}
-              wrap={false}
-            >
-              <Text
-                style={
-                  styles.warningText
-                }
-              >
-                Le client était absent
-                lors de la réception. Le
-                document est établi par
-                l’entreprise et peut être
-                transmis au client par
-                voie électronique.
-              </Text>
-            </View>
-          ) : (
-            <View
-              style={
-                styles.confirmationBox
-              }
-              wrap={false}
-            >
-              <Text
-                style={
-                  styles.confirmationText
-                }
-              >
-                La signature du client
-                atteste de la réception
-                du chantier sous réserve
-                des éventuelles
-                observations indiquées
-                dans le présent document.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {photos.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader
-              titre="Photos du chantier"
-              description={`${photos.length} photo(s) enregistrée(s). Le PDF affiche au maximum ${NOMBRE_MAX_PHOTOS_PDF} aperçus pour limiter la taille du document.`}
-            />
-
-            {photosAffichables.length >
-            0 ? (
-              <View
-                style={
-                  styles.photoGrid
-                }
-              >
-                {photosAffichables.map(
-                  (
-                    photo,
-                    index
-                  ) => (
-                    <View
-                      key={photo.id}
-                      style={[
-                        styles.photoCard,
-                        index % 2 === 1
-                          ? styles.photoCardRight
-                          : {},
-                      ]}
-                      wrap={false}
-                    >
-                      {photo.signed_url ? (
-                        <Image
-                          src={
-                            photo.signed_url
-                          }
-                          style={
-                            styles.photoImage
-                          }
-                        />
-                      ) : null}
-
-                      <Text
-                        style={
-                          styles.elementTitle
-                        }
-                      >
-                        {photosCategorieLabel(
-                          photo.categorie
-                        )}
-                      </Text>
-
-                      {photo.commentaire ? (
-                        <Text
-                          style={
-                            styles.muted
-                          }
-                        >
-                          {
-                            photo.commentaire
-                          }
-                        </Text>
-                      ) : null}
-
-                      {photo.created_at ? (
-                        <Text
-                          style={
-                            styles.photoMeta
-                          }
-                        >
-                          Ajoutée le{" "}
-                          {formatDateHeure(
-                            photo.created_at
-                          )}
-                        </Text>
-                      ) : null}
-                    </View>
-                  )
-                )}
-              </View>
-            ) : (
-              <Text
-                style={styles.muted}
-              >
-                Les photos sont
-                enregistrées, mais aucun
-                aperçu temporaire n’était
-                disponible lors de la
-                génération du PDF.
-              </Text>
-            )}
-
-            {photos.length >
-            photosAffichables.length ? (
-              <Text
-                style={[
-                  styles.muted,
-                  {
-                    marginTop: 3,
-                  },
-                ]}
-              >
-                {photos.length -
-                  photosAffichables.length}{" "}
-                photo(s) supplémentaire(s)
-                restent consultables dans
-                la fiche d’intervention
-                Arboboard.
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        <View
-          style={styles.section}
-          wrap={false}
-        >
-          <SectionHeader
-            titre="Signatures"
-            description="Signatures enregistrées lors de la réception du chantier."
-          />
-
-          {clientPresent ? (
-            <View
-              style={
-                styles.signatureRow
-              }
-            >
-              <BlocSignature
-                titre="Client"
-                nom={nomSignataireClient(
-                  pv
-                )}
-                signature={
-                  valeurSignatureClient
-                }
-                date={dateSignatureClient(
-                  pv
-                )}
-                gauche
-              />
-
-              <BlocSignature
-                titre="Entreprise"
-                nom={nomSignataireEntreprise(
-                  pv
-                )}
-                signature={
-                  valeurSignatureEntreprise
-                }
-                date={dateSignatureEntreprise(
-                  pv
-                )}
-              />
-            </View>
-          ) : (
-            <View
-              style={
-                styles.signatureRow
-              }
-            >
-              <BlocSignature
-                titre="Entreprise"
-                nom={nomSignataireEntreprise(
-                  pv
-                )}
-                signature={
-                  valeurSignatureEntreprise
-                }
-                date={dateSignatureEntreprise(
-                  pv
-                )}
-                pleineLargeur
-              />
-            </View>
-          )}
-        </View>
-
-        {!clientPresent ? (
-          <View
-            style={styles.section}
-            wrap={false}
-          >
-            <SectionHeader
-              titre="Constat d’absence du client"
-              description="Information conservée dans le procès-verbal."
-            />
-
-            <Text
-              style={styles.paragraph}
-            >
-              Le client n’était pas présent
-              lors de la réception du
-              chantier. Aucune signature
-              client n’était donc requise au
-              moment de l’établissement du
-              présent document.
-            </Text>
-          </View>
-        ) : null}
-
-        {entreprise
-          ?.mentions_legales ||
-        entreprise
-          ?.assurance_professionnelle ? (
-          <View
-            style={styles.legalBlock}
-          >
-            {entreprise
-              ?.assurance_professionnelle ? (
-              <Text
-                style={styles.muted}
-              >
-                Assurance professionnelle :{" "}
-                {
-                  entreprise.assurance_professionnelle
-                }
-              </Text>
-            ) : null}
-
-            {entreprise
-              ?.mentions_legales ? (
-              <Text
-                style={[
-                  styles.muted,
-                  {
-                    marginTop: 3,
-                  },
-                ]}
-              >
-                {
-                  entreprise.mentions_legales
-                }
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
 
         <Text
           fixed
           style={styles.footer}
-          render={({
-            pageNumber,
-            totalPages,
-          }) =>
+          render={({ pageNumber, totalPages }) =>
             `${texte(
               entreprise?.nom_entreprise,
               "Entreprise"
-            )} · PV généré par Arboboard · Page ${pageNumber}/${totalPages}`
+            )} · PV généré par ArboBoard · Page ${pageNumber}/${totalPages}`
           }
         />
       </Page>

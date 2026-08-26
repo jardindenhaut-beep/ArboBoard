@@ -36,6 +36,7 @@ type FicheIntervention = {
   heure_fin: string | null;
 
   date_prevue: string | null;
+  date_fin_prevue: string | null;
   heure_debut_prevue: string | null;
   heure_fin_prevue: string | null;
   heure_debut_reelle: string | null;
@@ -348,6 +349,33 @@ function titreFiche(fiche: FicheIntervention) {
 
 function dateFiche(fiche: FicheIntervention) {
   return fiche.date_prevue || fiche.date_intervention || "";
+}
+
+function dateFinFiche(fiche: FicheIntervention) {
+  return fiche.date_fin_prevue || dateFiche(fiche);
+}
+
+function ficheCouvreDate(fiche: FicheIntervention, date: string) {
+  const debut = dateFiche(fiche);
+  const fin = dateFinFiche(fiche);
+
+  return Boolean(debut && fin && date >= debut && date <= fin);
+}
+
+function ficheCroisePeriode(
+  fiche: FicheIntervention,
+  debutPeriode: string,
+  finPeriode: string
+) {
+  const debut = dateFiche(fiche);
+  const fin = dateFinFiche(fiche);
+
+  return Boolean(
+    debut &&
+      fin &&
+      debut <= finPeriode &&
+      fin >= debutPeriode
+  );
 }
 
 function heureDebutFiche(fiche: FicheIntervention) {
@@ -908,13 +936,13 @@ export default function PlanningSalariePage() {
     return {
       total: fiches.length + evenements.length,
       aujourdHui:
-        fiches.filter((fiche) => dateFiche(fiche) === aujourdhui).length +
+        fiches.filter((fiche) => ficheCouvreDate(fiche, aujourdhui)).length +
         evenements.filter((evenement) => dateDansEvenement(aujourdhui, evenement)).length,
       aVenir:
         fiches.filter((fiche) => {
-          const date = dateFiche(fiche);
+          const fin = dateFinFiche(fiche);
           return Boolean(
-            date && date >= aujourdhui && fiche.statut !== "terminee"
+            fin && fin >= aujourdhui && fiche.statut !== "terminee"
           );
         }).length +
         evenements.filter((evenement) => evenement.date_fin >= aujourdhui).length,
@@ -940,22 +968,24 @@ export default function PlanningSalariePage() {
 
     return fiches.filter((fiche) => {
       const date = dateFiche(fiche);
+      const dateFin = dateFinFiche(fiche);
 
       const correspondFiltre =
         filtre === "toutes" ||
         (filtre === "aujourd_hui" &&
-          date === aujourdhui) ||
+          ficheCouvreDate(fiche, aujourdhui)) ||
         (filtre === "semaine" &&
-          Boolean(
-            date &&
-              date >= aujourdhui &&
-              date <= dansSeptJours &&
-              fiche.statut !== "terminee"
-          )) ||
+          ficheCroisePeriode(
+            fiche,
+            aujourdhui,
+            dansSeptJours
+          ) &&
+          fiche.statut !== "terminee") ||
         (filtre === "a_venir" &&
           Boolean(
             date &&
-              date >= aujourdhui &&
+              dateFin &&
+              dateFin >= aujourdhui &&
               fiche.statut !== "terminee"
           )) ||
         (filtre === "en_cours" &&
@@ -1071,7 +1101,7 @@ export default function PlanningSalariePage() {
   function elementsPlanningPourDate(date: string) {
     const liste: ElementPlanningSalarie[] = [
       ...fichesFiltrees
-        .filter((fiche) => dateFiche(fiche) === date)
+        .filter((fiche) => ficheCouvreDate(fiche, date))
         .map((fiche) => ({ nature: "fiche" as const, fiche })),
       ...evenementsFiltres
         .filter((evenement) => dateDansEvenement(date, evenement))

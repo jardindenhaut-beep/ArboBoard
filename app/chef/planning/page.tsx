@@ -50,6 +50,7 @@ type FicheIntervention = {
   heure_fin: string | null;
 
   date_prevue: string | null;
+  date_fin_prevue: string | null;
   heure_debut_prevue: string | null;
   heure_fin_prevue: string | null;
   heure_debut_reelle: string | null;
@@ -333,6 +334,49 @@ function titreFiche(fiche: FicheIntervention) {
 
 function dateFiche(fiche: FicheIntervention) {
   return fiche.date_prevue || fiche.date_intervention || "";
+}
+
+function dateFinFiche(fiche: FicheIntervention) {
+  return fiche.date_fin_prevue || dateFiche(fiche);
+}
+
+function ficheCouvreDate(fiche: FicheIntervention, date: string) {
+  const debut = dateFiche(fiche);
+  const fin = dateFinFiche(fiche);
+
+  return Boolean(debut && fin && date >= debut && date <= fin);
+}
+
+function ficheCroisePeriode(
+  fiche: FicheIntervention,
+  debutPeriode: string,
+  finPeriode: string
+) {
+  const debut = dateFiche(fiche);
+  const fin = dateFinFiche(fiche);
+
+  return Boolean(
+    debut &&
+      fin &&
+      debut <= finPeriode &&
+      fin >= debutPeriode
+  );
+}
+
+function dureeFicheEnJours(fiche: FicheIntervention) {
+  const debut = dateFiche(fiche);
+  const fin = dateFinFiche(fiche);
+
+  if (!debut || !fin) return 0;
+
+  const ecart =
+    dateDepuisIso(fin).getTime() -
+    dateDepuisIso(debut).getTime();
+
+  return Math.max(
+    0,
+    Math.round(ecart / (24 * 60 * 60 * 1000))
+  );
 }
 
 function heureDebutFiche(fiche: FicheIntervention) {
@@ -785,6 +829,12 @@ export default function PlanningChefPage() {
     if (!peutDeplacerFiche(fiche)) return;
     if (dateFiche(fiche) === nouvelleDate) return;
 
+    const dureeJours = dureeFicheEnJours(fiche);
+    const nouvelleDateFin = ajouterJours(
+      nouvelleDate,
+      dureeJours
+    );
+
     try {
       setEnregistrement(true);
       setMessageErreur("");
@@ -794,6 +844,7 @@ export default function PlanningChefPage() {
         .from("fiches_intervention")
         .update({
           date_prevue: nouvelleDate,
+          date_fin_prevue: nouvelleDateFin,
           date_intervention: nouvelleDate,
         })
         .eq("entreprise_id", entrepriseId)
@@ -808,6 +859,7 @@ export default function PlanningChefPage() {
               ? {
                   ...item,
                   date_prevue: nouvelleDate,
+                  date_fin_prevue: nouvelleDateFin,
                   date_intervention: nouvelleDate,
                 }
               : item
@@ -1096,14 +1148,14 @@ export default function PlanningChefPage() {
     return {
       total: fiches.length + evenements.length,
       aujourdHui:
-        fiches.filter((fiche) => dateFiche(fiche) === aujourdhui).length +
+        fiches.filter((fiche) => ficheCouvreDate(fiche, aujourdhui)).length +
         evenements.filter((evenement) => dateDansEvenement(aujourdhui, evenement)).length,
       aVenir: fiches.filter((fiche) => {
-        const date = dateFiche(fiche);
+        const fin = dateFinFiche(fiche);
 
         return Boolean(
-          date &&
-            date >= aujourdhui &&
+          fin &&
+            fin >= aujourdhui &&
             fiche.statut !== "terminee" &&
             fiche.statut !== "annulee" &&
             fiche.statut !== "archivee"
@@ -1127,16 +1179,19 @@ export default function PlanningChefPage() {
 
     return fiches.filter((fiche) => {
       const date = dateFiche(fiche);
+      const dateFin = dateFinFiche(fiche);
       const statut = (fiche.statut || "brouillon") as StatutFiche;
       const equipe = equipeDeFiche(fiche);
 
       const correspondFiltreRapide =
         filtreRapide === "toutes" ||
-        (filtreRapide === "aujourd_hui" && date === aujourdhui) ||
+        (filtreRapide === "aujourd_hui" &&
+          ficheCouvreDate(fiche, aujourdhui)) ||
         (filtreRapide === "a_venir" &&
           Boolean(
             date &&
-              date >= aujourdhui &&
+              dateFin &&
+              dateFin >= aujourdhui &&
               statut !== "terminee" &&
               statut !== "annulee" &&
               statut !== "archivee"
@@ -1274,9 +1329,25 @@ export default function PlanningChefPage() {
 
     for (const element of elementsPlanningFiltres) {
       if (element.nature === "fiche") {
-        const date = dateFiche(element.fiche) || "non_planifiee";
-        if (!groupes[date]) groupes[date] = [];
-        groupes[date].push(element);
+        const debut = dateFiche(element.fiche);
+        const fin = dateFinFiche(element.fiche);
+
+        if (!debut) {
+          if (!groupes.non_planifiee) {
+            groupes.non_planifiee = [];
+          }
+          groupes.non_planifiee.push(element);
+          continue;
+        }
+
+        let date = debut;
+        const derniereDate = fin || debut;
+
+        while (date <= derniereDate) {
+          if (!groupes[date]) groupes[date] = [];
+          groupes[date].push(element);
+          date = ajouterJours(date, 1);
+        }
         continue;
       }
 
@@ -1308,7 +1379,7 @@ export default function PlanningChefPage() {
   function elementsPlanningPourDate(date: string) {
     const liste: ElementPlanning[] = [
       ...fichesFiltrees
-        .filter((fiche) => dateFiche(fiche) === date)
+        .filter((fiche) => ficheCouvreDate(fiche, date))
         .map((fiche) => ({ nature: "fiche" as const, fiche })),
       ...evenementsFiltres
         .filter((evenement) => dateDansEvenement(date, evenement))

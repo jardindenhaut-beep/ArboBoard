@@ -130,6 +130,7 @@ type FicheIntervention = {
   heure_fin: string | null;
 
   date_prevue: string | null;
+  date_fin_prevue: string | null;
   heure_debut_prevue: string | null;
   heure_fin_prevue: string | null;
   heure_debut_reelle: string | null;
@@ -204,6 +205,7 @@ type FormulaireCreation = {
   type_intervention_id: string;
   titre: string;
   date_prevue: string;
+  date_fin_prevue: string;
   heure_debut_prevue: string;
   heure_fin_prevue: string;
   adresse_chantier: string;
@@ -232,6 +234,7 @@ const FORMULAIRE_VIDE: FormulaireCreation = {
   type_intervention_id: "",
   titre: "",
   date_prevue: "",
+  date_fin_prevue: "",
   heure_debut_prevue: "",
   heure_fin_prevue: "",
   adresse_chantier: "",
@@ -772,6 +775,16 @@ function formatDate(date: string | null | undefined) {
   } catch {
     return "Non planifiée";
   }
+}
+
+function formatPeriodeFiche(
+  dateDebut: string | null | undefined,
+  dateFin: string | null | undefined
+) {
+  if (!dateDebut) return "Non planifiée";
+  if (!dateFin || dateFin === dateDebut) return formatDate(dateDebut);
+
+  return `${formatDate(dateDebut)} → ${formatDate(dateFin)}`;
 }
 
 function formatHeure(heure: string | null | undefined) {
@@ -1361,6 +1374,18 @@ export default function FichesInterventionPage() {
     }));
   }
 
+  function modifierDateDebutPrevue(valeur: string) {
+    setFormulaire((ancien) => ({
+      ...ancien,
+      date_prevue: valeur,
+      date_fin_prevue:
+        !ancien.date_fin_prevue ||
+        ancien.date_fin_prevue < valeur
+          ? valeur
+          : ancien.date_fin_prevue,
+    }));
+  }
+
   async function selectionnerDevis(devisId: string) {
     modifierChamp("devis_id", devisId);
     setElementsSelectionnes([]);
@@ -1659,6 +1684,7 @@ export default function FichesInterventionPage() {
     if (!formulaire.titre.trim()) return false;
     if (!formulaire.type_intervention_id) return false;
     if (!formulaire.date_prevue) return false;
+    if (!formulaire.date_fin_prevue) return false;
     if (!formulaire.heure_debut_prevue) return false;
     if (!formulaire.heure_fin_prevue) return false;
     if (!formulaire.adresse_chantier.trim()) return false;
@@ -1670,7 +1696,14 @@ export default function FichesInterventionPage() {
   function verifierEtapeInformations() {
     if (!formulaireValide()) {
       setMessageErreur(
-        "Complétez le devis, le type d’intervention, le titre, la date, les horaires et l’adresse complète du chantier."
+        "Complétez le devis, le type d’intervention, le titre, les dates de début et de fin, les horaires et l’adresse complète du chantier."
+      );
+      return false;
+    }
+
+    if (formulaire.date_fin_prevue < formulaire.date_prevue) {
+      setMessageErreur(
+        "La date de fin prévue doit être égale ou postérieure à la date de début."
       );
       return false;
     }
@@ -1861,6 +1894,7 @@ export default function FichesInterventionPage() {
         heure_fin: formulaire.heure_fin_prevue,
 
         date_prevue: formulaire.date_prevue,
+        date_fin_prevue: formulaire.date_fin_prevue,
         heure_debut_prevue: formulaire.heure_debut_prevue,
         heure_fin_prevue: formulaire.heure_fin_prevue,
 
@@ -2463,8 +2497,11 @@ export default function FichesInterventionPage() {
 
                           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600 lg:block">
                             <span className="font-semibold">
-                              {formatDate(
-                                fiche.date_prevue || fiche.date_intervention
+                              {formatPeriodeFiche(
+                                fiche.date_prevue || fiche.date_intervention,
+                                fiche.date_fin_prevue ||
+                                  fiche.date_prevue ||
+                                  fiche.date_intervention
                               )}
                             </span>
                             <span className="lg:mt-1 lg:block">
@@ -2882,16 +2919,37 @@ export default function FichesInterventionPage() {
 
                         <div>
                           <label className="mb-1.5 block text-sm font-bold text-slate-700">
-                            Date prévue <span className="text-red-500">*</span>
+                            Date de début <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="date"
                             value={formulaire.date_prevue}
                             onChange={(event) =>
-                              modifierChamp("date_prevue", event.target.value)
+                              modifierDateDebutPrevue(event.target.value)
                             }
                             className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                           />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-bold text-slate-700">
+                            Date de fin <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="date"
+                            min={formulaire.date_prevue || undefined}
+                            value={formulaire.date_fin_prevue}
+                            onChange={(event) =>
+                              modifierChamp(
+                                "date_fin_prevue",
+                                event.target.value
+                              )
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                          />
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            Pour un chantier d’une journée, mettez la même date.
+                          </p>
                         </div>
 
                         <div>
@@ -3519,7 +3577,10 @@ export default function FichesInterventionPage() {
                                 Date & horaires
                               </p>
                               <p className="mt-1 font-bold text-slate-800">
-                                {formatDate(formulaire.date_prevue)} ·{" "}
+                                {formatPeriodeFiche(
+                                  formulaire.date_prevue,
+                                  formulaire.date_fin_prevue
+                                )} ·{" "}
                                 {formulaire.heure_debut_prevue} →{" "}
                                 {formulaire.heure_fin_prevue}
                               </p>
@@ -3754,11 +3815,14 @@ export default function FichesInterventionPage() {
 
                       <div>
                         <p className="text-xs font-semibold text-slate-400">
-                          Date prévue
+                          Période prévue
                         </p>
                         <p className="mt-1 font-bold text-slate-800">
                           {formulaire.date_prevue
-                            ? formatDate(formulaire.date_prevue)
+                            ? formatPeriodeFiche(
+                                formulaire.date_prevue,
+                                formulaire.date_fin_prevue
+                              )
                             : "Non renseignée"}
                         </p>
                         {(formulaire.heure_debut_prevue ||

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import PiedDePagePublic from "@/components/public/PiedDePagePublic";
 import LogoArboboard, {
@@ -100,7 +101,7 @@ export default function HomePage() {
             </div>
           </header>
 
-          <div className="grid min-h-[680px] gap-14 py-16 lg:grid-cols-[1.05fr_.95fr] lg:items-center lg:py-20">
+          <div className="grid min-h-[680px] gap-14 py-16 lg:grid-cols-[.88fr_1.12fr] lg:items-center lg:py-20">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-100">
                 <span className="h-2 w-2 rounded-full bg-[#d6b86a]" />
@@ -145,94 +146,19 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute -inset-5 rounded-[38px] bg-gradient-to-br from-emerald-400/15 to-[#d6b86a]/10 blur-2xl" />
+            <div className="relative lg:-mr-10 xl:-mr-20">
+              <div className="absolute -inset-5 rounded-[42px] bg-gradient-to-br from-emerald-400/15 to-[#d6b86a]/10 blur-2xl" />
 
-              <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#f7f8f4] p-3 shadow-2xl shadow-black/30">
-                <div className="rounded-[25px] bg-white p-5 text-slate-950 sm:p-6">
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
-                        Tableau de bord
-                      </p>
-                      <p className="mt-1 text-xl font-black">
-                        Bonjour 👋
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-[#102a20] px-4 py-2 text-xs font-bold text-white">
-                      Aujourd’hui
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-emerald-50 p-4">
-                      <p className="text-xs font-bold text-emerald-700">
-                        Chantiers
-                      </p>
-                      <p className="mt-2 text-3xl font-black text-emerald-950">
-                        4
-                      </p>
-                      <p className="mt-1 text-xs text-emerald-700/70">
-                        planifiés aujourd’hui
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-[#f8f1df] p-4">
-                      <p className="text-xs font-bold text-[#816820]">
-                        À encaisser
-                      </p>
-                      <p className="mt-2 text-2xl font-black text-[#47370f]">
-                        4 820 €
-                      </p>
-                      <p className="mt-1 text-xs text-[#816820]/70">
-                        factures en cours
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                          Prochaine intervention
-                        </p>
-                        <p className="mt-1 font-black">
-                          Taille & entretien
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                        08:00
-                      </span>
-                    </div>
-                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full w-2/3 rounded-full bg-emerald-600" />
-                    </div>
-                    <div className="mt-3 flex justify-between text-xs font-semibold text-slate-400">
-                      <span>Matériel</span>
-                      <span>Arrivée</span>
-                      <span>Fin / PV</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    {["Devis", "Planning", "Factures"].map((item) => (
-                      <div
-                        key={item}
-                        className="rounded-xl bg-slate-50 px-3 py-3 text-center text-xs font-black text-slate-700"
-                      >
-                        {item}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute -bottom-6 -left-5 hidden rounded-2xl border border-white/10 bg-[#173d2f] px-5 py-4 shadow-xl lg:block">
-                <p className="text-xs font-black uppercase tracking-wide text-emerald-200">
-                  Terrain
-                </p>
-                <p className="mt-1 text-sm font-bold text-white">
-                  Smartphone • Tablette • PC
-                </p>
+              <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#0b241b] shadow-2xl shadow-black/35">
+                <Image
+                  src="/arboboard-multi-appareils.png"
+                  alt="Arboboard sur ordinateur, tablette et smartphone avec de vraies pages de l’application"
+                  width={1491}
+                  height={1055}
+                  priority
+                  className="h-auto w-full object-cover"
+                  sizes="(max-width: 1024px) 100vw, 58vw"
+                />
               </div>
             </div>
           </div>

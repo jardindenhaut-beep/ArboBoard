@@ -1,88 +1,94 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { chargerContexteEntreprise } from "@/lib/entreprise";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  resoudreSalarieConnecte,
+} from "@/lib/salaries/resoudreSalarieConnecte";
 
-type ProfilUtilisateur = {
+type SalarieMinimal = {
   id: string;
-  email?: string | null;
-  nom?: string | null;
-  prenom?: string | null;
-  role?: string | null;
-  statut?: string | null;
-  entreprise_id?: string | null;
-};
-
-type Salarie = {
-  id: string;
-  entreprise_id?: string | null;
   nom?: string | null;
   prenom?: string | null;
   email?: string | null;
-  telephone?: string | null;
-  statut?: string | null;
 };
 
 type FicheIntervention = {
   id: string;
-  entreprise_id: string;
-  client_id: string | null;
-  client_nom: string | null;
+  entreprise_id?: string | null;
+  numero?: string | null;
+  client_nom?: string | null;
+  titre?: string | null;
+  type_intervention?: string | null;
+  statut?: string | null;
+  date_prevue?: string | null;
+  date_intervention?: string | null;
+  date_fin_prevue?: string | null;
+  heure_debut_prevue?: string | null;
+  heure_fin_prevue?: string | null;
+  heure_debut?: string | null;
+  heure_fin?: string | null;
+  adresse_chantier?: string | null;
+  code_postal_chantier?: string | null;
+  ville_chantier?: string | null;
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  etape_materiel_statut?: string | null;
+  etape_arrivee_statut?: string | null;
+  etape_fin_statut?: string | null;
+  probleme_signale?: boolean | null;
+  salarie_id?: string | null;
+};
+
+type Affectation = {
+  id: string;
+  fiche_id: string;
   salarie_id: string | null;
-  salarie_nom: string | null;
-  titre: string | null;
-  type_intervention: string | null;
-  statut: string | null;
-  date_intervention: string | null;
-  heure_debut: string | null;
-  heure_fin: string | null;
-  adresse: string | null;
-  code_postal: string | null;
-  ville: string | null;
-  travaux_prevus: string | null;
-  materiel_prevu: string | null;
-  consignes_securite: string | null;
-  commentaire_salarie: string | null;
-  validation_materiel_charge: boolean | null;
-  validation_arrivee: boolean | null;
-  validation_fin_intervention: boolean | null;
-  created_at: string | null;
-  updated_at: string | null;
 };
 
 type Demande = {
   id: string;
-  entreprise_id: string;
-  demandeur_user_id: string | null;
-  demandeur_nom: string | null;
-  demandeur_email: string | null;
-  type_demande: string | null;
-  titre: string | null;
-  message: string | null;
-  statut: string | null;
-  date_debut: string | null;
-  date_fin: string | null;
-  reponse_chef: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  type_demande?: string | null;
+  titre?: string | null;
+  statut?: string | null;
+  date_debut?: string | null;
+  date_fin?: string | null;
+  created_at?: string | null;
 };
 
 function aujourdHuiISO() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  const annee = date.getFullYear();
+  const mois = String(date.getMonth() + 1).padStart(2, "0");
+  const jour = String(date.getDate()).padStart(2, "0");
+  return `${annee}-${mois}-${jour}`;
+}
+
+function ajouterJours(dateIso: string, nombre: number) {
+  const date = new Date(`${dateIso}T12:00:00`);
+  date.setDate(date.getDate() + nombre);
+  const annee = date.getFullYear();
+  const mois = String(date.getMonth() + 1).padStart(2, "0");
+  const jour = String(date.getDate()).padStart(2, "0");
+  return `${annee}-${mois}-${jour}`;
 }
 
 function formatDate(date: string | null | undefined) {
   if (!date) return "—";
-
   try {
     return new Intl.DateTimeFormat("fr-FR", {
-      weekday: "long",
+      weekday: "short",
       day: "2-digit",
-      month: "long",
-      year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
+      month: "short",
+    }).format(new Date(`${date.slice(0, 10)}T12:00:00`));
   } catch {
     return "—";
   }
@@ -90,35 +96,72 @@ function formatDate(date: string | null | undefined) {
 
 function formatDateCourte(date: string | null | undefined) {
   if (!date) return "—";
-
   try {
     return new Intl.DateTimeFormat("fr-FR", {
       day: "2-digit",
       month: "2-digit",
-      year: "numeric",
-    }).format(new Date(`${date}T00:00:00`));
+    }).format(new Date(`${date.slice(0, 10)}T12:00:00`));
   } catch {
     return "—";
   }
 }
 
 function formatHeure(heure: string | null | undefined) {
-  if (!heure) return "—";
-  return heure.slice(0, 5);
+  return heure ? heure.slice(0, 5) : "—";
 }
 
-function nomSalarie(salarie: Salarie | null, profil: ProfilUtilisateur | null) {
-  if (salarie) {
-    const complet = `${salarie.prenom || ""} ${salarie.nom || ""}`.trim();
-    return complet || salarie.email || "Salarié";
-  }
+function nomSalarie(salarie: SalarieMinimal | null) {
+  if (!salarie) return "Salarié";
+  const complet = `${salarie.prenom || ""} ${salarie.nom || ""}`.trim();
+  return complet || salarie.email || "Salarié";
+}
 
-  if (profil) {
-    const complet = `${profil.prenom || ""} ${profil.nom || ""}`.trim();
-    return complet || profil.email || "Salarié";
-  }
+function dateDebutFiche(fiche: FicheIntervention) {
+  return fiche.date_prevue || fiche.date_intervention || "";
+}
 
-  return "Salarié";
+function dateFinFiche(fiche: FicheIntervention) {
+  return fiche.date_fin_prevue || dateDebutFiche(fiche);
+}
+
+function ficheCouvreDate(fiche: FicheIntervention, date: string) {
+  const debut = dateDebutFiche(fiche);
+  const fin = dateFinFiche(fiche);
+  return Boolean(debut && fin && debut <= date && fin >= date);
+}
+
+function heureDebutFiche(fiche: FicheIntervention) {
+  return fiche.heure_debut_prevue || fiche.heure_debut || "";
+}
+
+function heureFinFiche(fiche: FicheIntervention) {
+  return fiche.heure_fin_prevue || fiche.heure_fin || "";
+}
+
+function titreFiche(fiche: FicheIntervention) {
+  return fiche.titre || fiche.type_intervention || "Intervention";
+}
+
+function adresseFiche(fiche: FicheIntervention) {
+  const adresse = fiche.adresse_chantier || fiche.adresse || "";
+  const cp = fiche.code_postal_chantier || fiche.code_postal || "";
+  const ville = fiche.ville_chantier || fiche.ville || "";
+  return [adresse, [cp, ville].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ") || "Adresse non renseignée";
+}
+
+function progressionFiche(fiche: FicheIntervention) {
+  const etapes = [
+    fiche.etape_materiel_statut === "valide",
+    fiche.etape_arrivee_statut === "valide",
+    fiche.etape_fin_statut === "valide",
+  ].filter(Boolean).length;
+
+  return {
+    etapes,
+    pourcentage: Math.round((etapes / 3) * 100),
+  };
 }
 
 function libelleStatutFiche(statut: string | null | undefined) {
@@ -126,318 +169,299 @@ function libelleStatutFiche(statut: string | null | undefined) {
   if (statut === "en_cours") return "En cours";
   if (statut === "terminee") return "Terminée";
   if (statut === "annulee") return "Annulée";
-  if (statut === "archivee") return "Archivée";
-  return "Brouillon";
+  return "À préparer";
 }
 
-function libelleTypeIntervention(type: string | null | undefined) {
-  if (type === "entretien") return "Entretien";
-  if (type === "elagage") return "Élagage";
-  if (type === "abattage") return "Abattage";
-  if (type === "taille") return "Taille";
-  if (type === "tonte") return "Tonte";
-  if (type === "debroussaillage") return "Débroussaillage";
-  if (type === "creation") return "Création";
-  return "Autre";
+function badgeStatutFiche(statut: string | null | undefined) {
+  if (statut === "en_cours") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  if (statut === "terminee") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (statut === "annulee") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  return "border-blue-200 bg-blue-50 text-blue-700";
 }
 
-function libelleTypeDemande(type: string | null | undefined) {
+function libelleDemande(type: string | null | undefined) {
   if (type === "conge") return "Congé";
-  if (type === "materiel") return "Matériel";
   if (type === "absence") return "Absence";
+  if (type === "materiel") return "Matériel";
   if (type === "probleme") return "Problème";
-  return "Autre";
+  if (type === "rendez_vous") return "Rendez-vous";
+  return "Demande";
 }
 
-function libelleStatutDemande(statut: string | null | undefined) {
-  if (statut === "acceptee") return "Acceptée";
-  if (statut === "refusee") return "Refusée";
-  if (statut === "traitee") return "Traitée";
-  if (statut === "annulee") return "Annulée";
-  return "En attente";
-}
-
-function badgeStatut(statut: string | null | undefined) {
-  if (
-    statut === "terminee" ||
-    statut === "acceptee" ||
-    statut === "traitee"
-  ) {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+function badgeDemande(statut: string | null | undefined) {
+  if (statut === "acceptee" || statut === "accepte") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
-
-  if (statut === "planifiee") {
-    return "bg-blue-50 text-blue-700 border-blue-200";
+  if (statut === "refusee" || statut === "refuse") {
+    return "border-red-200 bg-red-50 text-red-700";
   }
-
-  if (statut === "en_cours" || statut === "en_attente") {
-    return "bg-amber-50 text-amber-700 border-amber-200";
-  }
-
-  if (statut === "annulee" || statut === "refusee") {
-    return "bg-red-50 text-red-700 border-red-200";
-  }
-
-  return "bg-slate-50 text-slate-700 border-slate-200";
-}
-
-function titreFiche(fiche: FicheIntervention) {
-  return fiche.titre || "Intervention sans titre";
-}
-
-function comparerFiches(a: FicheIntervention, b: FicheIntervention) {
-  const dateA = a.date_intervention || "9999-12-31";
-  const dateB = b.date_intervention || "9999-12-31";
-
-  if (dateA !== dateB) {
-    return dateA.localeCompare(dateB);
-  }
-
-  const heureA = a.heure_debut || "99:99";
-  const heureB = b.heure_debut || "99:99";
-
-  return heureA.localeCompare(heureB);
+  return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
 export default function DashboardSalariePage() {
-  const [entrepriseId, setEntrepriseId] = useState("");
-  const [profil, setProfil] = useState<ProfilUtilisateur | null>(null);
-  const [salarie, setSalarie] = useState<Salarie | null>(null);
+  const [salarie, setSalarie] = useState<SalarieMinimal | null>(null);
   const [fiches, setFiches] = useState<FicheIntervention[]>([]);
   const [demandes, setDemandes] = useState<Demande[]>([]);
-
   const [chargement, setChargement] = useState(true);
+  const [actualisation, setActualisation] = useState(false);
   const [messageErreur, setMessageErreur] = useState("");
 
-  useEffect(() => {
-    initialiserDashboard();
-  }, []);
-
-  async function initialiserDashboard() {
+  const chargerDashboard = useCallback(async (initial = false) => {
     try {
-      setChargement(true);
+      if (initial) setChargement(true);
+      else setActualisation(true);
+
       setMessageErreur("");
 
       const resultat = await chargerContexteEntreprise();
 
-      if (resultat.erreur || !resultat.contexte?.entreprise?.id) {
-        setMessageErreur(
-          "Impossible de charger votre espace salarié. Veuillez vous reconnecter."
+      if (
+        resultat.erreur ||
+        !resultat.contexte?.entreprise?.id ||
+        !resultat.contexte?.profil?.id
+      ) {
+        throw new Error(
+          "Impossible de charger votre espace salarié."
         );
-        setChargement(false);
+      }
+
+      const {
+        data: { user },
+        error: erreurUtilisateur,
+      } = await supabase.auth.getUser();
+
+      if (erreurUtilisateur || !user) {
+        throw new Error(
+          "Votre session a expiré. Veuillez vous reconnecter."
+        );
+      }
+
+      const entrepriseId = String(
+        resultat.contexte.entreprise.id
+      );
+      const profil = resultat.contexte.profil;
+
+      const salarieTrouve = (await resoudreSalarieConnecte(
+        entrepriseId,
+        {
+          profilId: profil.id,
+          utilisateurId: user.id,
+          email: profil.email || user.email || "",
+        }
+      )) as SalarieMinimal | null;
+
+      setSalarie(salarieTrouve);
+
+      if (!salarieTrouve?.id) {
+        setFiches([]);
+        setDemandes([]);
+        setMessageErreur(
+          "Aucune fiche salarié n’est reliée à votre compte."
+        );
         return;
       }
 
-      const profilConnecte = resultat.contexte.profil as ProfilUtilisateur;
-      const idEntreprise = resultat.contexte.entreprise.id as string;
+      const { data: affectationsData, error: erreurAffectations } =
+        await supabase
+          .from("fiches_intervention_salaries")
+          .select("id, fiche_id, salarie_id")
+          .eq("entreprise_id", entrepriseId)
+          .eq("salarie_id", salarieTrouve.id);
 
-      if (profilConnecte.role !== "salarie") {
-        setMessageErreur("Cette page est réservée aux salariés.");
-        setChargement(false);
-        return;
+      if (erreurAffectations) {
+        throw erreurAffectations;
       }
 
-      setProfil(profilConnecte);
-      setEntrepriseId(idEntreprise);
+      const affectations =
+        (affectationsData || []) as Affectation[];
+      const ficheIds = Array.from(
+        new Set(
+          affectations
+            .map((item) => item.fiche_id)
+            .filter(Boolean)
+        )
+      );
 
-      const salarieConnecte = await chargerSalarie(idEntreprise, profilConnecte);
-      setSalarie(salarieConnecte);
+      let fichesAffectees: FicheIntervention[] = [];
 
-      if (salarieConnecte) {
-        await chargerFiches(idEntreprise, salarieConnecte.id);
+      if (ficheIds.length > 0) {
+        const { data, error } = await supabase
+          .from("fiches_intervention")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .in("id", ficheIds);
+
+        if (error) throw error;
+        fichesAffectees = (data || []) as FicheIntervention[];
+      }
+
+      const { data: fichesLegacyData, error: erreurLegacy } =
+        await supabase
+          .from("fiches_intervention")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .eq("salarie_id", salarieTrouve.id);
+
+      if (erreurLegacy) {
+        console.warn(
+          "Chargement des anciennes affectations salarié :",
+          erreurLegacy
+        );
+      }
+
+      const fichesMap = new Map<string, FicheIntervention>();
+
+      for (const fiche of fichesAffectees) {
+        fichesMap.set(fiche.id, fiche);
+      }
+      for (const fiche of (fichesLegacyData || []) as FicheIntervention[]) {
+        fichesMap.set(fiche.id, fiche);
+      }
+
+      setFiches(
+        Array.from(fichesMap.values()).filter(
+          (fiche) => fiche.statut !== "archivee"
+        )
+      );
+
+      const { data: demandesData, error: erreurDemandes } =
+        await supabase
+          .from("demandes")
+          .select("*")
+          .eq("entreprise_id", entrepriseId)
+          .order("created_at", { ascending: false });
+
+      if (erreurDemandes) {
+        console.warn(
+          "Chargement demandes dashboard salarié :",
+          erreurDemandes
+        );
+        setDemandes([]);
       } else {
-        setMessageErreur(
-          "Votre fiche salarié est introuvable. Demandez au chef d’entreprise de vérifier votre accès salarié."
-        );
+        setDemandes((demandesData || []) as Demande[]);
       }
-
-      await chargerDemandes(idEntreprise, profilConnecte.id);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erreur dashboard salarié :", error);
-      setMessageErreur("Une erreur est survenue pendant le chargement.");
+      setMessageErreur(
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger le tableau de bord."
+      );
     } finally {
       setChargement(false);
+      setActualisation(false);
     }
-  }
+  }, []);
 
-  async function chargerSalarie(
-    idEntreprise: string,
-    profilConnecte: ProfilUtilisateur
-  ) {
-    const { data: salarieParId, error: erreurParId } = await supabase
-      .from("salaries")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .eq("id", profilConnecte.id)
-      .maybeSingle();
-
-    if (!erreurParId && salarieParId) {
-      return salarieParId as Salarie;
-    }
-
-    if (!profilConnecte.email) {
-      return null;
-    }
-
-    const { data: salarieParEmail, error: erreurParEmail } = await supabase
-      .from("salaries")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .ilike("email", profilConnecte.email)
-      .maybeSingle();
-
-    if (erreurParEmail) {
-      console.error("Erreur chargement salarié dashboard :", erreurParEmail);
-      return null;
-    }
-
-    return (salarieParEmail || null) as Salarie | null;
-  }
-
-  async function chargerFiches(idEntreprise: string, salarieId: string) {
-    const { data, error } = await supabase
-      .from("fiches_intervention")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .eq("salarie_id", salarieId)
-      .order("date_intervention", { ascending: true })
-      .order("heure_debut", { ascending: true });
-
-    if (error) {
-      console.error("Erreur chargement fiches dashboard salarié :", error);
-      setFiches([]);
-      return;
-    }
-
-    setFiches(((data || []) as FicheIntervention[]).sort(comparerFiches));
-  }
-
-  async function chargerDemandes(idEntreprise: string, userId: string) {
-    const { data, error } = await supabase
-      .from("demandes")
-      .select("*")
-      .eq("entreprise_id", idEntreprise)
-      .eq("demandeur_user_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Erreur chargement demandes dashboard salarié :", error);
-      setDemandes([]);
-      return;
-    }
-
-    setDemandes((data || []) as Demande[]);
-  }
+  useEffect(() => {
+    void chargerDashboard(true);
+  }, [chargerDashboard]);
 
   const statistiques = useMemo(() => {
-    const aujourdhui = aujourdHuiISO();
+    const aujourdHui = aujourdHuiISO();
+    const finSemaine = ajouterJours(aujourdHui, 7);
 
-    const fichesActives = fiches.filter(
-      (fiche) => fiche.statut !== "archivee" && fiche.statut !== "annulee"
-    );
-
-    const interventionsAujourdhui = fichesActives.filter(
-      (fiche) => fiche.date_intervention === aujourdhui
-    );
-
-    const interventionsAVenir = fichesActives.filter(
+    const actives = fiches.filter(
       (fiche) =>
-        fiche.date_intervention &&
-        fiche.date_intervention >= aujourdhui &&
-        fiche.statut !== "terminee"
-    );
-
-    const interventionsEnCours = fichesActives.filter(
-      (fiche) => fiche.statut === "en_cours"
-    );
-
-    const interventionsTerminees = fichesActives.filter(
-      (fiche) => fiche.statut === "terminee"
-    );
-
-    const validationsRestantes = fichesActives.reduce((total, fiche) => {
-      let compteur = 0;
-
-      if (!fiche.validation_materiel_charge) compteur += 1;
-      if (!fiche.validation_arrivee) compteur += 1;
-      if (!fiche.validation_fin_intervention) compteur += 1;
-
-      return total + compteur;
-    }, 0);
-
-    const demandesEnAttente = demandes.filter(
-      (demande) => demande.statut === "en_attente"
+        fiche.statut !== "annulee" &&
+        fiche.statut !== "archivee"
     );
 
     return {
-      interventionsAujourdhui: interventionsAujourdhui.length,
-      interventionsAVenir: interventionsAVenir.length,
-      interventionsEnCours: interventionsEnCours.length,
-      interventionsTerminees: interventionsTerminees.length,
-      validationsRestantes,
-      demandesEnAttente: demandesEnAttente.length,
+      aujourdHui: actives.filter((fiche) =>
+        ficheCouvreDate(fiche, aujourdHui)
+      ).length,
+      semaine: actives.filter((fiche) => {
+        const debut = dateDebutFiche(fiche);
+        const fin = dateFinFiche(fiche);
+        return Boolean(
+          debut &&
+            fin &&
+            fin >= aujourdHui &&
+            debut <= finSemaine
+        );
+      }).length,
+      enCours: actives.filter(
+        (fiche) => fiche.statut === "en_cours"
+      ).length,
+      demandesEnAttente: demandes.filter(
+        (demande) =>
+          demande.statut === "en_attente" ||
+          !demande.statut
+      ).length,
     };
   }, [fiches, demandes]);
 
-  const interventionsDuJour = useMemo(() => {
-    const aujourdhui = aujourdHuiISO();
+  const interventionsAujourdhui = useMemo(() => {
+    const aujourdHui = aujourdHuiISO();
 
     return fiches
       .filter(
         (fiche) =>
-          fiche.date_intervention === aujourdhui &&
-          fiche.statut !== "archivee" &&
-          fiche.statut !== "annulee"
+          ficheCouvreDate(fiche, aujourdHui) &&
+          fiche.statut !== "annulee" &&
+          fiche.statut !== "archivee"
       )
-      .sort(comparerFiches);
+      .sort((a, b) =>
+        (heureDebutFiche(a) || "99:99").localeCompare(
+          heureDebutFiche(b) || "99:99"
+        )
+      );
   }, [fiches]);
 
   const prochainesInterventions = useMemo(() => {
-    const aujourdhui = aujourdHuiISO();
+    const aujourdHui = aujourdHuiISO();
 
     return fiches
       .filter(
         (fiche) =>
-          fiche.date_intervention &&
-          fiche.date_intervention >= aujourdhui &&
-          fiche.statut !== "archivee" &&
           fiche.statut !== "annulee" &&
-          fiche.statut !== "terminee"
+          fiche.statut !== "archivee" &&
+          Boolean(
+            dateDebutFiche(fiche) &&
+              dateFinFiche(fiche) >= aujourdHui
+          )
       )
-      .sort(comparerFiches)
+      .sort((a, b) => {
+        const dateA =
+          dateDebutFiche(a) < aujourdHui
+            ? aujourdHui
+            : dateDebutFiche(a);
+        const dateB =
+          dateDebutFiche(b) < aujourdHui
+            ? aujourdHui
+            : dateDebutFiche(b);
+
+        return `${dateA} ${heureDebutFiche(a) || "99:99"}`.localeCompare(
+          `${dateB} ${heureDebutFiche(b) || "99:99"}`
+        );
+      })
       .slice(0, 5);
   }, [fiches]);
 
-  const demandesRecentes = useMemo(() => {
-    return demandes.slice(0, 5);
-  }, [demandes]);
-
-  const fichesAvecValidationsRestantes = useMemo(() => {
-    return fiches
-      .filter(
-        (fiche) =>
-          fiche.statut !== "archivee" &&
-          fiche.statut !== "annulee" &&
-          (!fiche.validation_materiel_charge ||
-            !fiche.validation_arrivee ||
-            !fiche.validation_fin_intervention)
-      )
-      .sort(comparerFiches)
-      .slice(0, 5);
-  }, [fiches]);
+  const dernieresDemandes = useMemo(
+    () => demandes.slice(0, 4),
+    [demandes]
+  );
 
   if (chargement) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-3xl">
+      <div className="min-h-[60vh] px-3 py-5 sm:px-4">
+        <div className="mx-auto max-w-7xl rounded-[28px] border border-slate-200 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
             🌿
           </div>
-          <p className="text-lg font-bold text-slate-950">
-            Chargement de votre espace...
+          <p className="mt-4 font-black text-slate-950">
+            Chargement de votre journée…
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Récupération de votre planning salarié.
+            Planning et interventions en cours de préparation.
           </p>
         </div>
       </div>
@@ -445,386 +469,261 @@ export default function DashboardSalariePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-sm font-medium text-emerald-700">Arboboard</p>
-            <h1 className="mt-1 text-3xl font-bold text-slate-950">
-              Bonjour {nomSalarie(salarie, profil)}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Retrouvez vos interventions, les validations terrain à effectuer et
-              vos demandes envoyées au chef d’entreprise.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Link
-              href="/salarie/planning"
-              className="rounded-2xl bg-emerald-600 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Voir mon planning
-            </Link>
-
-            <Link
-              href="/salarie/demandes"
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Nouvelle demande
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {messageErreur && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {messageErreur}
-        </div>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Aujourd’hui
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.interventionsAujourdhui}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">intervention(s)</p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            À venir
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.interventionsAVenir}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">intervention(s)</p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            En cours
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.interventionsEnCours}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">chantier(s)</p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Terminées
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.interventionsTerminees}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">fiche(s)</p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Validations
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.validationsRestantes}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">restante(s)</p>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Demandes
-          </p>
-          <p className="mt-2 text-3xl font-bold text-slate-950">
-            {statistiques.demandesEnAttente}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">en attente</p>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-5">
+    <div className="min-h-screen bg-[#f4f6f2] px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <section className="relative overflow-hidden rounded-[30px] bg-[#102a20] p-6 text-white shadow-xl shadow-emerald-950/10 sm:p-8">
+          <div className="pointer-events-none absolute -right-20 -top-28 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="font-bold text-slate-950">
-                Mes interventions du jour
-              </h2>
-              <p className="text-sm text-slate-500">
-                Ce qui est prévu aujourd’hui.
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-200">
+                Ma journée
+              </p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+                Bonjour {nomSalarie(salarie)}
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-50/70">
+                Vos chantiers, vos étapes terrain et vos demandes au même endroit.
               </p>
             </div>
 
-            <Link
-              href="/salarie/planning"
-              className="text-sm font-semibold text-emerald-700"
+            <button
+              type="button"
+              onClick={() => void chargerDashboard(false)}
+              disabled={actualisation}
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 text-sm font-bold text-white transition hover:bg-white/10 disabled:opacity-50"
             >
-              Voir tout
-            </Link>
+              {actualisation ? "Actualisation…" : "↻ Actualiser"}
+            </button>
           </div>
 
-          {interventionsDuJour.length === 0 ? (
-            <div className="p-5 text-sm text-slate-500">
-              Aucune intervention prévue aujourd’hui.
+          <div className="relative mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Link href="/salarie/planning" className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10">
+              <p className="text-xs font-bold text-emerald-100/70">Aujourd’hui</p>
+              <p className="mt-2 text-3xl font-black">{statistiques.aujourdHui}</p>
+              <p className="mt-1 text-xs text-emerald-50/55">intervention(s)</p>
+            </Link>
+            <Link href="/salarie/planning" className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10">
+              <p className="text-xs font-bold text-emerald-100/70">7 prochains jours</p>
+              <p className="mt-2 text-3xl font-black">{statistiques.semaine}</p>
+              <p className="mt-1 text-xs text-emerald-50/55">chantier(s)</p>
+            </Link>
+            <Link href="/salarie/interventions" className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10">
+              <p className="text-xs font-bold text-emerald-100/70">En cours</p>
+              <p className="mt-2 text-3xl font-black">{statistiques.enCours}</p>
+              <p className="mt-1 text-xs text-emerald-50/55">fiche(s) terrain</p>
+            </Link>
+            <Link href="/salarie/demandes" className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10">
+              <p className="text-xs font-bold text-emerald-100/70">Demandes</p>
+              <p className="mt-2 text-3xl font-black">{statistiques.demandesEnAttente}</p>
+              <p className="mt-1 text-xs text-emerald-50/55">en attente</p>
+            </Link>
+          </div>
+        </section>
+
+        {messageErreur ? (
+          <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {messageErreur}
+          </div>
+        ) : null}
+
+        <section className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]">
+          <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 p-5 sm:px-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
+                  Priorité terrain
+                </p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  {interventionsAujourdhui.length > 0
+                    ? "Interventions du jour"
+                    : "Prochaines interventions"}
+                </h2>
+              </div>
+              <Link href="/salarie/planning" className="text-sm font-black text-emerald-700">
+                Planning →
+              </Link>
             </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {interventionsDuJour.map((fiche) => (
-                <div key={fiche.id} className="p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-950">
-                        {titreFiche(fiche)}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {fiche.client_nom || "Client non renseigné"} —{" "}
-                        {fiche.ville || "ville non renseignée"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {formatHeure(fiche.heure_debut)} →{" "}
-                        {formatHeure(fiche.heure_fin)} ·{" "}
-                        {libelleTypeIntervention(fiche.type_intervention)}
-                      </p>
-                    </div>
 
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
-                        fiche.statut
-                      )}`}
-                    >
-                      {libelleStatutFiche(fiche.statut)}
-                    </span>
-                  </div>
-
-                  {fiche.adresse && (
-                    <p className="mt-3 text-sm text-slate-600">
-                      {[fiche.adresse, fiche.code_postal, fiche.ville]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                  )}
+            {(interventionsAujourdhui.length > 0
+              ? interventionsAujourdhui
+              : prochainesInterventions
+            ).length === 0 ? (
+              <div className="p-10 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
+                  ✓
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <p className="mt-3 font-black text-slate-950">
+                  Rien de planifié pour le moment
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Votre prochain chantier apparaîtra ici.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {(interventionsAujourdhui.length > 0
+                  ? interventionsAujourdhui
+                  : prochainesInterventions
+                )
+                  .slice(0, 5)
+                  .map((fiche) => {
+                    const progression = progressionFiche(fiche);
+                    const debut = dateDebutFiche(fiche);
+                    const fin = dateFinFiche(fiche);
 
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-5">
-            <div>
-              <h2 className="font-bold text-slate-950">
-                Validations restantes
-              </h2>
-              <p className="text-sm text-slate-500">
-                Points terrain à cocher dans le planning.
-              </p>
-            </div>
+                    return (
+                      <Link
+                        key={fiche.id}
+                        href={`/salarie/interventions/${fiche.id}`}
+                        className="group block p-5 transition hover:bg-[#f7f9f6] sm:px-6"
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                          <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl bg-[#eef5ef] text-emerald-900">
+                            <span className="text-[10px] font-black uppercase">
+                              {debut ? formatDate(debut).split(" ")[0] : "—"}
+                            </span>
+                            <span className="text-lg font-black">
+                              {debut ? debut.slice(8, 10) : "—"}
+                            </span>
+                          </div>
 
-            <Link
-              href="/salarie/planning"
-              className="text-sm font-semibold text-emerald-700"
-            >
-              Valider
-            </Link>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-black text-slate-950">
+                                {titreFiche(fiche)}
+                              </h3>
+                              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatutFiche(fiche.statut)}`}>
+                                {libelleStatutFiche(fiche.statut)}
+                              </span>
+                              {fiche.probleme_signale ? (
+                                <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-700">
+                                  Problème signalé
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <p className="mt-1 text-sm font-semibold text-slate-600">
+                              {fiche.client_nom || "Client non renseigné"}
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-slate-400">
+                              {debut && fin && debut !== fin
+                                ? `${formatDateCourte(debut)} → ${formatDateCourte(fin)}`
+                                : formatDate(debut)}
+                              {" · "}
+                              {formatHeure(heureDebutFiche(fiche))} → {formatHeure(heureFinFiche(fiche))}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-400">
+                              📍 {adresseFiche(fiche)}
+                            </p>
+
+                            <div className="mt-4">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                                <span>{progression.etapes}/3 étapes terrain</span>
+                                <span>{progression.pourcentage} %</span>
+                              </div>
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                  className="h-full rounded-full bg-emerald-600"
+                                  style={{ width: `${progression.pourcentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <span className="self-end text-xl font-black text-emerald-700 transition group-hover:translate-x-1 sm:self-center">
+                            →
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
-          {fichesAvecValidationsRestantes.length === 0 ? (
-            <div className="p-5 text-sm text-slate-500">
-              Toutes les validations sont à jour.
+          <div className="space-y-5">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9a7b2d]">
+                Accès rapide
+              </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">
+                Mes outils
+              </h2>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {[
+                  ["/salarie/planning", "📅", "Planning", "Voir mes dates"],
+                  ["/salarie/interventions", "🧾", "Terrain", "Ouvrir mes fiches"],
+                  ["/salarie/demandes", "📩", "Demandes", "Faire une demande"],
+                  ["/salarie/profil", "🙋", "Profil", "Mes informations"],
+                ].map(([href, icone, titre, texte]) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="rounded-2xl bg-[#f4f6f2] p-4 transition hover:bg-emerald-50"
+                  >
+                    <span className="text-xl">{icone}</span>
+                    <p className="mt-3 text-sm font-black text-slate-950">{titre}</p>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-500">{texte}</p>
+                  </Link>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {fichesAvecValidationsRestantes.map((fiche) => (
-                <div key={fiche.id} className="p-5">
-                  <p className="font-semibold text-slate-950">
-                    {titreFiche(fiche)}
+
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 p-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">
+                    Suivi
                   </p>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    {formatDateCourte(fiche.date_intervention)} ·{" "}
-                    {fiche.client_nom || "Client non renseigné"}
-                  </p>
-
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    <span
-                      className={`rounded-full px-3 py-1 font-medium ${
-                        fiche.validation_materiel_charge
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      Matériel
-                    </span>
-
-                    <span
-                      className={`rounded-full px-3 py-1 font-medium ${
-                        fiche.validation_arrivee
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      Arrivée
-                    </span>
-
-                    <span
-                      className={`rounded-full px-3 py-1 font-medium ${
-                        fiche.validation_fin_intervention
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      Fin
-                    </span>
-                  </div>
+                  <h2 className="mt-1 font-black text-slate-950">
+                    Mes demandes
+                  </h2>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+                <Link href="/salarie/demandes" className="text-xs font-black text-emerald-700">
+                  Voir tout →
+                </Link>
+              </div>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-5">
-            <div>
-              <h2 className="font-bold text-slate-950">
-                Prochaines interventions
-              </h2>
-              <p className="text-sm text-slate-500">
-                Les 5 prochaines fiches affectées.
-              </p>
-            </div>
-
-            <Link
-              href="/salarie/planning"
-              className="text-sm font-semibold text-emerald-700"
-            >
-              Voir planning
-            </Link>
-          </div>
-
-          {prochainesInterventions.length === 0 ? (
-            <div className="p-5 text-sm text-slate-500">
-              Aucune prochaine intervention affectée.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {prochainesInterventions.map((fiche) => (
-                <div key={fiche.id} className="p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-950">
-                        {titreFiche(fiche)}
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatDate(fiche.date_intervention)} ·{" "}
-                        {formatHeure(fiche.heure_debut)} →{" "}
-                        {formatHeure(fiche.heure_fin)}
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-400">
-                        {fiche.client_nom || "Client non renseigné"} —{" "}
-                        {fiche.ville || "ville non renseignée"}
-                      </p>
-                    </div>
-
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
-                        fiche.statut
-                      )}`}
+              {dernieresDemandes.length === 0 ? (
+                <p className="p-6 text-sm font-semibold text-slate-500">
+                  Aucune demande récente.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {dernieresDemandes.map((demande) => (
+                    <Link
+                      key={demande.id}
+                      href="/salarie/demandes"
+                      className="flex items-center justify-between gap-3 p-4 transition hover:bg-slate-50"
                     >
-                      {libelleStatutFiche(fiche.statut)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-5">
-            <div>
-              <h2 className="font-bold text-slate-950">Mes demandes</h2>
-              <p className="text-sm text-slate-500">
-                Dernières demandes envoyées au chef.
-              </p>
-            </div>
-
-            <Link
-              href="/salarie/demandes"
-              className="text-sm font-semibold text-emerald-700"
-            >
-              Voir demandes
-            </Link>
-          </div>
-
-          {demandesRecentes.length === 0 ? (
-            <div className="p-5 text-sm text-slate-500">
-              Aucune demande envoyée.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {demandesRecentes.map((demande) => (
-                <div key={demande.id} className="p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-950">
-                        {demande.titre || "Demande sans titre"}
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        {libelleTypeDemande(demande.type_demande)}
-                      </p>
-
-                      {demande.reponse_chef && (
-                        <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                          Réponse : {demande.reponse_chef}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-950">
+                          {demande.titre || libelleDemande(demande.type_demande)}
                         </p>
-                      )}
-                    </div>
-
-                    <span
-                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${badgeStatut(
-                        demande.statut
-                      )}`}
-                    >
-                      {libelleStatutDemande(demande.statut)}
-                    </span>
-                  </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {demande.date_debut
+                            ? formatDate(demande.date_debut)
+                            : demande.created_at
+                              ? formatDate(demande.created_at.slice(0, 10))
+                              : "—"}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeDemande(demande.statut)}`}>
+                        {demande.statut === "acceptee" || demande.statut === "accepte"
+                          ? "Acceptée"
+                          : demande.statut === "refusee" || demande.statut === "refuse"
+                            ? "Refusée"
+                            : "En attente"}
+                      </span>
+                    </Link>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <Link
-          href="/salarie/planning"
-          className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:bg-slate-50"
-        >
-          <p className="text-2xl">📅</p>
-          <p className="mt-3 font-bold text-slate-950">Mon planning</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Voir mes interventions, mes consignes et valider le terrain.
-          </p>
-        </Link>
-
-        <Link
-          href="/salarie/demandes"
-          className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:bg-slate-50"
-        >
-          <p className="text-2xl">📩</p>
-          <p className="mt-3 font-bold text-slate-950">Mes demandes</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Envoyer une demande de congé, matériel, absence ou problème.
-          </p>
-        </Link>
-      </section>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

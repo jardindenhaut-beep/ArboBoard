@@ -64,6 +64,7 @@ type FicheIntervention = {
 
   date_prevue?: string | null;
   date_intervention?: string | null;
+  date_fin_prevue?: string | null;
 
   heure_debut_prevue?: string | null;
   heure_fin_prevue?: string | null;
@@ -209,6 +210,25 @@ function dateFiche(fiche: FicheIntervention) {
   return fiche.date_prevue || fiche.date_intervention || "";
 }
 
+function dateFinFiche(fiche: FicheIntervention) {
+  return fiche.date_fin_prevue || dateFiche(fiche);
+}
+
+function ficheCouvreDate(
+  fiche: FicheIntervention,
+  date: string
+) {
+  const debut = dateFiche(fiche);
+  const fin = dateFinFiche(fiche);
+
+  return Boolean(
+    debut &&
+      fin &&
+      debut <= date &&
+      fin >= date
+  );
+}
+
 function heureDebutFiche(fiche: FicheIntervention) {
   return fiche.heure_debut_prevue || fiche.heure_debut || "";
 }
@@ -340,7 +360,7 @@ export default function DashboardChefPage() {
           supabase
             .from("fiches_intervention")
             .select(
-              "id, numero, client_nom, salarie_nom, titre, type_intervention, statut, date_prevue, date_intervention, heure_debut_prevue, heure_fin_prevue, heure_debut, heure_fin, adresse_chantier, code_postal_chantier, ville_chantier, ville, probleme_signale, created_at"
+              "id, numero, client_nom, salarie_nom, titre, type_intervention, statut, date_prevue, date_intervention, date_fin_prevue, heure_debut_prevue, heure_fin_prevue, heure_debut, heure_fin, adresse_chantier, code_postal_chantier, ville_chantier, ville, probleme_signale, created_at"
             )
             .eq("entreprise_id", idEntreprise)
             .or("statut.is.null,statut.neq.archivee")
@@ -468,7 +488,7 @@ export default function DashboardChefPage() {
 
     const interventionsAujourdhui = fiches.filter(
       (fiche) =>
-        dateFiche(fiche) === aujourdHui &&
+        ficheCouvreDate(fiche, aujourdHui) &&
         fiche.statut !== "archivee" &&
         fiche.statut !== "annulee"
     );
@@ -532,7 +552,10 @@ export default function DashboardChefPage() {
         return (
           fiche.statut !== "archivee" &&
           fiche.statut !== "annulee" &&
-          Boolean(date && date >= aujourdHui)
+          Boolean(
+            date &&
+              dateFinFiche(fiche) >= aujourdHui
+          )
         );
       })
       .sort((a, b) => {
@@ -622,627 +645,332 @@ export default function DashboardChefPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-3 py-5 sm:px-4 sm:py-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1.5 bg-emerald-600" />
-
-          <div className="bg-gradient-to-br from-emerald-50 via-white to-white p-5 sm:p-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex min-w-0 items-start gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-2xl shadow-sm">
+    <div className="min-h-screen bg-[#f4f6f2] px-3 py-5 sm:px-4 sm:py-6">
+      <div className="mx-auto max-w-[1500px] space-y-5">
+        <section className="relative overflow-hidden rounded-[30px] bg-[#102a20] p-6 text-white shadow-xl shadow-emerald-950/10 sm:p-8">
+          <div className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="relative flex flex-col gap-7 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-xl">
                   🌿
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
-                    Arboboard
-                  </p>
-
-                  <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                    Tableau de bord
-                  </h1>
-
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                    Vue d’ensemble de{" "}
-                    <span className="font-semibold text-slate-700">
-                      {nomEntreprise}
-                    </span>{" "}
-                    : activité commerciale, facturation, chantiers
-                    et demandes salariés.
-                  </p>
-                </div>
+                </span>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-200">
+                  Centre de pilotage
+                </p>
               </div>
-
-              <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto">
-                <button
-                  type="button"
-                  onClick={() => void chargerDashboard(false)}
-                  disabled={actualisation}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span aria-hidden="true">↻</span>
-                  {actualisation ? "Actualisation…" : "Actualiser"}
-                </button>
-
-                <Link
-                  href="/chef/devis"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
-                >
-                  <span aria-hidden="true">＋</span>
-                  Créer un devis
-                </Link>
-
-                <Link
-                  href="/chef/interventions"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-                >
-                  <span aria-hidden="true">＋</span>
-                  Créer une fiche
-                </Link>
-              </div>
+              <h1 className="mt-5 text-3xl font-black tracking-tight sm:text-4xl">
+                {nomEntreprise}
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-emerald-50/70">
+                L’essentiel de votre activité en un coup d’œil : chantiers,
+                devis, factures et équipe.
+              </p>
             </div>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => void chargerDashboard(false)}
+                disabled={actualisation}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 text-sm font-bold text-white transition hover:bg-white/10 disabled:opacity-50"
+              >
+                {actualisation ? "Actualisation…" : "↻ Actualiser"}
+              </button>
+              <Link
+                href="/chef/devis"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-4 text-sm font-black text-[#102a20] transition hover:bg-emerald-50"
+              >
+                + Nouveau devis
+              </Link>
+              <Link
+                href="/chef/interventions"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#d6b86a] px-4 text-sm font-black text-[#102a20] transition hover:bg-[#e3c97d]"
+              >
+                + Intervention
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Link
+              href="/chef/planning"
+              className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10"
+            >
+              <p className="text-xs font-bold text-emerald-100/70">Aujourd’hui</p>
+              <div className="mt-2 flex items-end justify-between">
+                <p className="text-3xl font-black">
+                  {statistiques.interventionsAujourdhui}
+                </p>
+                <span className="text-sm font-bold text-[#d6b86a]">Planning →</span>
+              </div>
+              <p className="mt-1 text-xs text-emerald-50/55">
+                intervention(s) en cours de journée
+              </p>
+            </Link>
+
+            <Link
+              href="/chef/factures"
+              className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10"
+            >
+              <p className="text-xs font-bold text-emerald-100/70">À encaisser</p>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-2xl font-black">
+                  {formatMontant(statistiques.resteAPayer)}
+                </p>
+                <span className="text-sm font-bold text-[#d6b86a]">Factures →</span>
+              </div>
+              <p className="mt-1 text-xs text-emerald-50/55">
+                {statistiques.facturesEnRetard} facture(s) en retard
+              </p>
+            </Link>
+
+            <Link
+              href="/chef/devis"
+              className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10"
+            >
+              <p className="text-xs font-bold text-emerald-100/70">Devis à suivre</p>
+              <div className="mt-2 flex items-end justify-between">
+                <p className="text-3xl font-black">
+                  {statistiques.devisASuivre}
+                </p>
+                <span className="text-sm font-bold text-[#d6b86a]">
+                  {statistiques.tauxTransformation} %
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-emerald-50/55">
+                taux d’acceptation actuel
+              </p>
+            </Link>
+
+            <Link
+              href="/chef/demandes"
+              className="rounded-2xl border border-white/10 bg-white/7 p-4 transition hover:bg-white/10"
+            >
+              <p className="text-xs font-bold text-emerald-100/70">Équipe</p>
+              <div className="mt-2 flex items-end justify-between">
+                <p className="text-3xl font-black">
+                  {statistiques.salariesActifs}
+                </p>
+                <span className="text-sm font-bold text-[#d6b86a]">
+                  {statistiques.demandesEnAttente} demande(s)
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-emerald-50/55">
+                salarié(s) actif(s)
+              </p>
+            </Link>
           </div>
         </section>
 
         {(messageErreur || messageSucces) && (
-          <div className="space-y-3">
-            {messageErreur && (
-              <div
-                role="alert"
-                className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
-              >
+          <div className="space-y-2">
+            {messageErreur ? (
+              <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
                 {messageErreur}
               </div>
-            )}
-
-            {messageSucces && (
-              <div
-                role="status"
-                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
-              >
+            ) : null}
+            {messageSucces ? (
+              <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                 {messageSucces}
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Link
-            href="/chef/planning"
-            className="rounded-3xl border border-blue-200 bg-blue-50 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
+        <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+          <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-5 sm:px-6">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
-                  Aujourd’hui
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
+                  Terrain
                 </p>
-                <p className="mt-2 text-3xl font-black text-blue-950">
-                  {statistiques.interventionsAujourdhui}
-                </p>
-                <p className="mt-1 text-sm font-medium text-blue-700">
-                  Intervention(s) planifiée(s)
-                </p>
-              </div>
-
-              <span className="text-2xl">📅</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/chef/interventions"
-            className={`rounded-3xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              statistiques.interventionsProbleme > 0
-                ? "border-red-200 bg-red-50"
-                : "border-emerald-200 bg-emerald-50"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p
-                  className={`text-xs font-bold uppercase tracking-wide ${
-                    statistiques.interventionsProbleme > 0
-                      ? "text-red-600"
-                      : "text-emerald-600"
-                  }`}
-                >
-                  Chantiers en cours
-                </p>
-
-                <p
-                  className={`mt-2 text-3xl font-black ${
-                    statistiques.interventionsProbleme > 0
-                      ? "text-red-950"
-                      : "text-emerald-950"
-                  }`}
-                >
-                  {statistiques.interventionsEnCours}
-                </p>
-
-                <p
-                  className={`mt-1 text-sm font-medium ${
-                    statistiques.interventionsProbleme > 0
-                      ? "text-red-700"
-                      : "text-emerald-700"
-                  }`}
-                >
-                  {statistiques.interventionsProbleme} problème(s)
-                  signalé(s)
-                </p>
-              </div>
-
-              <span className="text-2xl">
-                {statistiques.interventionsProbleme > 0
-                  ? "⚠️"
-                  : "🚧"}
-              </span>
-            </div>
-          </Link>
-
-          <Link
-            href="/chef/demandes"
-            className={`rounded-3xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              statistiques.demandesEnAttente > 0
-                ? "border-amber-200 bg-amber-50"
-                : "border-slate-200 bg-white"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-amber-600">
-                  Demandes salariés
-                </p>
-                <p className="mt-2 text-3xl font-black text-slate-950">
-                  {statistiques.demandesEnAttente}
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-600">
-                  À traiter
-                </p>
-              </div>
-
-              <span className="text-2xl">📨</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/chef/factures"
-            className={`rounded-3xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              statistiques.facturesEnRetard > 0
-                ? "border-red-200 bg-red-50"
-                : "border-slate-200 bg-white"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p
-                  className={`text-xs font-bold uppercase tracking-wide ${
-                    statistiques.facturesEnRetard > 0
-                      ? "text-red-600"
-                      : "text-slate-400"
-                  }`}
-                >
-                  Factures en retard
-                </p>
-
-                <p
-                  className={`mt-2 text-3xl font-black ${
-                    statistiques.facturesEnRetard > 0
-                      ? "text-red-950"
-                      : "text-slate-950"
-                  }`}
-                >
-                  {statistiques.facturesEnRetard}
-                </p>
-
-                <p
-                  className={`mt-1 text-sm font-medium ${
-                    statistiques.facturesEnRetard > 0
-                      ? "text-red-700"
-                      : "text-slate-600"
-                  }`}
-                >
-                  {formatMontant(statistiques.resteAPayer)} à
-                  encaisser
-                </p>
-              </div>
-
-              <span className="text-2xl">⏰</span>
-            </div>
-          </Link>
-        </section>
-
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Link
-            href="/chef/clients"
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Clients actifs
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-950">
-                  {statistiques.clientsActifs}
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                👥
-              </span>
-            </div>
-          </Link>
-
-          <Link
-            href="/chef/salaries"
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Salariés actifs
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-950">
-                  {statistiques.salariesActifs}
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-xl">
-                👷
-              </span>
-            </div>
-          </Link>
-
-          <Link
-            href="/chef/devis"
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Devis à suivre
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-950">
-                  {statistiques.devisASuivre}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-emerald-700">
-                  {statistiques.tauxTransformation} % acceptés
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-xl">
-                📝
-              </span>
-            </div>
-          </Link>
-
-          <Link
-            href="/chef/factures"
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Factures
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-950">
-                  {statistiques.facturesTotal}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-emerald-700">
-                  {formatMontant(statistiques.totalEncaisse)} encaissé
-                </p>
-              </div>
-
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-50 text-xl">
-                🧾
-              </span>
-            </div>
-          </Link>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Devis acceptés TTC
-            </p>
-
-            <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">
-              {formatMontant(statistiques.caDevisAccepte)}
-            </p>
-
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              {statistiques.devisAcceptes} devis accepté(s) sur{" "}
-              {statistiques.devisTotal}.
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Total facturé TTC
-            </p>
-
-            <p className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">
-              {formatMontant(statistiques.totalFactureTtc)}
-            </p>
-
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Hors avoirs, factures annulées et archives.
-            </p>
-          </div>
-
-          <div
-            className={`rounded-3xl border p-5 shadow-sm ${
-              statistiques.resteAPayer > 0
-                ? "border-red-200 bg-red-50"
-                : "border-emerald-200 bg-emerald-50"
-            }`}
-          >
-            <p
-              className={`text-xs font-semibold uppercase tracking-wide ${
-                statistiques.resteAPayer > 0
-                  ? "text-red-600"
-                  : "text-emerald-600"
-              }`}
-            >
-              Reste à encaisser
-            </p>
-
-            <p
-              className={`mt-2 break-words text-2xl font-black sm:text-3xl ${
-                statistiques.resteAPayer > 0
-                  ? "text-red-950"
-                  : "text-emerald-950"
-              }`}
-            >
-              {formatMontant(statistiques.resteAPayer)}
-            </p>
-
-            <p
-              className={`mt-2 text-sm leading-6 ${
-                statistiques.resteAPayer > 0
-                  ? "text-red-700"
-                  : "text-emerald-700"
-              }`}
-            >
-              Montant restant sur les factures non réglées.
-            </p>
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-2">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
-              <div>
-                <h2 className="font-black text-slate-950">
+                <h2 className="mt-1 text-xl font-black text-slate-950">
                   Prochaines interventions
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Les cinq prochaines fiches planifiées.
-                </p>
               </div>
-
-              <Link
-                href="/chef/planning"
-                className="shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              >
-                Voir tout
+              <Link href="/chef/planning" className="text-sm font-black text-emerald-700 hover:text-emerald-900">
+                Ouvrir le planning →
               </Link>
             </div>
 
             {prochainesInterventions.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl">
-                  📅
-                </div>
-
-                <p className="mt-3 text-sm font-semibold text-slate-700">
-                  Aucune intervention à venir
-                </p>
+              <div className="p-10 text-center text-sm font-semibold text-slate-500">
+                Aucune intervention à venir.
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
-                {prochainesInterventions.map((fiche) => (
-                  <Link
-                    key={fiche.id}
-                    href={`/chef/interventions/${fiche.id}`}
-                    className="block p-4 transition hover:bg-slate-50 sm:p-5"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-2xl bg-emerald-50 text-emerald-800">
-                        <span className="text-[10px] font-bold uppercase">
-                          {dateFiche(fiche)
-                            ? new Intl.DateTimeFormat("fr-FR", {
-                                month: "short",
-                              })
-                                .format(
-                                  new Date(
-                                    `${dateFiche(
-                                      fiche
-                                    )}T12:00:00`
-                                  )
-                                )
-                                .replace(".", "")
-                            : "—"}
-                        </span>
+                {prochainesInterventions.map((fiche, index) => {
+                  const debut = dateFiche(fiche);
+                  const fin = dateFinFiche(fiche);
+                  const periode =
+                    debut && fin && debut !== fin
+                      ? `${formatDate(debut)} → ${formatDate(fin)}`
+                      : formatDate(debut);
 
-                        <span className="text-sm font-black">
-                          {dateFiche(fiche)
-                            ? dateFiche(fiche).slice(8, 10)
-                            : "—"}
-                        </span>
+                  return (
+                    <Link
+                      key={fiche.id}
+                      href={`/chef/interventions/${fiche.id}`}
+                      className="group grid gap-4 px-5 py-4 transition hover:bg-[#f7f9f6] sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:items-center sm:px-6"
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef5ef] text-sm font-black text-emerald-800">
+                        {String(index + 1).padStart(2, "0")}
                       </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="break-words font-bold text-slate-950">
-                            {fiche.titre ||
-                              fiche.type_intervention ||
-                              "Intervention sans titre"}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-black text-slate-950">
+                            {fiche.titre || fiche.type_intervention || "Intervention"}
                           </p>
-
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${badgeStatut(
-                              fiche.statut
-                            )}`}
-                          >
+                          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatut(fiche.statut)}`}>
                             {libelleStatutFiche(fiche.statut)}
                           </span>
                         </div>
-
-                        <p className="mt-1 text-sm text-slate-600">
-                          {fiche.client_nom ||
-                            "Client non renseigné"}
+                        <p className="mt-1 truncate text-sm font-semibold text-slate-600">
+                          {fiche.client_nom || "Client non renseigné"} · {villeFiche(fiche)}
                         </p>
-
-                        <p className="mt-1 text-xs leading-5 text-slate-400">
-                          {formatDate(dateFiche(fiche))} ·{" "}
-                          {formatHeure(heureDebutFiche(fiche))} →{" "}
-                          {formatHeure(heureFinFiche(fiche))} ·{" "}
-                          {villeFiche(fiche)}
+                        <p className="mt-1 text-xs text-slate-400">
+                          {periode} · {formatHeure(heureDebutFiche(fiche))} → {formatHeure(heureFinFiche(fiche))}
                         </p>
-
-                        {fiche.probleme_signale && (
-                          <p className="mt-2 text-xs font-bold text-red-600">
-                            ⚠️ Un problème a été signalé
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                      <div className="flex items-center gap-3">
+                        {fiche.probleme_signale ? (
+                          <span className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-700">
+                            Problème
+                          </span>
+                        ) : null}
+                        <span className="text-lg font-black text-emerald-700 transition group-hover:translate-x-1">
+                          →
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
-              <div>
-                <h2 className="font-black text-slate-950">
-                  Demandes à traiter
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Demandes salariés actuellement en attente.
-                </p>
+          <div className="space-y-5">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9a7b2d]">
+                    Finance
+                  </p>
+                  <h2 className="mt-1 text-xl font-black">Vue financière</h2>
+                </div>
+                <Link href="/chef/factures" className="text-sm font-black text-emerald-700">
+                  Détails →
+                </Link>
               </div>
 
-              <Link
-                href="/chef/demandes"
-                className="shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              >
-                Voir tout
-              </Link>
-            </div>
-
-            {demandesEnAttente.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                  ✅
+              <div className="mt-5 space-y-4">
+                <div>
+                  <div className="flex justify-between gap-3 text-sm">
+                    <span className="font-semibold text-slate-500">Facturé TTC</span>
+                    <span className="font-black text-slate-950">
+                      {formatMontant(statistiques.totalFactureTtc)}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-emerald-600"
+                      style={{
+                        width: `${
+                          statistiques.totalFactureTtc > 0
+                            ? Math.min(
+                                100,
+                                Math.round(
+                                  (statistiques.totalEncaisse /
+                                    statistiques.totalFactureTtc) *
+                                    100
+                                )
+                              )
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <p className="mt-3 text-sm font-semibold text-slate-700">
-                  Aucune demande en attente
-                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-emerald-50 p-4">
+                    <p className="text-xs font-bold text-emerald-700">Encaissé</p>
+                    <p className="mt-2 break-words text-lg font-black text-emerald-950">
+                      {formatMontant(statistiques.totalEncaisse)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-red-50 p-4">
+                    <p className="text-xs font-bold text-red-700">Restant</p>
+                    <p className="mt-2 break-words text-lg font-black text-red-950">
+                      {formatMontant(statistiques.resteAPayer)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Devis acceptés TTC
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-slate-950">
+                    {formatMontant(statistiques.caDevisAccepte)}
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {demandesEnAttente.map((demande) => (
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
+                Raccourcis
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {[
+                  ["/chef/clients", "Clients", `${statistiques.clientsActifs}`],
+                  ["/chef/devis", "Devis", `${statistiques.devisTotal}`],
+                  ["/chef/factures", "Factures", `${statistiques.facturesTotal}`],
+                  ["/chef/salaries", "Équipe", `${statistiques.salariesActifs}`],
+                ].map(([href, label, value]) => (
                   <Link
-                    key={demande.id}
-                    href="/chef/demandes"
-                    className="block p-4 transition hover:bg-slate-50 sm:p-5"
+                    key={href}
+                    href={href}
+                    className="rounded-2xl bg-[#f4f6f2] p-4 transition hover:bg-emerald-50"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-xl">
-                        📨
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="break-words font-bold text-slate-950">
-                            {demande.titre ||
-                              "Demande sans titre"}
-                          </p>
-
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${badgeStatut(
-                              demande.statut
-                            )}`}
-                          >
-                            En attente
-                          </span>
-                        </div>
-
-                        <p className="mt-1 text-sm text-slate-600">
-                          {demande.demandeur_nom || "Salarié"} ·{" "}
-                          {libelleTypeDemande(
-                            demande.type_demande
-                          )}
-                        </p>
-                      </div>
-                    </div>
+                    <p className="text-xl font-black text-slate-950">{value}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">{label}</p>
                   </Link>
                 ))}
               </div>
-            )}
+            </div>
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-2">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
+        <section className="grid gap-5 xl:grid-cols-3">
+          <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5">
               <div>
-                <h2 className="font-black text-slate-950">
-                  Devis à suivre
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Brouillons et devis envoyés.
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">
+                  Commercial
                 </p>
+                <h2 className="mt-1 font-black text-slate-950">Devis à suivre</h2>
               </div>
-
-              <Link
-                href="/chef/devis"
-                className="shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              >
-                Voir tout
-              </Link>
+              <Link href="/chef/devis" className="text-xs font-black text-emerald-700">Voir tout →</Link>
             </div>
-
             {devisASuivre.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                  ✅
-                </div>
-
-                <p className="mt-3 text-sm font-semibold text-slate-700">
-                  Aucun devis à suivre
-                </p>
-              </div>
+              <p className="p-6 text-sm font-semibold text-slate-500">Aucun devis à suivre.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {devisASuivre.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/chef/devis?devisId=${item.id}`}
-                    className="block p-4 transition hover:bg-slate-50 sm:p-5"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <Link key={item.id} href="/chef/devis" className="block p-4 transition hover:bg-slate-50">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="break-words font-bold text-slate-950">
-                          {item.numero || "Sans numéro"} ·{" "}
-                          {formatMontant(item.total_ttc)}
+                        <p className="truncate text-sm font-black text-slate-950">
+                          {item.numero || "Devis"} · {item.client_nom || "Client"}
                         </p>
-
-                        <p className="mt-1 break-words text-sm text-slate-500">
-                          {item.client_nom ||
-                            "Client non renseigné"}{" "}
-                          · {item.objet || "Sans objet"}
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {item.objet || "Sans objet"} · {formatDate(item.date_devis)}
                         </p>
                       </div>
-
-                      <span
-                        className={`w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-                          item.statut
-                        )}`}
-                      >
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatut(item.statut)}`}>
                         {libelleStatutDevis(item.statut)}
                       </span>
                     </div>
@@ -1252,75 +980,32 @@ export default function DashboardChefPage() {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5">
+          <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5">
               <div>
-                <h2 className="font-black text-slate-950">
-                  Factures à encaisser
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Factures non réglées ou en retard.
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-red-700">
+                  Encaissements
                 </p>
+                <h2 className="mt-1 font-black text-slate-950">Factures à suivre</h2>
               </div>
-
-              <Link
-                href="/chef/factures"
-                className="shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-              >
-                Voir tout
-              </Link>
+              <Link href="/chef/factures" className="text-xs font-black text-emerald-700">Voir tout →</Link>
             </div>
-
             {facturesAEncaisser.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl">
-                  ✅
-                </div>
-
-                <p className="mt-3 text-sm font-semibold text-slate-700">
-                  Aucune facture à encaisser
-                </p>
-              </div>
+              <p className="p-6 text-sm font-semibold text-slate-500">Aucune facture à encaisser.</p>
             ) : (
               <div className="divide-y divide-slate-100">
                 {facturesAEncaisser.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/chef/factures?factureId=${item.id}`}
-                    className={`block p-4 transition hover:bg-slate-50 sm:p-5 ${
-                      item.statut === "en_retard"
-                        ? "bg-red-50/40"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <Link key={item.id} href="/chef/factures" className="block p-4 transition hover:bg-slate-50">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p
-                          className={`break-words font-bold ${
-                            item.statut === "en_retard"
-                              ? "text-red-950"
-                              : "text-slate-950"
-                          }`}
-                        >
-                          {item.numero || "Sans numéro"} ·{" "}
-                          {formatMontant(
-                            resteAPayerFacture(item)
-                          )}
+                        <p className="truncate text-sm font-black text-slate-950">
+                          {item.numero || "Facture"} · {item.client_nom || "Client"}
                         </p>
-
-                        <p className="mt-1 break-words text-sm text-slate-500">
-                          {item.client_nom ||
-                            "Client non renseigné"}{" "}
-                          · Échéance :{" "}
-                          {formatDate(item.date_echeance)}
+                        <p className="mt-1 text-xs font-bold text-red-600">
+                          {formatMontant(resteAPayerFacture(item))} à encaisser
                         </p>
                       </div>
-
-                      <span
-                        className={`w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${badgeStatut(
-                          item.statut
-                        )}`}
-                      >
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeStatut(item.statut)}`}>
                         {libelleStatutFacture(item.statut)}
                       </span>
                     </div>
@@ -1329,75 +1014,40 @@ export default function DashboardChefPage() {
               </div>
             )}
           </div>
-        </section>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-slate-950">
-                Accès rapides
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Ouvrez directement les principales fonctions.
-              </p>
+          <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">
+                  Équipe
+                </p>
+                <h2 className="mt-1 font-black text-slate-950">Demandes en attente</h2>
+              </div>
+              <Link href="/chef/demandes" className="text-xs font-black text-emerald-700">Voir tout →</Link>
             </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            {[
-              {
-                href: "/chef/clients",
-                icone: "👥",
-                titre: "Clients",
-                description: "Coordonnées et fiches clients.",
-              },
-              {
-                href: "/chef/salaries",
-                icone: "👷",
-                titre: "Salariés",
-                description: "Équipe et accès salariés.",
-              },
-              {
-                href: "/chef/planning",
-                icone: "📅",
-                titre: "Planning",
-                description: "Organisation des chantiers.",
-              },
-              {
-                href: "/chef/interventions",
-                icone: "📋",
-                titre: "Interventions",
-                description: "Préparation et suivi terrain.",
-              },
-              {
-                href: "/chef/devis",
-                icone: "📝",
-                titre: "Devis",
-                description: "Création et suivi commercial.",
-              },
-              {
-                href: "/chef/factures",
-                icone: "🧾",
-                titre: "Factures",
-                description: "Paiements, relances et avoirs.",
-              },
-            ].map((acces) => (
-              <Link
-                key={acces.href}
-                href={acces.href}
-                className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-              >
-                <span className="text-2xl">{acces.icone}</span>
-
-                <p className="mt-3 font-black text-slate-950">
-                  {acces.titre}
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  {acces.description}
-                </p>
-              </Link>
-            ))}
+            {demandesEnAttente.length === 0 ? (
+              <p className="p-6 text-sm font-semibold text-slate-500">Aucune demande à traiter.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {demandesEnAttente.map((demande) => (
+                  <Link key={demande.id} href="/chef/demandes" className="block p-4 transition hover:bg-slate-50">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-slate-950">
+                          {demande.demandeur_nom || demande.demandeur_email || "Salarié"}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {demande.titre || libelleTypeDemande(demande.type_demande)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">
+                        En attente
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       </div>

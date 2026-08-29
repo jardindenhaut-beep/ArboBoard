@@ -1,7 +1,15 @@
 import React from "react";
-import { renderToBuffer } from "@react-pdf/renderer";
-import { createClient } from "@supabase/supabase-js";
-import { chargerParametresEntrepriseDocument } from "@/lib/documents/chargerParametresEntreprise";
+import {
+  renderToBuffer,
+} from "@react-pdf/renderer";
+import {
+  createClient,
+} from "@supabase/supabase-js";
+
+import {
+  chargerParametresEntrepriseDocument,
+} from "@/lib/documents/chargerParametresEntreprise";
+
 import {
   PvFinChantierDocument,
   type ElementFichePv,
@@ -12,71 +20,249 @@ import {
   type SalariePv,
 } from "@/lib/interventions/genererPdfPvFinChantier";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime =
+  "nodejs";
 
-const NOMBRE_MAX_PHOTOS_A_SIGNER = 12;
+export const dynamic =
+  "force-dynamic";
 
-type SupabaseAdminClient = any;
+const NOMBRE_MAX_PHOTOS_A_SIGNER =
+  12;
+
+const ORIGINES_AUTORISEES =
+  new Set([
+    "https://arboboard.fr",
+    "https://www.arboboard.fr",
+    "capacitor://localhost",
+    "ionic://localhost",
+    "http://localhost",
+    "https://localhost",
+  ]);
+
+type SupabaseAdminClient =
+  any;
 
 type ProfilUtilisateur = {
   id: string;
-  entreprise_id: string | null;
-  role: string | null;
+
+  entreprise_id:
+    string | null;
+
+  role:
+    string | null;
 };
 
 type SalarieUtilisateur = {
   id: string;
 };
 
-type FicheAcces = FichePvPdf & {
-  salarie_id?: string | null;
-  pv_fin_chantier_id?: string | null;
-};
+type FicheAcces =
+  FichePvPdf & {
+    salarie_id?:
+      string | null;
 
-type PhotoBase = PhotoPv & {
-  url?: string | null;
-  storage_path?: string | null;
-};
+    pv_fin_chantier_id?:
+      string | null;
+  };
 
-function reponseErreur(message: string, statut = 400) {
+type PhotoBase =
+  PhotoPv & {
+    url?:
+      string | null;
+
+    storage_path?:
+      string | null;
+  };
+
+/* =========================================================
+   CORS MOBILE
+   ========================================================= */
+
+function origineAutorisee(
+  origine:
+    string
+) {
+  if (
+    ORIGINES_AUTORISEES.has(
+      origine
+    )
+  ) {
+    return true;
+  }
+
+  return /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(
+    origine
+  );
+}
+
+function entetesCors(
+  request:
+    Request
+) {
+  const origine =
+    String(
+      request.headers.get(
+        "origin"
+      ) ||
+        ""
+    ).trim();
+
+  const headers:
+    Record<
+      string,
+      string
+    > = {
+    "Access-Control-Allow-Methods":
+      "POST, OPTIONS",
+
+    "Access-Control-Allow-Headers":
+      "Authorization, Content-Type, X-Arboboard-Client",
+
+    "Access-Control-Expose-Headers":
+      "Content-Disposition, Content-Length, Content-Type",
+
+    "Access-Control-Max-Age":
+      "86400",
+
+    Vary:
+      "Origin",
+  };
+
+  if (
+    origine &&
+    origineAutorisee(
+      origine
+    )
+  ) {
+    headers[
+      "Access-Control-Allow-Origin"
+    ] =
+      origine;
+  }
+
+  return headers;
+}
+
+function reponseErreur(
+  request:
+    Request,
+  message:
+    string,
+  statut =
+    400
+) {
   return Response.json(
     {
-      succes: false,
-      error: message,
-      erreur: message,
+      succes:
+        false,
+
+      error:
+        message,
+
+      erreur:
+        message,
     },
     {
-      status: statut,
+      status:
+        statut,
+
       headers: {
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
+        ...entetesCors(
+          request
+        ),
+
+        "Cache-Control":
+          "no-store",
+
+        "X-Content-Type-Options":
+          "nosniff",
       },
     }
   );
 }
 
-function nettoyerNomFichier(valeur: string) {
-  const nom = valeur
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9-_]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase();
+export async function OPTIONS(
+  request:
+    Request
+) {
+  return new Response(
+    null,
+    {
+      status:
+        204,
 
-  return nom || "pv-fin-chantier";
+      headers: {
+        ...entetesCors(
+          request
+        ),
+
+        "Cache-Control":
+          "public, max-age=86400",
+      },
+    }
+  );
 }
 
-function normaliserRole(role: string | null | undefined) {
-  return String(role || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+/* =========================================================
+   OUTILS
+   ========================================================= */
+
+function nettoyerNomFichier(
+  valeur:
+    string
+) {
+  const nom =
+    valeur
+      .normalize(
+        "NFD"
+      )
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .replace(
+        /[^a-zA-Z0-9-_]/g,
+        "-"
+      )
+      .replace(
+        /-+/g,
+        "-"
+      )
+      .replace(
+        /^-|-$/g,
+        ""
+      )
+      .toLowerCase();
+
+  return (
+    nom ||
+    "pv-fin-chantier"
+  );
+}
+
+function normaliserRole(
+  role:
+    string | null | undefined
+) {
+  return String(
+    role ||
+      ""
+  )
+    .normalize(
+      "NFD"
+    )
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
     .trim()
     .toLowerCase();
 }
 
-function roleDirection(role: string | null | undefined) {
+function roleDirection(
+  role:
+    string | null | undefined
+) {
   return [
     "admin",
     "administrateur",
@@ -84,36 +270,111 @@ function roleDirection(role: string | null | undefined) {
     "gerant",
     "dirigeant",
     "patron",
-  ].includes(normaliserRole(role));
+  ].includes(
+    normaliserRole(
+      role
+    )
+  );
 }
 
-function estUrlExterne(valeur: string | null | undefined) {
-  return /^(https?:\/\/|data:)/i.test(String(valeur || ""));
+function estUrlExterne(
+  valeur:
+    string | null | undefined
+) {
+  return /^(https?:\/\/|data:)/i.test(
+    String(
+      valeur ||
+        ""
+    )
+  );
 }
 
-function nettoyerCheminStorage(valeur: string | null | undefined) {
-  return String(valeur || "")
+function nettoyerCheminStorage(
+  valeur:
+    string | null | undefined
+) {
+  return String(
+    valeur ||
+      ""
+  )
     .trim()
-    .replace(/^\/+/, "");
+    .replace(
+      /^\/+/,
+      ""
+    );
 }
 
-function extraireJeton(request: Request) {
-  const authorization = request.headers.get("authorization") || "";
+function extraireJeton(
+  request:
+    Request
+) {
+  const authorization =
+    request.headers.get(
+      "authorization"
+    ) ||
+    "";
 
-  if (!authorization.toLowerCase().startsWith("bearer ")) {
+  if (
+    !authorization
+      .toLowerCase()
+      .startsWith(
+        "bearer "
+      )
+  ) {
     return "";
   }
 
-  return authorization.slice(7).trim();
+  return authorization
+    .slice(
+      7
+    )
+    .trim();
 }
 
-async function lireCorpsJson(request: Request) {
+async function lireCorpsJson(
+  request:
+    Request
+) {
   try {
-    return (await request.json()) as Record<string, unknown>;
+    return (
+      await request.json()
+    ) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
 }
+
+function bufferEstPdf(
+  buffer:
+    Buffer
+) {
+  if (
+    !buffer ||
+    buffer.length <
+      5
+  ) {
+    return false;
+  }
+
+  return (
+    buffer
+      .subarray(
+        0,
+        5
+      )
+      .toString(
+        "ascii"
+      ) ===
+    "%PDF-"
+  );
+}
+
+/* =========================================================
+   ACCÈS SALARIÉ
+   ========================================================= */
 
 async function trouverSalarieConnecte({
   supabaseAdmin,
@@ -121,51 +382,115 @@ async function trouverSalarieConnecte({
   userId,
   email,
 }: {
-  supabaseAdmin: SupabaseAdminClient;
-  entrepriseId: string;
-  userId: string;
-  email: string | null | undefined;
+  supabaseAdmin:
+    SupabaseAdminClient;
+
+  entrepriseId:
+    string;
+
+  userId:
+    string;
+
+  email:
+    string | null | undefined;
 }): Promise<SalarieUtilisateur | null> {
   /*
-   * Certaines anciennes bases peuvent ne pas encore posséder user_id
-   * ou profil_id. Une erreur sur cette première recherche ne doit donc
-   * pas empêcher la tentative de correspondance par email.
+   * Correspondance prioritaire avec user_id / profil_id.
+   *
+   * La recherche par email reste en secours pour les anciens
+   * comptes salariés créés avant le rattachement par identifiant.
    */
-  const { data: salarieParIdentifiantsData, error: erreurIdentifiants } =
+
+  const {
+    data:
+      salarieParIdentifiantsData,
+    error:
+      erreurIdentifiants,
+  } =
     await supabaseAdmin
-      .from("salaries")
-      .select("id")
-      .eq("entreprise_id", entrepriseId)
-      .or(`user_id.eq.${userId},profil_id.eq.${userId}`)
-      .limit(1)
+      .from(
+        "salaries"
+      )
+      .select(
+        "id"
+      )
+      .eq(
+        "entreprise_id",
+        entrepriseId
+      )
+      .or(
+        `user_id.eq.${userId},profil_id.eq.${userId}`
+      )
+      .limit(
+        1
+      )
       .maybeSingle();
 
   const salarieParIdentifiants =
-    (salarieParIdentifiantsData || null) as SalarieUtilisateur | null;
+    (
+      salarieParIdentifiantsData ||
+      null
+    ) as
+      | SalarieUtilisateur
+      | null;
 
-  if (!erreurIdentifiants && salarieParIdentifiants?.id) {
+  if (
+    !erreurIdentifiants &&
+    salarieParIdentifiants?.id
+  ) {
     return salarieParIdentifiants;
   }
 
-  const emailNettoye = String(email || "").trim();
+  const emailNettoye =
+    String(
+      email ||
+        ""
+    ).trim();
 
-  if (!emailNettoye) {
+  if (
+    !emailNettoye
+  ) {
     return null;
   }
 
-  const { data: salarieParEmailData, error: erreurEmail } =
+  const {
+    data:
+      salarieParEmailData,
+    error:
+      erreurEmail,
+  } =
     await supabaseAdmin
-      .from("salaries")
-      .select("id")
-      .eq("entreprise_id", entrepriseId)
-      .ilike("email", emailNettoye)
-      .limit(1)
+      .from(
+        "salaries"
+      )
+      .select(
+        "id"
+      )
+      .eq(
+        "entreprise_id",
+        entrepriseId
+      )
+      .ilike(
+        "email",
+        emailNettoye
+      )
+      .limit(
+        1
+      )
       .maybeSingle();
 
   const salarieParEmail =
-    (salarieParEmailData || null) as SalarieUtilisateur | null;
+    (
+      salarieParEmailData ||
+      null
+    ) as
+      | SalarieUtilisateur
+      | null;
 
-  if (erreurEmail || !salarieParEmail?.id) {
+  if (
+    erreurEmail ||
+    !salarieParEmail?.id
+  ) {
     return null;
   }
 
@@ -180,123 +505,255 @@ async function verifierAccesSalarie({
   userId,
   email,
 }: {
-  supabaseAdmin: SupabaseAdminClient;
-  entrepriseId: string;
-  ficheId: string;
-  ficheSalarieId: string | null | undefined;
-  userId: string;
-  email: string | null | undefined;
-}) {
-  const salarie = await trouverSalarieConnecte({
-    supabaseAdmin,
-    entrepriseId,
-    userId,
-    email,
-  });
+  supabaseAdmin:
+    SupabaseAdminClient;
 
-  if (!salarie?.id) {
+  entrepriseId:
+    string;
+
+  ficheId:
+    string;
+
+  ficheSalarieId:
+    string | null | undefined;
+
+  userId:
+    string;
+
+  email:
+    string | null | undefined;
+}) {
+  const salarie =
+    await trouverSalarieConnecte({
+      supabaseAdmin,
+      entrepriseId,
+      userId,
+      email,
+    });
+
+  if (
+    !salarie?.id
+  ) {
     return false;
   }
 
-  if (ficheSalarieId === salarie.id) {
+  if (
+    ficheSalarieId ===
+    salarie.id
+  ) {
     return true;
   }
 
-  const { data: affectationData, error: erreurAffectation } =
+  const {
+    data:
+      affectationData,
+    error:
+      erreurAffectation,
+  } =
     await supabaseAdmin
-      .from("fiches_intervention_salaries")
-      .select("id")
-      .eq("entreprise_id", entrepriseId)
-      .eq("fiche_id", ficheId)
-      .eq("salarie_id", salarie.id)
-      .limit(1)
+      .from(
+        "fiches_intervention_salaries"
+      )
+      .select(
+        "id"
+      )
+      .eq(
+        "entreprise_id",
+        entrepriseId
+      )
+      .eq(
+        "fiche_id",
+        ficheId
+      )
+      .eq(
+        "salarie_id",
+        salarie.id
+      )
+      .limit(
+        1
+      )
       .maybeSingle();
 
   const affectation =
-    (affectationData || null) as { id: string } | null;
+    (
+      affectationData ||
+      null
+    ) as
+      | {
+          id:
+            string;
+        }
+      | null;
 
-  return !erreurAffectation && Boolean(affectation?.id);
+  return (
+    !erreurAffectation &&
+    Boolean(
+      affectation?.id
+    )
+  );
 }
+
+/* =========================================================
+   LOGO
+   ========================================================= */
 
 async function rendreLogoAccessible({
   supabaseAdmin,
   entreprise,
 }: {
-  supabaseAdmin: SupabaseAdminClient;
-  entreprise: ParametresEntreprisePv | null;
+  supabaseAdmin:
+    SupabaseAdminClient;
+
+  entreprise:
+    ParametresEntreprisePv | null;
 }) {
-  if (!entreprise?.logo_url || estUrlExterne(entreprise.logo_url)) {
+  if (
+    !entreprise?.logo_url ||
+    estUrlExterne(
+      entreprise.logo_url
+    )
+  ) {
     return entreprise;
   }
 
-  const chemin = nettoyerCheminStorage(entreprise.logo_url);
+  const chemin =
+    nettoyerCheminStorage(
+      entreprise.logo_url
+    );
 
-  if (!chemin) {
+  if (
+    !chemin
+  ) {
     return entreprise;
   }
 
-  const { data, error } = await supabaseAdmin.storage
-    .from("logos-entreprises")
-    .createSignedUrl(chemin, 60 * 30);
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .storage
+      .from(
+        "logos-entreprises"
+      )
+      .createSignedUrl(
+        chemin,
+        60 * 30
+      );
 
-  if (error || !data?.signedUrl) {
-    console.error("Erreur URL signée logo PV :", error);
+  if (
+    error ||
+    !data?.signedUrl
+  ) {
+    console.error(
+      "Erreur URL signée logo PV :",
+      error
+    );
+
     return entreprise;
   }
 
   return {
     ...entreprise,
-    logo_url: data.signedUrl,
+
+    logo_url:
+      data.signedUrl,
   };
 }
+
+/* =========================================================
+   PHOTOS
+   ========================================================= */
 
 async function ajouterUrlSigneePhoto({
   supabaseAdmin,
   photo,
 }: {
-  supabaseAdmin: SupabaseAdminClient;
-  photo: PhotoBase;
+  supabaseAdmin:
+    SupabaseAdminClient;
+
+  photo:
+    PhotoBase;
 }) {
-  const valeurUrl = photo.url || null;
+  const valeurUrl =
+    photo.url ||
+    null;
 
-  if (!photo.storage_path && estUrlExterne(valeurUrl)) {
+  if (
+    !photo.storage_path &&
+    estUrlExterne(
+      valeurUrl
+    )
+  ) {
     return {
       ...photo,
-      signed_url: valeurUrl,
+
+      signed_url:
+        valeurUrl,
     };
   }
 
-  const chemin = nettoyerCheminStorage(
-    photo.storage_path || valeurUrl
-  );
+  const chemin =
+    nettoyerCheminStorage(
+      photo.storage_path ||
+        valeurUrl
+    );
 
-  if (!chemin) {
+  if (
+    !chemin
+  ) {
     return {
       ...photo,
-      signed_url: null,
+
+      signed_url:
+        null,
     };
   }
 
-  const { data, error } = await supabaseAdmin.storage
-    .from("interventions-photos")
-    .createSignedUrl(chemin, 60 * 30);
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin
+      .storage
+      .from(
+        "interventions-photos"
+      )
+      .createSignedUrl(
+        chemin,
+        60 * 30
+      );
 
-  if (error || !data?.signedUrl) {
-    console.error("Erreur URL signée photo PV :", {
-      photoId: photo.id,
-      chemin,
-      erreur: error,
-    });
+  if (
+    error ||
+    !data?.signedUrl
+  ) {
+    console.error(
+      "Erreur URL signée photo PV :",
+      {
+        photoId:
+          photo.id,
+
+        chemin,
+
+        erreur:
+          error,
+      }
+    );
 
     return {
       ...photo,
-      signed_url: null,
+
+      signed_url:
+        null,
     };
   }
 
   return {
     ...photo,
-    signed_url: data.signedUrl,
+
+    signed_url:
+      data.signedUrl,
   };
 }
 
@@ -304,33 +761,42 @@ async function preparerPhotos({
   supabaseAdmin,
   photos,
 }: {
-  supabaseAdmin: SupabaseAdminClient;
-  photos: PhotoBase[];
+  supabaseAdmin:
+    SupabaseAdminClient;
+
+  photos:
+    PhotoBase[];
 }) {
   return Promise.all(
-    photos.map((photo, index) => {
-      if (index >= NOMBRE_MAX_PHOTOS_A_SIGNER) {
-        return Promise.resolve({
-          ...photo,
-          signed_url: null,
+    photos.map(
+      (
+        photo,
+        index
+      ) => {
+        if (
+          index >=
+          NOMBRE_MAX_PHOTOS_A_SIGNER
+        ) {
+          return Promise.resolve({
+            ...photo,
+
+            signed_url:
+              null,
+          });
+        }
+
+        return ajouterUrlSigneePhoto({
+          supabaseAdmin,
+          photo,
         });
       }
-
-      return ajouterUrlSigneePhoto({
-        supabaseAdmin,
-        photo,
-      });
-    })
+    )
   );
 }
 
-function bufferEstPdf(buffer: Buffer) {
-  if (!buffer || buffer.length < 5) {
-    return false;
-  }
-
-  return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
-}
+/* =========================================================
+   PV
+   ========================================================= */
 
 async function chargerPv({
   supabaseAdmin,
@@ -339,221 +805,476 @@ async function chargerPv({
   pvIdDemande,
   pvIdFiche,
 }: {
-  supabaseAdmin: SupabaseAdminClient;
-  entrepriseId: string;
-  ficheId: string;
-  pvIdDemande: string;
-  pvIdFiche: string | null | undefined;
-}) {
-  const pvIdCible = pvIdDemande || String(pvIdFiche || "").trim();
+  supabaseAdmin:
+    SupabaseAdminClient;
 
-  if (pvIdCible) {
+  entrepriseId:
+    string;
+
+  ficheId:
+    string;
+
+  pvIdDemande:
+    string;
+
+  pvIdFiche:
+    string | null | undefined;
+}) {
+  const pvIdCible =
+    pvIdDemande ||
+    String(
+      pvIdFiche ||
+        ""
+    ).trim();
+
+  if (
+    pvIdCible
+  ) {
     return supabaseAdmin
-      .from("pv_fin_chantier")
-      .select("id, entreprise_id, fiche_id, client_email, client_present, chantier_termine, reserves, commentaire_client, commentaire_entreprise, signataire_client_nom, signature_client, signataire_entreprise_nom, signature_entreprise, reserves_client, nom_signataire_client, signature_client_data_url, signe_client_at, nom_signataire_entreprise, signature_entreprise_data_url, signe_entreprise_at, envoye_client_at, envoye_client_email, created_at, updated_at")
-      .eq("entreprise_id", entrepriseId)
-      .eq("fiche_id", ficheId)
-      .eq("id", pvIdCible)
+      .from(
+        "pv_fin_chantier"
+      )
+      .select(
+        "*"
+      )
+      .eq(
+        "entreprise_id",
+        entrepriseId
+      )
+      .eq(
+        "fiche_id",
+        ficheId
+      )
+      .eq(
+        "id",
+        pvIdCible
+      )
       .maybeSingle();
   }
 
   return supabaseAdmin
-    .from("pv_fin_chantier")
-    .select("id, entreprise_id, fiche_id, client_email, client_present, chantier_termine, reserves, commentaire_client, commentaire_entreprise, signataire_client_nom, signature_client, signataire_entreprise_nom, signature_entreprise, reserves_client, nom_signataire_client, signature_client_data_url, signe_client_at, nom_signataire_entreprise, signature_entreprise_data_url, signe_entreprise_at, envoye_client_at, envoye_client_email, created_at, updated_at")
-    .eq("entreprise_id", entrepriseId)
-    .eq("fiche_id", ficheId)
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .from(
+      "pv_fin_chantier"
+    )
+    .select(
+      "*"
+    )
+    .eq(
+      "entreprise_id",
+      entrepriseId
+    )
+    .eq(
+      "fiche_id",
+      ficheId
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          false,
+      }
+    )
+    .limit(
+      1
+    )
     .maybeSingle();
 }
 
-export async function POST(request: Request) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/* =========================================================
+   POST
+   ========================================================= */
 
-    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return reponseErreur(
+export async function POST(
+  request:
+    Request
+) {
+  const erreur = (
+    message:
+      string,
+    statut =
+      400
+  ) =>
+    reponseErreur(
+      request,
+      message,
+      statut
+    );
+
+  try {
+    const supabaseUrl =
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL;
+
+    const supabaseAnonKey =
+      process.env
+        .NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    const serviceRoleKey =
+      process.env
+        .SUPABASE_SERVICE_ROLE_KEY;
+
+    if (
+      !supabaseUrl ||
+      !supabaseAnonKey ||
+      !serviceRoleKey
+    ) {
+      return erreur(
         "Configuration Supabase serveur manquante.",
         500
       );
     }
 
-    const token = extraireJeton(request);
+    /* =====================================================
+       AUTHENTIFICATION
+       ===================================================== */
 
-    if (!token) {
-      return reponseErreur(
+    const token =
+      extraireJeton(
+        request
+      );
+
+    if (
+      !token
+    ) {
+      return erreur(
         "Utilisateur non authentifié. Veuillez vous reconnecter.",
         401
       );
     }
 
-    const supabaseAuth = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      }
-    );
+    const supabaseAuth =
+      createClient(
+        supabaseUrl,
+        supabaseAnonKey,
+        {
+          auth: {
+            persistSession:
+              false,
+
+            autoRefreshToken:
+              false,
+
+            detectSessionInUrl:
+              false,
+          },
+        }
+      );
 
     const {
-      data: { user },
-      error: erreurUtilisateur,
-    } = await supabaseAuth.auth.getUser(token);
+      data: {
+        user,
+      },
+      error:
+        erreurUtilisateur,
+    } =
+      await supabaseAuth
+        .auth
+        .getUser(
+          token
+        );
 
-    if (erreurUtilisateur || !user) {
-      return reponseErreur(
+    if (
+      erreurUtilisateur ||
+      !user
+    ) {
+      return erreur(
         "Session utilisateur invalide. Veuillez vous reconnecter.",
         401
       );
     }
 
-    const corps = await lireCorpsJson(request);
+    /* =====================================================
+       CORPS
+       ===================================================== */
 
-    if (!corps) {
-      return reponseErreur("Corps de requête invalide.", 400);
+    const corps =
+      await lireCorpsJson(
+        request
+      );
+
+    if (
+      !corps
+    ) {
+      return erreur(
+        "Corps de requête invalide.",
+        400
+      );
     }
 
     const ficheId =
-      typeof corps.ficheId === "string"
+      typeof corps.ficheId ===
+      "string"
         ? corps.ficheId.trim()
-        : typeof corps.fiche_id === "string"
+        : typeof corps.fiche_id ===
+            "string"
           ? corps.fiche_id.trim()
           : "";
 
     const pvIdDemande =
-      typeof corps.pvId === "string"
+      typeof corps.pvId ===
+      "string"
         ? corps.pvId.trim()
-        : typeof corps.pv_id === "string"
+        : typeof corps.pv_id ===
+            "string"
           ? corps.pv_id.trim()
           : "";
 
-    if (!ficheId || ficheId.length > 200) {
-      return reponseErreur(
+    if (
+      !ficheId ||
+      ficheId.length >
+        200
+    ) {
+      return erreur(
         "Identifiant de fiche manquant ou invalide.",
         400
       );
     }
 
-    if (pvIdDemande.length > 200) {
-      return reponseErreur(
+    if (
+      pvIdDemande.length >
+      200
+    ) {
+      return erreur(
         "Identifiant de PV invalide.",
         400
       );
     }
 
-    const supabaseAdmin: SupabaseAdminClient = createClient(
-      supabaseUrl,
-      serviceRoleKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      }
-    );
+    /* =====================================================
+       CLIENT ADMIN SERVEUR
+       ===================================================== */
 
-    const { data: profilData, error: erreurProfil } =
+    const supabaseAdmin:
+      SupabaseAdminClient =
+      createClient(
+        supabaseUrl,
+        serviceRoleKey,
+        {
+          auth: {
+            persistSession:
+              false,
+
+            autoRefreshToken:
+              false,
+
+            detectSessionInUrl:
+              false,
+          },
+        }
+      );
+
+    /* =====================================================
+       PROFIL
+       ===================================================== */
+
+    const {
+      data:
+        profilData,
+      error:
+        erreurProfil,
+    } =
       await supabaseAdmin
-        .from("profils_utilisateurs")
-        .select("id, entreprise_id, role")
-        .eq("id", user.id)
+        .from(
+          "profils_utilisateurs"
+        )
+        .select(
+          "id, entreprise_id, role"
+        )
+        .eq(
+          "id",
+          user.id
+        )
         .maybeSingle();
 
     const profil =
-      (profilData || null) as ProfilUtilisateur | null;
+      (
+        profilData ||
+        null
+      ) as
+        | ProfilUtilisateur
+        | null;
 
-    if (erreurProfil || !profil?.entreprise_id) {
-      return reponseErreur(
+    if (
+      erreurProfil ||
+      !profil?.entreprise_id
+    ) {
+      return erreur(
         "Profil utilisateur introuvable. Impossible de vérifier vos droits.",
         403
       );
     }
 
-    const entrepriseId = String(profil.entreprise_id);
+    const entrepriseId =
+      String(
+        profil.entreprise_id
+      );
 
-    const { data: ficheDataBrute, error: erreurFiche } =
+    /* =====================================================
+       FICHE
+       ===================================================== */
+
+    const {
+      data:
+        ficheDataBrute,
+      error:
+        erreurFiche,
+    } =
       await supabaseAdmin
-        .from("fiches_intervention")
-        .select("id, numero, client_id, client_nom, titre, type_intervention, date_prevue, date_intervention, heure_debut_prevue, heure_fin_prevue, heure_debut_reelle, heure_fin_reelle, adresse_chantier, code_postal_chantier, ville_chantier, adresse, code_postal, ville, notes_chantier, travaux_prevus, materiel_prevu, consignes_securite, salarie_id, pv_fin_chantier_id")
-        .eq("id", ficheId)
-        .eq("entreprise_id", entrepriseId)
+        .from(
+          "fiches_intervention"
+        )
+        .select(
+          "*"
+        )
+        .eq(
+          "id",
+          ficheId
+        )
+        .eq(
+          "entreprise_id",
+          entrepriseId
+        )
         .maybeSingle();
 
     const ficheData =
-      (ficheDataBrute || null) as FicheAcces | null;
+      (
+        ficheDataBrute ||
+        null
+      ) as
+        | FicheAcces
+        | null;
 
-    if (erreurFiche) {
-      console.error("Erreur chargement fiche PDF PV :", erreurFiche);
+    if (
+      erreurFiche
+    ) {
+      console.error(
+        "Erreur chargement fiche PDF PV :",
+        erreurFiche
+      );
 
-      return reponseErreur(
+      return erreur(
         "Impossible de vérifier la fiche d’intervention.",
         500
       );
     }
 
-    if (!ficheData) {
-      return reponseErreur(
+    if (
+      !ficheData
+    ) {
+      return erreur(
         "Fiche d’intervention introuvable ou non rattachée à votre entreprise.",
         404
       );
     }
 
-    if (!roleDirection(profil.role)) {
-      const accesAutorise = await verifierAccesSalarie({
-        supabaseAdmin,
-        entrepriseId,
-        ficheId,
-        ficheSalarieId: ficheData.salarie_id,
-        userId: user.id,
-        email: user.email,
-      });
+    /* =====================================================
+       DROITS
+       ===================================================== */
 
-      if (!accesAutorise) {
-        return reponseErreur(
+    if (
+      !roleDirection(
+        profil.role
+      )
+    ) {
+      const accesAutorise =
+        await verifierAccesSalarie({
+          supabaseAdmin,
+
+          entrepriseId,
+
+          ficheId,
+
+          ficheSalarieId:
+            ficheData.salarie_id,
+
+          userId:
+            user.id,
+
+          email:
+            user.email,
+        });
+
+      if (
+        !accesAutorise
+      ) {
+        return erreur(
           "Vous n’êtes pas affecté à cette intervention.",
           403
         );
       }
     }
 
-    const { data: pvDataBrute, error: erreurPv } = await chargerPv({
-      supabaseAdmin,
-      entrepriseId,
-      ficheId,
-      pvIdDemande,
-      pvIdFiche: ficheData.pv_fin_chantier_id,
-    });
+    /* =====================================================
+       PV
+       ===================================================== */
+
+    const {
+      data:
+        pvDataBrute,
+      error:
+        erreurPv,
+    } =
+      await chargerPv({
+        supabaseAdmin,
+
+        entrepriseId,
+
+        ficheId,
+
+        pvIdDemande,
+
+        pvIdFiche:
+          ficheData
+            .pv_fin_chantier_id,
+      });
 
     const pvData =
-      (pvDataBrute || null) as PvFinChantierPdf | null;
+      (
+        pvDataBrute ||
+        null
+      ) as
+        | PvFinChantierPdf
+        | null;
 
-    if (erreurPv) {
-      console.error("Erreur chargement PV pour PDF :", erreurPv);
+    if (
+      erreurPv
+    ) {
+      console.error(
+        "Erreur chargement PV pour PDF :",
+        erreurPv
+      );
 
-      return reponseErreur(
+      return erreur(
         "Impossible de charger le PV de fin de chantier.",
         500
       );
     }
 
-    if (!pvData) {
-      return reponseErreur(
+    if (
+      !pvData
+    ) {
+      return erreur(
         "PV de fin de chantier introuvable. Enregistrez le PV avant de le télécharger.",
         404
       );
     }
 
-    let parametresEntrepriseBruts: ParametresEntreprisePv | null = null;
-    let elementsResult: any;
-    let photosResult: any;
-    let equipeResult: any;
+    /* =====================================================
+       DONNÉES PDF
+       ===================================================== */
+
+    let parametresEntrepriseBruts:
+      ParametresEntreprisePv | null =
+      null;
+
+    let elementsResult:
+      any;
+
+    let photosResult:
+      any;
+
+    let equipeResult:
+      any;
 
     try {
       [
@@ -561,158 +1282,321 @@ export async function POST(request: Request) {
         elementsResult,
         photosResult,
         equipeResult,
-      ] = await Promise.all([
-        chargerParametresEntrepriseDocument(entrepriseId),
+      ] =
+        await Promise.all([
+          chargerParametresEntrepriseDocument(
+            entrepriseId
+          ),
 
-        supabaseAdmin
-          .from("fiches_intervention_elements")
-          .select("id, nom, categorie, icone, quantite_prevue, quantite_reelle, unite, commentaire_chef, commentaire_salarie, ordre")
-          .eq("entreprise_id", entrepriseId)
-          .eq("fiche_id", ficheId)
-          .order("ordre", { ascending: true }),
+          supabaseAdmin
+            .from(
+              "fiches_intervention_elements"
+            )
+            .select(
+              "*"
+            )
+            .eq(
+              "entreprise_id",
+              entrepriseId
+            )
+            .eq(
+              "fiche_id",
+              ficheId
+            )
+            .order(
+              "ordre",
+              {
+                ascending:
+                  true,
+              }
+            ),
 
-        supabaseAdmin
-          .from("fiches_intervention_photos")
-          .select("id, categorie, commentaire, created_at, url, storage_path")
-          .eq("entreprise_id", entrepriseId)
-          .eq("fiche_id", ficheId)
-          .order("created_at", { ascending: true }),
+          supabaseAdmin
+            .from(
+              "fiches_intervention_photos"
+            )
+            .select(
+              "*"
+            )
+            .eq(
+              "entreprise_id",
+              entrepriseId
+            )
+            .eq(
+              "fiche_id",
+              ficheId
+            )
+            .order(
+              "created_at",
+              {
+                ascending:
+                  true,
+              }
+            ),
 
-        supabaseAdmin
-          .from("fiches_intervention_salaries")
-          .select("id, salarie_id, salarie_nom, role_chantier, heure_arrivee_prevue, heure_depart_prevue, heure_arrivee_reelle, heure_depart_reelle, created_at")
-          .eq("entreprise_id", entrepriseId)
-          .eq("fiche_id", ficheId)
-          .order("created_at", { ascending: true }),
-      ]);
-    } catch (error) {
-      console.error("Erreur préparation données PDF PV :", error);
+          supabaseAdmin
+            .from(
+              "fiches_intervention_salaries"
+            )
+            .select(
+              "*"
+            )
+            .eq(
+              "entreprise_id",
+              entrepriseId
+            )
+            .eq(
+              "fiche_id",
+              ficheId
+            )
+            .order(
+              "created_at",
+              {
+                ascending:
+                  true,
+              }
+            ),
+        ]);
+    } catch (
+      error
+    ) {
+      console.error(
+        "Erreur préparation données PDF PV :",
+        error
+      );
 
-      return reponseErreur(
+      return erreur(
         "Impossible de préparer les données du procès-verbal.",
         500
       );
     }
 
-    if (elementsResult.error) {
+    if (
+      elementsResult.error
+    ) {
       console.error(
         "Erreur chargement éléments PDF PV :",
         elementsResult.error
       );
 
-      return reponseErreur(
+      return erreur(
         "Impossible de charger les travaux et le matériel de la fiche.",
         500
       );
     }
 
-    if (photosResult.error) {
+    if (
+      photosResult.error
+    ) {
       console.error(
         "Erreur chargement photos PDF PV :",
         photosResult.error
       );
 
-      return reponseErreur(
+      return erreur(
         "Impossible de charger les photos du chantier.",
         500
       );
     }
 
-    if (equipeResult.error) {
+    if (
+      equipeResult.error
+    ) {
       console.error(
         "Erreur chargement équipe PDF PV :",
         equipeResult.error
       );
 
-      return reponseErreur(
+      return erreur(
         "Impossible de charger l’équipe affectée au chantier.",
         500
       );
     }
 
-    const entreprise = await rendreLogoAccessible({
-      supabaseAdmin,
-      entreprise: parametresEntrepriseBruts || null,
-    });
+    /* =====================================================
+       URLS SIGNÉES
+       ===================================================== */
 
-    const photosAvecUrls = await preparerPhotos({
-      supabaseAdmin,
-      photos: (photosResult.data || []) as PhotoBase[],
-    });
+    const entreprise =
+      await rendreLogoAccessible({
+        supabaseAdmin,
 
-    const documentPdf = React.createElement(
-      PvFinChantierDocument as React.ComponentType<any>,
-      {
-        entreprise,
-        fiche: ficheData as FichePvPdf,
-        pv: pvData,
-        elements: (elementsResult.data || []) as ElementFichePv[],
-        photos: photosAvecUrls as PhotoPv[],
-        equipe: (equipeResult.data || []) as SalariePv[],
-      }
-    );
+        entreprise:
+          parametresEntrepriseBruts ||
+          null,
+      });
 
-    let bufferRendu: Buffer;
+    const photosAvecUrls =
+      await preparerPhotos({
+        supabaseAdmin,
+
+        photos:
+          (
+            photosResult.data ||
+            []
+          ) as PhotoBase[],
+      });
+
+    /* =====================================================
+       RENDU PDF
+       ===================================================== */
+
+    const documentPdf =
+      React.createElement(
+        PvFinChantierDocument as React.ComponentType<any>,
+        {
+          entreprise,
+
+          fiche:
+            ficheData as FichePvPdf,
+
+          pv:
+            pvData,
+
+          elements:
+            (
+              elementsResult.data ||
+              []
+            ) as ElementFichePv[],
+
+          photos:
+            photosAvecUrls as PhotoPv[],
+
+          equipe:
+            (
+              equipeResult.data ||
+              []
+            ) as SalariePv[],
+        }
+      );
+
+    let bufferRendu:
+      Buffer;
 
     try {
-      const resultatRendu = await renderToBuffer(documentPdf as any);
-      bufferRendu = Buffer.from(resultatRendu);
-    } catch (error) {
-      console.error("Erreur rendu React PDF du PV :", error);
+      const resultatRendu =
+        await renderToBuffer(
+          documentPdf as any
+        );
 
-      return reponseErreur(
+      bufferRendu =
+        Buffer.from(
+          resultatRendu
+        );
+    } catch (
+      error
+    ) {
+      console.error(
+        "Erreur rendu React PDF du PV :",
+        error
+      );
+
+      return erreur(
         "Le procès-verbal n’a pas pu être mis en page.",
         500
       );
     }
 
-    if (!bufferRendu.length) {
-      return reponseErreur(
+    if (
+      !bufferRendu.length
+    ) {
+      return erreur(
         "Le fichier PDF généré est vide.",
         500
       );
     }
 
-    if (!bufferEstPdf(bufferRendu)) {
+    if (
+      !bufferEstPdf(
+        bufferRendu
+      )
+    ) {
       console.error(
         "Le contenu généré ne possède pas la signature d’un fichier PDF."
       );
 
-      return reponseErreur(
+      return erreur(
         "Le document généré n’est pas un PDF valide.",
         500
       );
     }
 
-    const nomBase = nettoyerNomFichier(
-      `pv-fin-chantier-${ficheData.numero || ficheData.id}`
+    /* =====================================================
+       NOM DU PDF
+       ===================================================== */
+
+    const nomBase =
+      nettoyerNomFichier(
+        `pv-fin-chantier-${
+          ficheData.numero ||
+          ficheData.id
+        }`
+      );
+
+    const nomFichier =
+      `${nomBase}.pdf`;
+
+    const nomEncode =
+      encodeURIComponent(
+        nomFichier
+      );
+
+    /* =====================================================
+       RÉPONSE
+       ===================================================== */
+
+    return new Response(
+      new Uint8Array(
+        bufferRendu
+      ),
+      {
+        status:
+          200,
+
+        headers: {
+          ...entetesCors(
+            request
+          ),
+
+          "Content-Type":
+            "application/pdf",
+
+          "Content-Disposition":
+            `attachment; filename="${nomFichier}"; ` +
+            `filename*=UTF-8''${nomEncode}`,
+
+          "Content-Length":
+            String(
+              bufferRendu.length
+            ),
+
+          "Cache-Control":
+            "private, no-store, max-age=0",
+
+          Pragma:
+            "no-cache",
+
+          Expires:
+            "0",
+
+          "X-Content-Type-Options":
+            "nosniff",
+
+          "Content-Security-Policy":
+            "sandbox",
+        },
+      }
     );
-
-    const nomFichier = `${nomBase}.pdf`;
-    const nomEncode = encodeURIComponent(nomFichier);
-
-    return new Response(new Uint8Array(bufferRendu), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition":
-          `attachment; filename="${nomFichier}"; ` +
-          `filename*=UTF-8''${nomEncode}`,
-        "Content-Length": String(bufferRendu.length),
-        "Cache-Control": "private, no-store, max-age=0",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "sandbox",
-      },
-    });
-  } catch (error: unknown) {
+  } catch (
+    error:
+      unknown
+  ) {
     console.error(
       "Erreur génération PDF PV fin chantier :",
       error
     );
 
-    return reponseErreur(
+    return erreur(
       "Impossible de générer le PDF du PV de fin de chantier.",
       500
     );

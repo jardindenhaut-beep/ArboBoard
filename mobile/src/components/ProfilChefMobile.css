@@ -1,0 +1,1242 @@
+:root {
+  --profil-chef-green: #173b31;
+  --profil-chef-green-2: #214d40;
+  --profil-chef-green-3: #2d6756;
+
+  --profil-chef-cream: #f5f1e8;
+  --profil-chef-cream-2: #fbf8f1;
+
+  --profil-chef-gold: #c9a96b;
+
+  --profil-chef-text: #19352d;
+  --profil-chef-muted: #748078;
+
+  --profil-chef-border: #e1e7e3;
+
+  --profil-chef-success: #24734f;
+  --profil-chef-success-bg: #edf8f1;
+
+  --profil-chef-danger: #a34040;
+  --profil-chef-danger-bg: #fff2f2;
+
+  --profil-chef-warning: #966a27;
+  --profil-chef-warning-bg: #fff8e9;
+
+  --profil-chef-shadow:
+    0 8px 26px
+    rgba(
+      23,
+      59,
+      49,
+      0.07
+    );
+
+  --profil-chef-shadow-strong:
+    0 18px 45px
+    rgba(
+      23,
+      59,
+      49,
+      0.14
+    );
+}
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+.profil-chef-mobile {
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding-bottom:
+    calc(
+      30px +
+      env(safe-area-inset-bottom)
+    );
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(
+        45,
+        103,
+        86,
+        0.07
+      ),
+      transparent 31%
+    ),
+    linear-gradient(
+      180deg,
+      #faf8f3 0%,
+      #f3f6f3 100%
+    );
+
+  color:
+    var(--profil-chef-text);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.profil-chef-mobile-header {
+  position: sticky;
+
+  top: 0;
+  z-index: 40;
+
+  min-height: 74px;
+
+  display: grid;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    calc(
+      10px +
+      env(safe-area-inset-top)
+    )
+    14px
+    10px;
+
+  background:
+    rgba(
+      23,
+      59,
+      49,
+      0.98
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+
+  backdrop-filter:
+    blur(12px);
+}
+
+.profil-chef-mobile-header > div {
+  min-width: 0;
+
+  text-align: center;
+}
+
+.profil-chef-mobile-header small {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.profil-chef-mobile-header h1 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 850;
+
+  line-height: 1.15;
+}
+
+.profil-chef-mobile-back,
+.profil-chef-mobile-refresh {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+
+  color: #ffffff;
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.profil-chef-mobile-back {
+  font-size: 28px;
+}
+
+.profil-chef-mobile-refresh {
+  font-size: 21px;
+}
+
+.profil-chef-mobile-back:active,
+.profil-chef-mobile-refresh:not(:disabled):active {
+  transform:
+    scale(0.94);
+}
+
+.profil-chef-mobile-refresh:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   CONTENU
+   ========================================================= */
+
+.profil-chef-mobile-content {
+  width: 100%;
+  max-width: 720px;
+
+  box-sizing: border-box;
+
+  margin: 0 auto;
+
+  padding:
+    20px
+    15px
+    12px;
+}
+
+/* =========================================================
+   MESSAGES
+   ========================================================= */
+
+.profil-chef-mobile-error,
+.profil-chef-mobile-success {
+  margin-bottom: 13px;
+
+  padding:
+    12px
+    13px;
+
+  border-radius: 15px;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  line-height: 1.45;
+}
+
+.profil-chef-mobile-error {
+  border:
+    1px solid
+    #efcccc;
+
+  background:
+    var(--profil-chef-danger-bg);
+
+  color:
+    var(--profil-chef-danger);
+}
+
+.profil-chef-mobile-success {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--profil-chef-success-bg);
+
+  color:
+    var(--profil-chef-success);
+}
+
+/* =========================================================
+   IDENTITÉ
+   ========================================================= */
+
+.profil-chef-mobile-identity {
+  display: grid;
+
+  grid-template-columns:
+    58px
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 13px;
+
+  margin-bottom: 13px;
+
+  padding: 16px;
+
+  border:
+    1px solid
+    var(--profil-chef-border);
+
+  border-radius: 22px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    var(--profil-chef-shadow);
+}
+
+.profil-chef-mobile-avatar {
+  width: 58px;
+  height: 58px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 19px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--profil-chef-green),
+      var(--profil-chef-green-2)
+    );
+
+  color: #ffffff;
+
+  font-size: 18px;
+  font-weight: 900;
+
+  box-shadow:
+    0 9px 22px
+    rgba(
+      23,
+      59,
+      49,
+      0.18
+    );
+}
+
+.profil-chef-mobile-identity-text {
+  min-width: 0;
+}
+
+.profil-chef-mobile-identity-text small {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color:
+    var(--profil-chef-gold);
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.09em;
+}
+
+.profil-chef-mobile-identity-text h2 {
+  overflow: hidden;
+
+  margin: 0;
+
+  color:
+    var(--profil-chef-green);
+
+  font-size: 18px;
+  font-weight: 900;
+
+  line-height: 1.15;
+
+  letter-spacing: -0.025em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profil-chef-mobile-identity-text p {
+  overflow: hidden;
+
+  margin:
+    5px 0 0;
+
+  color:
+    var(--profil-chef-muted);
+
+  font-size: 10px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profil-chef-mobile-role {
+  min-height: 28px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    5px
+    9px;
+
+  border:
+    1px solid
+    #d9e4de;
+
+  border-radius: 999px;
+
+  background:
+    #f0f6f3;
+
+  color:
+    var(--profil-chef-green);
+
+  font-size: 7px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   ENTREPRISE
+   ========================================================= */
+
+.profil-chef-mobile-company {
+  display: grid;
+
+  grid-template-columns:
+    46px
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 11px;
+
+  margin-bottom: 13px;
+
+  padding: 14px;
+
+  border:
+    1px solid
+    #e8e2d5;
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--profil-chef-cream),
+      var(--profil-chef-cream-2)
+    );
+}
+
+.profil-chef-mobile-company-icon {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 15px;
+
+  background:
+    #ffffff;
+
+  font-size: 20px;
+
+  box-shadow:
+    0 5px 13px
+    rgba(
+      23,
+      59,
+      49,
+      0.06
+    );
+}
+
+.profil-chef-mobile-company > div:nth-child(2) {
+  min-width: 0;
+}
+
+.profil-chef-mobile-company small {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color:
+    #95866c;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.profil-chef-mobile-company strong {
+  display: block;
+
+  overflow: hidden;
+
+  color:
+    var(--profil-chef-green);
+
+  font-size: 13px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profil-chef-mobile-company p {
+  margin:
+    4px 0 0;
+
+  color:
+    #7d786c;
+
+  font-size: 9px;
+}
+
+.profil-chef-mobile-company > span {
+  min-height: 27px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    5px
+    8px;
+
+  border-radius: 999px;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  text-transform: capitalize;
+
+  white-space: nowrap;
+}
+
+.profil-chef-mobile-company > span.active {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--profil-chef-success-bg);
+
+  color:
+    var(--profil-chef-success);
+}
+
+.profil-chef-mobile-company > span.warning {
+  border:
+    1px solid
+    #ead9b7;
+
+  background:
+    var(--profil-chef-warning-bg);
+
+  color:
+    var(--profil-chef-warning);
+}
+
+/* =========================================================
+   SÉCURITÉ
+   ========================================================= */
+
+.profil-chef-mobile-security {
+  margin-bottom: 13px;
+
+  padding: 15px;
+
+  border:
+    1px solid
+    var(--profil-chef-border);
+
+  border-radius: 21px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0 5px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.045
+    );
+}
+
+.profil-chef-mobile-security-head {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+.profil-chef-mobile-security-head > div {
+  min-width: 0;
+}
+
+.profil-chef-mobile-security-head small {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color:
+    var(--profil-chef-gold);
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.09em;
+}
+
+.profil-chef-mobile-security-head h3 {
+  margin: 0;
+
+  color:
+    var(--profil-chef-green);
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.profil-chef-mobile-security-head > span {
+  min-height: 27px;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  padding:
+    5px
+    9px;
+
+  border-radius: 999px;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.profil-chef-mobile-security-head > span.active {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--profil-chef-success-bg);
+
+  color:
+    var(--profil-chef-success);
+}
+
+.profil-chef-mobile-security-head > span.inactive {
+  border:
+    1px solid
+    #e0e4e2;
+
+  background:
+    #f5f6f5;
+
+  color:
+    #7d8882;
+}
+
+.profil-chef-mobile-security-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+}
+
+.profil-chef-mobile-security-grid > div {
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    10px
+    11px;
+
+  border-radius: 13px;
+
+  background:
+    #f6f8f7;
+}
+
+.profil-chef-mobile-security-grid small {
+  color:
+    #87928c;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.07em;
+}
+
+.profil-chef-mobile-security-grid strong {
+  color:
+    var(--profil-chef-green);
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profil-chef-mobile-security > p {
+  margin:
+    10px 0 0;
+
+  color:
+    var(--profil-chef-muted);
+
+  font-size: 9px;
+
+  line-height: 1.45;
+}
+
+/* =========================================================
+   FORMULAIRE
+   ========================================================= */
+
+.profil-chef-mobile-form {
+  display: grid;
+
+  gap: 12px;
+
+  margin-bottom: 13px;
+
+  padding: 16px;
+
+  border:
+    1px solid
+    var(--profil-chef-border);
+
+  border-radius: 22px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    var(--profil-chef-shadow);
+}
+
+.profil-chef-mobile-section-title {
+  margin-bottom: 2px;
+}
+
+.profil-chef-mobile-section-title small {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color:
+    var(--profil-chef-gold);
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.09em;
+}
+
+.profil-chef-mobile-section-title h3 {
+  margin: 0;
+
+  color:
+    var(--profil-chef-green);
+
+  font-size: 17px;
+  font-weight: 900;
+
+  letter-spacing: -0.02em;
+}
+
+.profil-chef-mobile-form label {
+  display: grid;
+
+  gap: 6px;
+
+  min-width: 0;
+}
+
+.profil-chef-mobile-form label > span {
+  color:
+    #53665d;
+
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.profil-chef-mobile-form input {
+  width: 100%;
+  min-height: 48px;
+
+  box-sizing: border-box;
+
+  padding:
+    10px
+    12px;
+
+  border:
+    1px solid
+    #dbe3df;
+
+  border-radius: 14px;
+
+  outline: none;
+
+  background: #ffffff;
+
+  color:
+    var(--profil-chef-text);
+
+  font: inherit;
+  font-size: 13px;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.profil-chef-mobile-form input:focus {
+  border-color:
+    var(--profil-chef-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+.profil-chef-mobile-form input:disabled {
+  border-color:
+    #e4e8e5;
+
+  background:
+    #f4f6f5;
+
+  color:
+    #87908c;
+
+  opacity: 1;
+}
+
+.profil-chef-mobile-two {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+}
+
+.profil-chef-mobile-field-info {
+  margin-top: -1px;
+
+  color:
+    #8a9590;
+
+  font-size: 8px;
+
+  line-height: 1.4;
+}
+
+/* =========================================================
+   ENREGISTRER
+   ========================================================= */
+
+.profil-chef-mobile-save {
+  min-height: 49px;
+
+  margin-top: 2px;
+
+  border:
+    1px solid
+    var(--profil-chef-green);
+
+  border-radius: 15px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--profil-chef-green),
+      var(--profil-chef-green-2)
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 8px 19px
+    rgba(
+      23,
+      59,
+      49,
+      0.16
+    );
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+.profil-chef-mobile-save:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+.profil-chef-mobile-save:not(:disabled):active {
+  transform:
+    scale(0.985);
+}
+
+/* =========================================================
+   COMPTE / DÉCONNEXION
+   ========================================================= */
+
+.profil-chef-mobile-account {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  padding: 15px;
+
+  border:
+    1px solid
+    #ead7d7;
+
+  border-radius: 20px;
+
+  background:
+    #fff8f8;
+}
+
+.profil-chef-mobile-account > div {
+  min-width: 0;
+}
+
+.profil-chef-mobile-account small {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color:
+    #a15e5e;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.profil-chef-mobile-account h3 {
+  margin: 0;
+
+  color:
+    #713f3f;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.profil-chef-mobile-account p {
+  margin:
+    5px 0 0;
+
+  color:
+    #8d7171;
+
+  font-size: 9px;
+
+  line-height: 1.4;
+}
+
+.profil-chef-mobile-account button {
+  flex: 0 0 auto;
+
+  min-height: 41px;
+
+  padding:
+    8px
+    11px;
+
+  border:
+    1px solid
+    #e1bdbd;
+
+  border-radius: 12px;
+
+  background:
+    #ffffff;
+
+  color:
+    var(--profil-chef-danger);
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+.profil-chef-mobile-account button:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   CHARGEMENT
+   ========================================================= */
+
+.profil-chef-mobile-loading {
+  min-height:
+    calc(
+      100dvh -
+      90px
+    );
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 11px;
+
+  padding: 24px;
+
+  text-align: center;
+}
+
+.profil-chef-mobile-loading strong {
+  color:
+    var(--profil-chef-green);
+
+  font-size: 12px;
+}
+
+.profil-chef-mobile-spinner {
+  width: 40px;
+  height: 40px;
+
+  border:
+    4px solid
+    #dce5e0;
+
+  border-top-color:
+    var(--profil-chef-green);
+
+  border-radius: 999px;
+
+  animation:
+    profil-chef-mobile-spin
+    0.75s
+    linear
+    infinite;
+}
+
+@keyframes profil-chef-mobile-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+/* =========================================================
+   PETITS ÉCRANS
+   ========================================================= */
+
+@media (
+  max-width:
+    390px
+) {
+  .profil-chef-mobile-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .profil-chef-mobile-identity {
+    grid-template-columns:
+      50px
+      minmax(0, 1fr);
+
+    gap: 10px;
+  }
+
+  .profil-chef-mobile-avatar {
+    width: 50px;
+    height: 50px;
+
+    border-radius: 16px;
+
+    font-size: 15px;
+  }
+
+  .profil-chef-mobile-role {
+    grid-column:
+      1 / -1;
+
+    justify-self: start;
+  }
+
+  .profil-chef-mobile-company {
+    grid-template-columns:
+      42px
+      minmax(0, 1fr);
+
+    gap: 9px;
+  }
+
+  .profil-chef-mobile-company-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .profil-chef-mobile-company > span {
+    grid-column:
+      1 / -1;
+
+    justify-self: start;
+  }
+
+  .profil-chef-mobile-two {
+    grid-template-columns:
+      1fr;
+  }
+
+  .profil-chef-mobile-account {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+  .profil-chef-mobile-account button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   TABLETTE
+   ========================================================= */
+
+@media (
+  min-width:
+    700px
+) {
+  .profil-chef-mobile-content {
+    padding-top: 28px;
+  }
+
+  .profil-chef-mobile-identity,
+  .profil-chef-mobile-company,
+  .profil-chef-mobile-security,
+  .profil-chef-mobile-form,
+  .profil-chef-mobile-account {
+    padding: 19px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+   ========================================================= */
+
+@media (
+  prefers-reduced-motion:
+    reduce
+) {
+  .profil-chef-mobile-spinner {
+    animation-duration:
+      1.8s;
+  }
+
+  .profil-chef-mobile-back,
+  .profil-chef-mobile-refresh,
+  .profil-chef-mobile-save,
+  .profil-chef-mobile-account button {
+    transition: none;
+  }
+}

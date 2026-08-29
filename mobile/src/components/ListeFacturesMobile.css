@@ -1,0 +1,1527 @@
+:root {
+  --factures-green: #173b31;
+  --factures-green-2: #214d40;
+  --factures-green-3: #2d6756;
+
+  --factures-cream: #f5f1e8;
+  --factures-cream-2: #fbf8f1;
+
+  --factures-gold: #c9a96b;
+
+  --factures-text: #19352d;
+  --factures-muted: #748078;
+
+  --factures-border: #e1e7e3;
+
+  --factures-success: #24734f;
+  --factures-success-bg: #edf8f1;
+
+  --factures-danger: #a34040;
+  --factures-danger-bg: #fff2f2;
+
+  --factures-warning: #9a6a1b;
+  --factures-warning-bg: #fff8e8;
+
+  --factures-blue: #356a86;
+  --factures-blue-bg: #eef7fb;
+
+  --factures-purple: #735694;
+  --factures-purple-bg: #f5effb;
+
+  --factures-shadow:
+    0 8px 26px
+    rgba(
+      23,
+      59,
+      49,
+      0.07
+    );
+}
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+.liste-factures-mobile {
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding-bottom:
+    calc(
+      28px +
+      env(safe-area-inset-bottom)
+    );
+
+  background:
+    linear-gradient(
+      180deg,
+      #faf8f3 0%,
+      #f2f6f3 100%
+    );
+
+  color:
+    var(--factures-text);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.liste-factures-mobile-header {
+  position: sticky;
+
+  top: 0;
+  z-index: 40;
+
+  min-height: 74px;
+
+  display: grid;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    calc(
+      10px +
+      env(safe-area-inset-top)
+    )
+    14px
+    10px;
+
+  background:
+    rgba(
+      23,
+      59,
+      49,
+      0.98
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+
+  backdrop-filter:
+    blur(12px);
+}
+
+.liste-factures-mobile-header > div {
+  min-width: 0;
+
+  text-align: center;
+}
+
+.liste-factures-mobile-header small {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.liste-factures-mobile-header h1 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 850;
+
+  line-height: 1.15;
+}
+
+.liste-factures-mobile-back,
+.liste-factures-mobile-refresh {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+
+  color: #ffffff;
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.liste-factures-mobile-back {
+  font-size: 28px;
+}
+
+.liste-factures-mobile-refresh {
+  font-size: 21px;
+}
+
+.liste-factures-mobile-back:active,
+.liste-factures-mobile-refresh:not(:disabled):active {
+  transform:
+    scale(0.94);
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.15
+    );
+}
+
+.liste-factures-mobile-refresh:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   CONTENU
+   ========================================================= */
+
+.liste-factures-mobile-content {
+  width: 100%;
+  max-width: 720px;
+
+  box-sizing: border-box;
+
+  margin: 0 auto;
+
+  padding:
+    20px
+    15px
+    10px;
+}
+
+/* =========================================================
+   INTRO
+   ========================================================= */
+
+.liste-factures-mobile-intro {
+  margin-bottom: 16px;
+}
+
+.liste-factures-mobile-intro > small {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--factures-gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.liste-factures-mobile-intro h2 {
+  margin: 0;
+
+  color:
+    var(--factures-green);
+
+  font-size: 27px;
+  font-weight: 850;
+
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.liste-factures-mobile-intro p {
+  margin:
+    7px 0 0;
+
+  color:
+    var(--factures-muted);
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   MESSAGES
+   ========================================================= */
+
+.liste-factures-mobile-error,
+.liste-factures-mobile-success {
+  margin-bottom: 13px;
+
+  padding:
+    12px
+    13px;
+
+  border-radius: 15px;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  line-height: 1.45;
+}
+
+.liste-factures-mobile-error {
+  border:
+    1px solid
+    #efcccc;
+
+  background:
+    var(--factures-danger-bg);
+
+  color:
+    var(--factures-danger);
+}
+
+.liste-factures-mobile-success {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--factures-success-bg);
+
+  color:
+    var(--factures-success);
+}
+
+/* =========================================================
+   RÉSUMÉ FINANCIER
+   ========================================================= */
+
+.liste-factures-mobile-summary {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-bottom: 12px;
+}
+
+.liste-factures-mobile-summary article {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 5px;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    var(--factures-border);
+
+  border-radius: 17px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 5px 16px
+    rgba(
+      23,
+      59,
+      49,
+      0.045
+    );
+}
+
+.liste-factures-mobile-summary article.remaining {
+  grid-column:
+    1 / -1;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fffaf0,
+      #ffffff
+    );
+
+  border-color:
+    #eadfca;
+}
+
+.liste-factures-mobile-summary small {
+  color:
+    #849089;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.liste-factures-mobile-summary strong {
+  overflow: hidden;
+
+  color:
+    var(--factures-green);
+
+  font-size: 16px;
+  font-weight: 850;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liste-factures-mobile-summary article.remaining strong {
+  color:
+    #9a6a1b;
+}
+
+/* =========================================================
+   INFORMATION PAIEMENTS WEB UNIQUEMENT
+   ========================================================= */
+
+.liste-factures-mobile-web-info {
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 13px;
+
+  padding:
+    11px
+    12px;
+
+  border:
+    1px solid
+    #d8e5df;
+
+  border-radius: 16px;
+
+  background:
+    #f2f8f5;
+}
+
+.liste-factures-mobile-web-info > span {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 11px;
+
+  background:
+    var(--factures-green);
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.liste-factures-mobile-web-info p {
+  margin: 0;
+
+  color:
+    #5f746a;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+/* =========================================================
+   RECHERCHE
+   ========================================================= */
+
+.liste-factures-mobile-search {
+  min-height: 53px;
+
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  margin-bottom: 13px;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #dbe2de;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.04
+    );
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.liste-factures-mobile-search > span {
+  font-size: 18px;
+
+  text-align: center;
+}
+
+.liste-factures-mobile-search input {
+  width: 100%;
+  min-height: 51px;
+
+  box-sizing: border-box;
+
+  padding:
+    0
+    8px;
+
+  border: 0;
+
+  outline: none;
+
+  background:
+    transparent;
+
+  color:
+    var(--factures-text);
+
+  font: inherit;
+  font-size: 14px;
+}
+
+.liste-factures-mobile-search input::placeholder {
+  color:
+    #9aa49f;
+}
+
+.liste-factures-mobile-search:focus-within {
+  border-color:
+    var(--factures-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+/* =========================================================
+   FILTRES
+   ========================================================= */
+
+.liste-factures-mobile-filters {
+  display: flex;
+
+  gap: 7px;
+
+  overflow-x: auto;
+
+  margin-bottom: 16px;
+
+  padding-bottom: 4px;
+
+  scrollbar-width: none;
+
+  -webkit-overflow-scrolling:
+    touch;
+}
+
+.liste-factures-mobile-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.liste-factures-mobile-filters button {
+  flex: 0 0 auto;
+
+  min-height: 38px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding:
+    7px
+    11px;
+
+  border:
+    1px solid
+    #dfe5e1;
+
+  border-radius: 999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.92
+    );
+
+  color:
+    #64736c;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.liste-factures-mobile-filters button > span {
+  min-width: 20px;
+  height: 20px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    0
+    5px;
+
+  border-radius: 999px;
+
+  background:
+    #eef1ef;
+
+  color:
+    #6f7b75;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.liste-factures-mobile-filters button.active {
+  border-color:
+    var(--factures-green);
+
+  background:
+    var(--factures-green);
+
+  color: #ffffff;
+}
+
+.liste-factures-mobile-filters button.active > span {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   LISTE
+   ========================================================= */
+
+.liste-factures-mobile-list {
+  display: grid;
+
+  gap: 13px;
+}
+
+.liste-factures-mobile-card {
+  overflow: hidden;
+
+  padding: 15px;
+
+  border:
+    1px solid
+    var(--factures-border);
+
+  border-radius: 22px;
+
+  background: #ffffff;
+
+  box-shadow:
+    var(--factures-shadow);
+}
+
+/* =========================================================
+   EN-TÊTE CARTE
+   ========================================================= */
+
+.liste-factures-mobile-card-head {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: flex-start;
+
+  gap: 12px;
+}
+
+.liste-factures-mobile-card-head > div {
+  min-width: 0;
+}
+
+.liste-factures-mobile-card-head small {
+  display: block;
+
+  overflow: hidden;
+
+  margin-bottom: 4px;
+
+  color:
+    var(--factures-gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.055em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liste-factures-mobile-card-head h3 {
+  overflow: hidden;
+
+  margin: 0;
+
+  color:
+    var(--factures-green);
+
+  font-size: 16px;
+  font-weight: 850;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   STATUT
+   ========================================================= */
+
+.liste-factures-mobile-status {
+  flex: 0 0 auto;
+
+  min-height: 27px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    5px
+    9px;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.liste-factures-mobile-status.draft {
+  border-color:
+    #dee3e0;
+
+  background:
+    #f4f6f5;
+
+  color:
+    #64716b;
+}
+
+.liste-factures-mobile-status.sent {
+  border-color:
+    #cce0eb;
+
+  background:
+    var(--factures-blue-bg);
+
+  color:
+    var(--factures-blue);
+}
+
+.liste-factures-mobile-status.waiting {
+  border-color:
+    #eadab9;
+
+  background:
+    var(--factures-warning-bg);
+
+  color:
+    var(--factures-warning);
+}
+
+.liste-factures-mobile-status.late {
+  border-color:
+    #efcccc;
+
+  background:
+    var(--factures-danger-bg);
+
+  color:
+    var(--factures-danger);
+}
+
+.liste-factures-mobile-status.paid {
+  border-color:
+    #c8e2d3;
+
+  background:
+    var(--factures-success-bg);
+
+  color:
+    var(--factures-success);
+}
+
+.liste-factures-mobile-status.credit {
+  border-color:
+    #dfd1ef;
+
+  background:
+    var(--factures-purple-bg);
+
+  color:
+    var(--factures-purple);
+}
+
+.liste-factures-mobile-status.cancelled,
+.liste-factures-mobile-status.archived {
+  border-color:
+    #e0e2e1;
+
+  background:
+    #f5f5f5;
+
+  color:
+    #858d89;
+}
+
+/* =========================================================
+   OBJET
+   ========================================================= */
+
+.liste-factures-mobile-object {
+  margin:
+    10px
+    0
+    0;
+
+  color:
+    #5f6f67;
+
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* =========================================================
+   TOTAL PRINCIPAL
+   ========================================================= */
+
+.liste-factures-mobile-main-amount {
+  display: grid;
+
+  gap: 3px;
+
+  margin-top: 13px;
+
+  padding:
+    13px;
+
+  border-radius: 17px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--factures-cream-2),
+      #ffffff
+    );
+
+  border:
+    1px solid
+    #eee8da;
+}
+
+.liste-factures-mobile-main-amount small {
+  color:
+    #92846a;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.09em;
+}
+
+.liste-factures-mobile-main-amount strong {
+  color:
+    var(--factures-green);
+
+  font-size: 23px;
+  font-weight: 900;
+
+  line-height: 1.1;
+}
+
+/* =========================================================
+   DATES
+   ========================================================= */
+
+.liste-factures-mobile-dates {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-top: 10px;
+}
+
+.liste-factures-mobile-dates > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+
+  padding:
+    10px
+    11px;
+
+  border-radius: 14px;
+
+  background:
+    #f7f9f8;
+}
+
+.liste-factures-mobile-dates small {
+  color:
+    #8a958f;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.liste-factures-mobile-dates strong {
+  overflow: hidden;
+
+  color:
+    #42584e;
+
+  font-size: 11px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   PAIEMENT — LECTURE SEULE
+   ========================================================= */
+
+.liste-factures-mobile-payment-readonly {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-top: 10px;
+
+  padding:
+    11px;
+
+  border:
+    1px solid
+    #dde5e1;
+
+  border-radius: 17px;
+
+  background:
+    #f9fbfa;
+}
+
+.liste-factures-mobile-payment-readonly > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+.liste-factures-mobile-payment-readonly > div + div {
+  padding-left: 10px;
+
+  border-left:
+    1px solid
+    #e2e8e4;
+}
+
+.liste-factures-mobile-payment-readonly small {
+  color:
+    #839087;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.liste-factures-mobile-payment-readonly strong {
+  overflow: hidden;
+
+  color:
+    var(--factures-success);
+
+  font-size: 14px;
+  font-weight: 850;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liste-factures-mobile-payment-readonly .remaining strong {
+  color:
+    #9a6a1b;
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+
+.liste-factures-mobile-actions {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-top: 13px;
+}
+
+.liste-factures-mobile-actions > button {
+  min-height: 48px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  padding:
+    9px
+    11px;
+
+  border:
+    1px solid
+    #dce3df;
+
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  color:
+    var(--factures-green-2);
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.liste-factures-mobile-actions > button > span {
+  font-size: 17px;
+}
+
+.liste-factures-mobile-actions > button strong {
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.liste-factures-mobile-actions > button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+.liste-factures-mobile-actions > button:not(:disabled):active {
+  transform:
+    scale(0.975);
+
+  background:
+    #f6f9f7;
+}
+
+/* =========================================================
+   EMAIL
+   ========================================================= */
+
+.liste-factures-mobile-email {
+  margin-top: 11px;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    #dce4df;
+
+  border-radius: 17px;
+
+  background:
+    #f8faf9;
+}
+
+.liste-factures-mobile-email label {
+  display: grid;
+
+  gap: 6px;
+}
+
+.liste-factures-mobile-email label > span {
+  color:
+    #5c6f66;
+
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.liste-factures-mobile-email input {
+  width: 100%;
+  min-height: 46px;
+
+  box-sizing: border-box;
+
+  padding:
+    10px
+    12px;
+
+  border:
+    1px solid
+    #d8e0dc;
+
+  border-radius: 13px;
+
+  outline: none;
+
+  background: #ffffff;
+
+  color:
+    var(--factures-text);
+
+  font: inherit;
+  font-size: 13px;
+}
+
+.liste-factures-mobile-email input:focus {
+  border-color:
+    var(--factures-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+.liste-factures-mobile-email > div {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-top: 9px;
+}
+
+.liste-factures-mobile-email button {
+  min-height: 43px;
+
+  border-radius: 13px;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.liste-factures-mobile-email button.cancel {
+  border:
+    1px solid
+    #dce2df;
+
+  background: #ffffff;
+
+  color:
+    #69766f;
+}
+
+.liste-factures-mobile-email button.send {
+  border:
+    1px solid
+    var(--factures-green);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--factures-green),
+      var(--factures-green-2)
+    );
+
+  color: #ffffff;
+}
+
+.liste-factures-mobile-email button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   CHARGEMENT
+   ========================================================= */
+
+.liste-factures-mobile-loading,
+.liste-factures-mobile-empty {
+  min-height: 255px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  box-sizing: border-box;
+
+  padding:
+    25px;
+
+  border:
+    1px solid
+    var(--factures-border);
+
+  border-radius: 22px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.78
+    );
+
+  text-align: center;
+}
+
+.liste-factures-mobile-loading strong {
+  color:
+    var(--factures-green);
+
+  font-size: 12px;
+}
+
+.liste-factures-mobile-spinner {
+  width: 38px;
+  height: 38px;
+
+  border:
+    4px solid
+    #dce5e0;
+
+  border-top-color:
+    var(--factures-green);
+
+  border-radius: 999px;
+
+  animation:
+    factures-mobile-spin
+    0.75s
+    linear
+    infinite;
+}
+
+@keyframes factures-mobile-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+/* =========================================================
+   VIDE
+   ========================================================= */
+
+.liste-factures-mobile-empty > span {
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 16px;
+
+  background:
+    var(--factures-green);
+
+  color: #ffffff;
+
+  font-size: 21px;
+  font-weight: 850;
+}
+
+.liste-factures-mobile-empty h3 {
+  margin: 0;
+
+  color:
+    var(--factures-green);
+
+  font-size: 17px;
+}
+
+.liste-factures-mobile-empty p {
+  margin: 0;
+
+  color:
+    var(--factures-muted);
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   ACTUALISER BAS
+   ========================================================= */
+
+.liste-factures-mobile-bottom-refresh {
+  width: 100%;
+  min-height: 48px;
+
+  margin-top: 15px;
+
+  border:
+    1px dashed
+    #b9c7c0;
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.72
+    );
+
+  color:
+    var(--factures-green-3);
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.liste-factures-mobile-bottom-refresh:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   PETITS ÉCRANS
+   ========================================================= */
+
+@media (
+  max-width:
+    390px
+) {
+  .liste-factures-mobile-content {
+    padding-left:
+      12px;
+
+    padding-right:
+      12px;
+  }
+
+  .liste-factures-mobile-intro h2 {
+    font-size: 24px;
+  }
+
+  .liste-factures-mobile-card {
+    padding: 13px;
+  }
+
+  .liste-factures-mobile-card-head {
+    gap: 8px;
+  }
+
+  .liste-factures-mobile-status {
+    padding:
+      5px
+      7px;
+
+    font-size: 8px;
+  }
+
+  .liste-factures-mobile-main-amount strong {
+    font-size: 21px;
+  }
+}
+
+/* =========================================================
+   TABLETTE
+   ========================================================= */
+
+@media (
+  min-width:
+    700px
+) {
+  .liste-factures-mobile-content {
+    padding-top: 28px;
+  }
+
+  .liste-factures-mobile-card {
+    padding: 18px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+   ========================================================= */
+
+@media (
+  prefers-reduced-motion:
+    reduce
+) {
+  .liste-factures-mobile-spinner {
+    animation-duration:
+      1.8s;
+  }
+
+  .liste-factures-mobile-back,
+  .liste-factures-mobile-refresh,
+  .liste-factures-mobile-actions > button,
+  .liste-factures-mobile-email button {
+    transition: none;
+  }
+}

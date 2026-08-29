@@ -1,0 +1,1540 @@
+:root {
+  --demandes-green: #173b31;
+  --demandes-green-2: #214d40;
+  --demandes-green-3: #2d6756;
+
+  --demandes-cream: #f5f1e8;
+  --demandes-cream-2: #fbf8f1;
+
+  --demandes-gold: #c9a96b;
+
+  --demandes-text: #19352d;
+  --demandes-muted: #748078;
+
+  --demandes-border: #e1e7e3;
+
+  --demandes-success: #24734f;
+  --demandes-success-bg: #edf8f1;
+
+  --demandes-danger: #a34040;
+  --demandes-danger-bg: #fff2f2;
+
+  --demandes-warning: #966a27;
+  --demandes-warning-bg: #fff8e9;
+
+  --demandes-blue: #315f9e;
+  --demandes-blue-bg: #edf4ff;
+
+  --demandes-shadow:
+    0 8px 26px
+    rgba(
+      23,
+      59,
+      49,
+      0.07
+    );
+}
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+.demandes-chef-mobile {
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding-bottom:
+    calc(
+      30px +
+      env(safe-area-inset-bottom)
+    );
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(
+        45,
+        103,
+        86,
+        0.06
+      ),
+      transparent 31%
+    ),
+    linear-gradient(
+      180deg,
+      #faf8f3 0%,
+      #f3f6f3 100%
+    );
+
+  color:
+    var(--demandes-text);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.demandes-chef-mobile-header {
+  position: sticky;
+
+  top: 0;
+  z-index: 40;
+
+  min-height: 74px;
+
+  display: grid;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    calc(
+      10px +
+      env(safe-area-inset-top)
+    )
+    14px
+    10px;
+
+  background:
+    rgba(
+      23,
+      59,
+      49,
+      0.98
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+
+  backdrop-filter:
+    blur(12px);
+}
+
+.demandes-chef-mobile-header > div {
+  min-width: 0;
+
+  text-align: center;
+}
+
+.demandes-chef-mobile-header small {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.demandes-chef-mobile-header h1 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 850;
+
+  line-height: 1.15;
+}
+
+.demandes-chef-mobile-back,
+.demandes-chef-mobile-refresh {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+
+  color: #ffffff;
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.demandes-chef-mobile-back {
+  font-size: 28px;
+}
+
+.demandes-chef-mobile-refresh {
+  font-size: 21px;
+}
+
+.demandes-chef-mobile-back:active,
+.demandes-chef-mobile-refresh:not(:disabled):active {
+  transform:
+    scale(0.94);
+}
+
+.demandes-chef-mobile-refresh:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   CONTENU
+   ========================================================= */
+
+.demandes-chef-mobile-content {
+  width: 100%;
+  max-width: 720px;
+
+  box-sizing: border-box;
+
+  margin: 0 auto;
+
+  padding:
+    20px
+    15px
+    12px;
+}
+
+/* =========================================================
+   INTRO
+   ========================================================= */
+
+.demandes-chef-mobile-intro {
+  margin-bottom: 16px;
+}
+
+.demandes-chef-mobile-intro > small {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--demandes-gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.demandes-chef-mobile-intro h2 {
+  margin: 0;
+
+  color:
+    var(--demandes-green);
+
+  font-size: 27px;
+  font-weight: 900;
+
+  line-height: 1.08;
+
+  letter-spacing: -0.035em;
+}
+
+.demandes-chef-mobile-intro p {
+  margin:
+    7px 0 0;
+
+  color:
+    var(--demandes-muted);
+
+  font-size: 12px;
+  line-height: 1.48;
+}
+
+/* =========================================================
+   MESSAGES
+   ========================================================= */
+
+.demandes-chef-mobile-error,
+.demandes-chef-mobile-success {
+  margin-bottom: 13px;
+
+  padding:
+    12px
+    13px;
+
+  border-radius: 15px;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  line-height: 1.45;
+}
+
+.demandes-chef-mobile-error {
+  border:
+    1px solid
+    #efcccc;
+
+  background:
+    var(--demandes-danger-bg);
+
+  color:
+    var(--demandes-danger);
+}
+
+.demandes-chef-mobile-success {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--demandes-success-bg);
+
+  color:
+    var(--demandes-success);
+}
+
+/* =========================================================
+   STATISTIQUES
+   ========================================================= */
+
+.demandes-chef-mobile-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-bottom: 13px;
+}
+
+.demandes-chef-mobile-stats article {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    12px
+    10px;
+
+  border:
+    1px solid
+    var(--demandes-border);
+
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.04
+    );
+}
+
+.demandes-chef-mobile-stats small {
+  overflow: hidden;
+
+  color:
+    #87928c;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.07em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demandes-chef-mobile-stats strong {
+  color:
+    var(--demandes-green);
+
+  font-size: 20px;
+  font-weight: 900;
+}
+
+/* =========================================================
+   TABS
+   ========================================================= */
+
+.demandes-chef-mobile-tabs {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 7px;
+
+  margin-bottom: 12px;
+
+  padding: 4px;
+
+  border:
+    1px solid
+    #dde4e0;
+
+  border-radius: 16px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.85
+    );
+}
+
+.demandes-chef-mobile-tabs button {
+  min-height: 40px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding:
+    8px
+    10px;
+
+  border: 0;
+
+  border-radius: 12px;
+
+  background:
+    transparent;
+
+  color:
+    #718078;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.demandes-chef-mobile-tabs button > span {
+  min-width: 20px;
+  height: 20px;
+
+  display: grid;
+
+  place-items: center;
+
+  padding:
+    0
+    5px;
+
+  border-radius: 999px;
+
+  background:
+    #eef1ef;
+
+  color:
+    #6f7b75;
+
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.demandes-chef-mobile-tabs button.active {
+  background:
+    var(--demandes-green);
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 13px
+    rgba(
+      23,
+      59,
+      49,
+      0.13
+    );
+}
+
+.demandes-chef-mobile-tabs button.active > span {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   RECHERCHE
+   ========================================================= */
+
+.demandes-chef-mobile-search {
+  min-height: 53px;
+
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  margin-bottom: 11px;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #dbe2de;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.04
+    );
+}
+
+.demandes-chef-mobile-search > span {
+  font-size: 18px;
+
+  text-align: center;
+}
+
+.demandes-chef-mobile-search input {
+  width: 100%;
+  min-height: 51px;
+
+  box-sizing: border-box;
+
+  padding:
+    0
+    8px;
+
+  border: 0;
+
+  outline: none;
+
+  background:
+    transparent;
+
+  color:
+    var(--demandes-text);
+
+  font: inherit;
+  font-size: 14px;
+}
+
+.demandes-chef-mobile-search input::placeholder {
+  color:
+    #9ba59f;
+}
+
+.demandes-chef-mobile-search:focus-within {
+  border-color:
+    var(--demandes-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+/* =========================================================
+   FILTRES TYPE
+   ========================================================= */
+
+.demandes-chef-mobile-types {
+  display: flex;
+
+  gap: 7px;
+
+  overflow-x: auto;
+
+  margin-bottom: 15px;
+
+  padding-bottom: 4px;
+
+  scrollbar-width: none;
+
+  -webkit-overflow-scrolling:
+    touch;
+}
+
+.demandes-chef-mobile-types::-webkit-scrollbar {
+  display: none;
+}
+
+.demandes-chef-mobile-types button {
+  flex: 0 0 auto;
+
+  min-height: 36px;
+
+  padding:
+    7px
+    11px;
+
+  border:
+    1px solid
+    #dfe5e1;
+
+  border-radius: 999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.92
+    );
+
+  color:
+    #64736c;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+.demandes-chef-mobile-types button.active {
+  border-color:
+    var(--demandes-green);
+
+  background:
+    var(--demandes-green);
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   LISTE
+   ========================================================= */
+
+.demandes-chef-mobile-list {
+  display: grid;
+
+  gap: 13px;
+}
+
+.demandes-chef-mobile-card {
+  padding: 15px;
+
+  border:
+    1px solid
+    var(--demandes-border);
+
+  border-radius: 22px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    var(--demandes-shadow);
+}
+
+/* =========================================================
+   CARTE HEADER
+   ========================================================= */
+
+.demandes-chef-mobile-card-head {
+  display: grid;
+
+  grid-template-columns:
+    46px
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 11px;
+}
+
+.demandes-chef-mobile-type-icon {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 15px;
+
+  background:
+    var(--demandes-cream);
+
+  font-size: 20px;
+}
+
+.demandes-chef-mobile-card-title {
+  min-width: 0;
+}
+
+.demandes-chef-mobile-card-title > small {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color:
+    var(--demandes-gold);
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.demandes-chef-mobile-card-title h3 {
+  overflow: hidden;
+
+  margin: 0;
+
+  color:
+    var(--demandes-green);
+
+  font-size: 14px;
+  font-weight: 900;
+
+  line-height: 1.2;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demandes-chef-mobile-card-title p {
+  overflow: hidden;
+
+  margin:
+    4px 0 0;
+
+  color:
+    var(--demandes-muted);
+
+  font-size: 10px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   STATUTS
+   ========================================================= */
+
+.demandes-chef-mobile-status {
+  min-height: 27px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    5px
+    8px;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius: 999px;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.demandes-chef-mobile-status.waiting {
+  border-color:
+    #ead9b7;
+
+  background:
+    var(--demandes-warning-bg);
+
+  color:
+    var(--demandes-warning);
+}
+
+.demandes-chef-mobile-status.accepted {
+  border-color:
+    #c9e4d3;
+
+  background:
+    var(--demandes-success-bg);
+
+  color:
+    var(--demandes-success);
+}
+
+.demandes-chef-mobile-status.refused {
+  border-color:
+    #efcccc;
+
+  background:
+    var(--demandes-danger-bg);
+
+  color:
+    var(--demandes-danger);
+}
+
+.demandes-chef-mobile-status.processed {
+  border-color:
+    #d1def2;
+
+  background:
+    var(--demandes-blue-bg);
+
+  color:
+    var(--demandes-blue);
+}
+
+/* =========================================================
+   DATES
+   ========================================================= */
+
+.demandes-chef-mobile-dates {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-top: 13px;
+}
+
+.demandes-chef-mobile-dates > div {
+  display: grid;
+
+  gap: 3px;
+
+  padding:
+    10px
+    11px;
+
+  border-radius: 14px;
+
+  background:
+    var(--demandes-cream-2);
+}
+
+.demandes-chef-mobile-dates small {
+  color:
+    #908b7c;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.demandes-chef-mobile-dates strong {
+  color:
+    var(--demandes-green);
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   MESSAGE
+   ========================================================= */
+
+.demandes-chef-mobile-message {
+  margin-top: 10px;
+
+  padding:
+    11px;
+
+  border:
+    1px solid
+    #e8e3d8;
+
+  border-radius: 14px;
+
+  background:
+    #fbf9f4;
+}
+
+.demandes-chef-mobile-message small {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    #918777;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.demandes-chef-mobile-message p {
+  margin: 0;
+
+  color:
+    #5e685f;
+
+  font-size: 11px;
+
+  line-height: 1.5;
+
+  white-space: pre-wrap;
+}
+
+/* =========================================================
+   RÉPONSE CHEF
+   ========================================================= */
+
+.demandes-chef-mobile-response {
+  display: grid;
+
+  gap: 6px;
+
+  margin-top: 11px;
+}
+
+.demandes-chef-mobile-response > span {
+  color:
+    #52665c;
+
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.demandes-chef-mobile-response textarea {
+  width: 100%;
+  min-height: 84px;
+
+  box-sizing: border-box;
+
+  padding:
+    11px
+    12px;
+
+  border:
+    1px solid
+    #dbe3df;
+
+  border-radius: 14px;
+
+  outline: none;
+
+  background:
+    #ffffff;
+
+  color:
+    var(--demandes-text);
+
+  font: inherit;
+  font-size: 12px;
+
+  line-height: 1.45;
+
+  resize: vertical;
+}
+
+.demandes-chef-mobile-response textarea:focus {
+  border-color:
+    var(--demandes-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+.demandes-chef-mobile-response textarea:disabled {
+  opacity: 0.55;
+}
+
+/* =========================================================
+   INFO PLANNING
+   ========================================================= */
+
+.demandes-chef-mobile-planning-info {
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 9px;
+
+  margin-top: 10px;
+
+  padding:
+    10px;
+
+  border:
+    1px solid
+    #d5e3dc;
+
+  border-radius: 14px;
+
+  background:
+    #f1f7f4;
+}
+
+.demandes-chef-mobile-planning-info > span {
+  width: 32px;
+  height: 32px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 10px;
+
+  background:
+    var(--demandes-green);
+
+  font-size: 14px;
+}
+
+.demandes-chef-mobile-planning-info p {
+  margin: 0;
+
+  color:
+    #60746a;
+
+  font-size: 9px;
+
+  line-height: 1.45;
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+
+.demandes-chef-mobile-actions {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-top: 11px;
+}
+
+.demandes-chef-mobile-actions button {
+  min-height: 47px;
+
+  border-radius: 14px;
+
+  font: inherit;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+.demandes-chef-mobile-actions button.refuse {
+  border:
+    1px solid
+    #efcccc;
+
+  background:
+    var(--demandes-danger-bg);
+
+  color:
+    var(--demandes-danger);
+}
+
+.demandes-chef-mobile-actions button.accept {
+  border:
+    1px solid
+    var(--demandes-green);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--demandes-green),
+      var(--demandes-green-2)
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 7px 17px
+    rgba(
+      23,
+      59,
+      49,
+      0.14
+    );
+}
+
+.demandes-chef-mobile-actions button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+.demandes-chef-mobile-actions button:not(:disabled):active {
+  transform:
+    scale(0.98);
+}
+
+/* =========================================================
+   ARCHIVES
+   ========================================================= */
+
+.demandes-chef-mobile-archived {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-top: 12px;
+
+  padding: 11px;
+
+  border:
+    1px solid
+    #dde5e0;
+
+  border-radius: 15px;
+
+  background:
+    #f7f9f8;
+}
+
+.demandes-chef-mobile-archived > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+.demandes-chef-mobile-archived small {
+  color:
+    #8a9690;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.demandes-chef-mobile-archived strong {
+  overflow: hidden;
+
+  color:
+    var(--demandes-green);
+
+  font-size: 10px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demandes-chef-mobile-archived > p {
+  grid-column:
+    1 / -1;
+
+  margin:
+    3px 0 0;
+
+  padding:
+    9px 10px;
+
+  border-radius: 11px;
+
+  background:
+    #ffffff;
+
+  color:
+    #65736c;
+
+  font-size: 10px;
+
+  line-height: 1.45;
+
+  white-space: pre-wrap;
+}
+
+.demandes-chef-mobile-planning-linked {
+  grid-column:
+    1 / -1;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-height: 32px;
+
+  padding:
+    6px
+    9px;
+
+  border-radius: 10px;
+
+  background:
+    var(--demandes-success-bg);
+
+  color:
+    var(--demandes-success);
+
+  font-size: 8px;
+  font-weight: 900;
+}
+
+/* =========================================================
+   FOOTER CARTE
+   ========================================================= */
+
+.demandes-chef-mobile-card-footer {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-top: 11px;
+
+  padding-top: 10px;
+
+  border-top:
+    1px solid
+    #edf0ee;
+}
+
+.demandes-chef-mobile-card-footer > span {
+  color:
+    #929b96;
+
+  font-size: 8px;
+
+  line-height: 1.35;
+}
+
+.demandes-chef-mobile-card-footer a {
+  flex: 0 0 auto;
+
+  color:
+    var(--demandes-green);
+
+  font-size: 8px;
+  font-weight: 850;
+
+  text-decoration: none;
+}
+
+/* =========================================================
+   CHARGEMENT / VIDE
+   ========================================================= */
+
+.demandes-chef-mobile-loading,
+.demandes-chef-mobile-empty {
+  min-height: 250px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  box-sizing: border-box;
+
+  padding: 25px;
+
+  border:
+    1px solid
+    var(--demandes-border);
+
+  border-radius: 22px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.82
+    );
+
+  text-align: center;
+}
+
+.demandes-chef-mobile-loading strong {
+  color:
+    var(--demandes-green);
+
+  font-size: 12px;
+}
+
+.demandes-chef-mobile-spinner {
+  width: 38px;
+  height: 38px;
+
+  border:
+    4px solid
+    #dce5e0;
+
+  border-top-color:
+    var(--demandes-green);
+
+  border-radius: 999px;
+
+  animation:
+    demandes-chef-mobile-spin
+    0.75s
+    linear
+    infinite;
+}
+
+@keyframes demandes-chef-mobile-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+.demandes-chef-mobile-empty > span {
+  width: 48px;
+  height: 48px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 16px;
+
+  background:
+    var(--demandes-success-bg);
+
+  color:
+    var(--demandes-success);
+
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.demandes-chef-mobile-empty h3 {
+  margin: 0;
+
+  color:
+    var(--demandes-green);
+
+  font-size: 17px;
+}
+
+.demandes-chef-mobile-empty p {
+  max-width: 320px;
+
+  margin: 0;
+
+  color:
+    var(--demandes-muted);
+
+  font-size: 11px;
+
+  line-height: 1.5;
+}
+
+/* =========================================================
+   PETITS ÉCRANS
+   ========================================================= */
+
+@media (
+  max-width:
+    390px
+) {
+  .demandes-chef-mobile-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .demandes-chef-mobile-intro h2 {
+    font-size: 24px;
+  }
+
+  .demandes-chef-mobile-card {
+    padding: 13px;
+  }
+
+  .demandes-chef-mobile-card-head {
+    grid-template-columns:
+      42px
+      minmax(0, 1fr)
+      auto;
+
+    gap: 8px;
+  }
+
+  .demandes-chef-mobile-type-icon {
+    width: 42px;
+    height: 42px;
+
+    font-size: 18px;
+  }
+
+  .demandes-chef-mobile-status {
+    padding:
+      5px
+      7px;
+
+    font-size: 7px;
+  }
+
+  .demandes-chef-mobile-card-footer {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .demandes-chef-mobile-card-footer a {
+    font-size: 9px;
+  }
+}
+
+/* =========================================================
+   TABLETTE
+   ========================================================= */
+
+@media (
+  min-width:
+    700px
+) {
+  .demandes-chef-mobile-content {
+    padding-top: 28px;
+  }
+
+  .demandes-chef-mobile-list {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .demandes-chef-mobile-card {
+    padding: 18px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+   ========================================================= */
+
+@media (
+  prefers-reduced-motion:
+    reduce
+) {
+  .demandes-chef-mobile-spinner {
+    animation-duration:
+      1.8s;
+  }
+
+  .demandes-chef-mobile-back,
+  .demandes-chef-mobile-refresh,
+  .demandes-chef-mobile-actions button {
+    transition: none;
+  }
+}

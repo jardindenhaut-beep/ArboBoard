@@ -1,0 +1,2108 @@
+:root {
+  --salaries-green: #173b31;
+  --salaries-green-2: #214d40;
+  --salaries-green-3: #2d6756;
+
+  --salaries-cream: #f5f1e8;
+  --salaries-cream-2: #fbf8f1;
+
+  --salaries-gold: #c9a96b;
+
+  --salaries-text: #19352d;
+  --salaries-muted: #748078;
+
+  --salaries-border: #e1e7e3;
+
+  --salaries-success: #24734f;
+  --salaries-success-bg: #edf8f1;
+
+  --salaries-danger: #a34040;
+  --salaries-danger-bg: #fff2f2;
+
+  --salaries-warning: #966a27;
+  --salaries-warning-bg: #fff8e9;
+
+  --salaries-shadow:
+    0 8px 26px
+    rgba(
+      23,
+      59,
+      49,
+      0.07
+    );
+
+  --salaries-shadow-strong:
+    0 22px 60px
+    rgba(
+      23,
+      59,
+      49,
+      0.2
+    );
+}
+
+/* =========================================================
+   PAGE
+   ========================================================= */
+
+.salaries-mobile {
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding-bottom:
+    calc(
+      30px +
+      env(safe-area-inset-bottom)
+    );
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(
+        45,
+        103,
+        86,
+        0.06
+      ),
+      transparent 31%
+    ),
+    linear-gradient(
+      180deg,
+      #faf8f3 0%,
+      #f3f6f3 100%
+    );
+
+  color:
+    var(--salaries-text);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.salaries-mobile-header {
+  position: sticky;
+
+  top: 0;
+  z-index: 40;
+
+  min-height: 74px;
+
+  display: grid;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    calc(
+      10px +
+      env(safe-area-inset-top)
+    )
+    14px
+    10px;
+
+  background:
+    rgba(
+      23,
+      59,
+      49,
+      0.98
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+
+  backdrop-filter:
+    blur(12px);
+}
+
+.salaries-mobile-header > div {
+  min-width: 0;
+
+  text-align: center;
+}
+
+.salaries-mobile-header small {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.salaries-mobile-header h1 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 850;
+
+  line-height: 1.15;
+}
+
+.salaries-mobile-back,
+.salaries-mobile-refresh {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+
+  color: #ffffff;
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.salaries-mobile-back {
+  font-size: 28px;
+}
+
+.salaries-mobile-refresh {
+  font-size: 21px;
+}
+
+.salaries-mobile-back:active,
+.salaries-mobile-refresh:not(:disabled):active {
+  transform:
+    scale(0.94);
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.15
+    );
+}
+
+.salaries-mobile-refresh:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   CONTENU
+   ========================================================= */
+
+.salaries-mobile-content {
+  width: 100%;
+  max-width: 720px;
+
+  box-sizing: border-box;
+
+  margin: 0 auto;
+
+  padding:
+    20px
+    15px
+    12px;
+}
+
+/* =========================================================
+   INTRO
+   ========================================================= */
+
+.salaries-mobile-intro {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin-bottom: 16px;
+}
+
+.salaries-mobile-intro > div {
+  min-width: 0;
+}
+
+.salaries-mobile-intro small {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--salaries-gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.salaries-mobile-intro h2 {
+  margin: 0;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 27px;
+  font-weight: 900;
+
+  line-height: 1.08;
+
+  letter-spacing: -0.035em;
+}
+
+.salaries-mobile-intro p {
+  margin:
+    7px 0 0;
+
+  color:
+    var(--salaries-muted);
+
+  font-size: 12px;
+  line-height: 1.48;
+}
+
+.salaries-mobile-new {
+  flex: 0 0 auto;
+
+  min-height: 43px;
+
+  padding:
+    9px
+    13px;
+
+  border: 0;
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--salaries-green),
+      var(--salaries-green-2)
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 8px 19px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+.salaries-mobile-new:active {
+  transform:
+    scale(0.96);
+}
+
+/* =========================================================
+   MESSAGES
+   ========================================================= */
+
+.salaries-mobile-error,
+.salaries-mobile-success {
+  margin-bottom: 13px;
+
+  padding:
+    12px
+    13px;
+
+  border-radius: 15px;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  line-height: 1.45;
+}
+
+.salaries-mobile-error {
+  border:
+    1px solid
+    #efcccc;
+
+  background:
+    var(--salaries-danger-bg);
+
+  color:
+    var(--salaries-danger);
+}
+
+.salaries-mobile-success {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--salaries-success-bg);
+
+  color:
+    var(--salaries-success);
+}
+
+/* =========================================================
+   STATISTIQUES
+   ========================================================= */
+
+.salaries-mobile-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-bottom: 13px;
+}
+
+.salaries-mobile-stats article {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 4px;
+
+  padding:
+    12px
+    10px;
+
+  border:
+    1px solid
+    var(--salaries-border);
+
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.04
+    );
+}
+
+.salaries-mobile-stats small {
+  overflow: hidden;
+
+  color:
+    #87928c;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.07em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salaries-mobile-stats strong {
+  color:
+    var(--salaries-green);
+
+  font-size: 20px;
+  font-weight: 900;
+}
+
+/* =========================================================
+   RECHERCHE
+   ========================================================= */
+
+.salaries-mobile-search {
+  min-height: 53px;
+
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  margin-bottom: 13px;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #dbe2de;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.04
+    );
+}
+
+.salaries-mobile-search > span {
+  font-size: 18px;
+
+  text-align: center;
+}
+
+.salaries-mobile-search input {
+  width: 100%;
+  min-height: 51px;
+
+  box-sizing: border-box;
+
+  padding:
+    0
+    8px;
+
+  border: 0;
+
+  outline: none;
+
+  background: transparent;
+
+  color:
+    var(--salaries-text);
+
+  font: inherit;
+  font-size: 14px;
+}
+
+.salaries-mobile-search input::placeholder {
+  color:
+    #9ba59f;
+}
+
+.salaries-mobile-search:focus-within {
+  border-color:
+    var(--salaries-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+/* =========================================================
+   FILTRES
+   ========================================================= */
+
+.salaries-mobile-filters {
+  display: flex;
+
+  gap: 7px;
+
+  overflow-x: auto;
+
+  margin-bottom: 16px;
+
+  padding-bottom: 4px;
+
+  scrollbar-width: none;
+
+  -webkit-overflow-scrolling:
+    touch;
+}
+
+.salaries-mobile-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.salaries-mobile-filters button {
+  flex: 0 0 auto;
+
+  min-height: 38px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding:
+    7px
+    11px;
+
+  border:
+    1px solid
+    #dfe5e1;
+
+  border-radius: 999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.92
+    );
+
+  color:
+    #64736c;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+.salaries-mobile-filters button > span {
+  min-width: 20px;
+  height: 20px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    0
+    5px;
+
+  border-radius: 999px;
+
+  background:
+    #eef1ef;
+
+  color:
+    #6f7b75;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.salaries-mobile-filters button.active {
+  border-color:
+    var(--salaries-green);
+
+  background:
+    var(--salaries-green);
+
+  color: #ffffff;
+}
+
+.salaries-mobile-filters button.active > span {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  color: #ffffff;
+}
+
+/* =========================================================
+   LISTE
+   ========================================================= */
+
+.salaries-mobile-list {
+  display: grid;
+
+  gap: 13px;
+}
+
+.salaries-mobile-card {
+  overflow: hidden;
+
+  padding: 15px;
+
+  border:
+    1px solid
+    var(--salaries-border);
+
+  border-radius: 22px;
+
+  background: #ffffff;
+
+  box-shadow:
+    var(--salaries-shadow);
+}
+
+/* =========================================================
+   EN-TÊTE SALARIÉ
+   ========================================================= */
+
+.salaries-mobile-card-head {
+  display: grid;
+
+  grid-template-columns:
+    46px
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 11px;
+}
+
+.salaries-mobile-avatar {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 15px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--salaries-green),
+      var(--salaries-green-2)
+    );
+
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 900;
+
+  box-shadow:
+    0 6px 14px
+    rgba(
+      23,
+      59,
+      49,
+      0.13
+    );
+}
+
+.salaries-mobile-card-name {
+  min-width: 0;
+}
+
+.salaries-mobile-card-name h3 {
+  overflow: hidden;
+
+  margin: 0;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 15px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salaries-mobile-card-name p {
+  overflow: hidden;
+
+  margin:
+    4px 0 0;
+
+  color:
+    var(--salaries-muted);
+
+  font-size: 10px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salaries-mobile-status {
+  min-height: 27px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    5px
+    9px;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.salaries-mobile-status.active {
+  border-color:
+    #c8e2d3;
+
+  background:
+    var(--salaries-success-bg);
+
+  color:
+    var(--salaries-success);
+}
+
+.salaries-mobile-status.inactive {
+  border-color:
+    #e0e3e1;
+
+  background:
+    #f5f6f5;
+
+  color:
+    #7d8882;
+}
+
+/* =========================================================
+   DÉTAILS
+   ========================================================= */
+
+.salaries-mobile-details {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-top: 13px;
+}
+
+.salaries-mobile-details > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+
+  padding:
+    10px
+    11px;
+
+  border-radius: 14px;
+
+  background:
+    var(--salaries-cream-2);
+}
+
+.salaries-mobile-details small {
+  color:
+    #908b7c;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.salaries-mobile-details strong {
+  overflow: hidden;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 11px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   CONTACT
+   ========================================================= */
+
+.salaries-mobile-contact {
+  display: grid;
+
+  gap: 7px;
+
+  margin-top: 10px;
+}
+
+.salaries-mobile-contact a {
+  min-height: 39px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  box-sizing: border-box;
+
+  padding:
+    8px
+    10px;
+
+  border:
+    1px solid
+    #e1e7e3;
+
+  border-radius: 12px;
+
+  background:
+    #fafcfb;
+
+  color:
+    #52675d;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  text-decoration: none;
+
+  overflow-wrap: anywhere;
+}
+
+.salaries-mobile-contact a > span {
+  width: 25px;
+  height: 25px;
+
+  display: grid;
+
+  place-items: center;
+
+  flex:
+    0 0 25px;
+
+  border-radius: 8px;
+
+  background:
+    #edf4f0;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 11px;
+}
+
+/* =========================================================
+   ÉTAT ACCÈS ARBOBOARD
+   ========================================================= */
+
+.salaries-mobile-access {
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 9px;
+
+  margin-top: 10px;
+
+  padding: 10px;
+
+  border:
+    1px solid
+    #e2e6e4;
+
+  border-radius: 14px;
+
+  background:
+    #f7f8f7;
+}
+
+.salaries-mobile-access > span {
+  width: 32px;
+  height: 32px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 10px;
+
+  background:
+    #e8ecea;
+
+  color:
+    #75827c;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.salaries-mobile-access > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 2px;
+}
+
+.salaries-mobile-access small {
+  color:
+    #85908a;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.salaries-mobile-access strong {
+  color:
+    #5e6c65;
+
+  font-size: 10px;
+}
+
+.salaries-mobile-access.linked {
+  border-color:
+    #cfe4d7;
+
+  background:
+    var(--salaries-success-bg);
+}
+
+.salaries-mobile-access.linked > span {
+  background:
+    var(--salaries-green);
+
+  color: #ffffff;
+}
+
+.salaries-mobile-access.linked small {
+  color:
+    #5a856f;
+}
+
+.salaries-mobile-access.linked strong {
+  color:
+    var(--salaries-success);
+}
+
+/* =========================================================
+   CRÉATION ACCÈS ARBOBOARD
+   ========================================================= */
+
+.salaries-mobile-create-access {
+  width: 100%;
+  min-height: 62px;
+
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(0, 1fr)
+    24px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  box-sizing: border-box;
+
+  margin-top: 10px;
+
+  padding:
+    10px
+    11px;
+
+  border:
+    1px solid
+    #d4e3dc;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f1f8f4,
+      #ffffff
+    );
+
+  color:
+    var(--salaries-green);
+
+  text-align: left;
+
+  font: inherit;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.salaries-mobile-create-access > span {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 12px;
+
+  background:
+    var(--salaries-green);
+
+  color: #ffffff;
+
+  font-size: 16px;
+
+  box-shadow:
+    0 6px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.13
+    );
+}
+
+.salaries-mobile-create-access > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+.salaries-mobile-create-access strong {
+  overflow: hidden;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 10px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salaries-mobile-create-access small {
+  overflow: hidden;
+
+  color:
+    #6c7d74;
+
+  font-size: 8px;
+  font-weight: 650;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.salaries-mobile-create-access > b {
+  color:
+    var(--salaries-green-3);
+
+  font-size: 17px;
+  font-weight: 900;
+
+  text-align: right;
+}
+
+.salaries-mobile-create-access:not(:disabled):active {
+  transform:
+    scale(0.985);
+
+  border-color:
+    var(--salaries-green-3);
+
+  box-shadow:
+    0 7px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.08
+    );
+}
+
+.salaries-mobile-create-access:disabled {
+  opacity: 0.48;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   ACCÈS CRÉÉ
+   ========================================================= */
+
+.salaries-mobile-access-ok {
+  display: grid;
+
+  grid-template-columns:
+    36px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-top: 10px;
+
+  padding:
+    10px
+    11px;
+
+  border:
+    1px solid
+    #c7e0d1;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--salaries-success-bg),
+      #f8fcfa
+    );
+}
+
+.salaries-mobile-access-ok > span {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 11px;
+
+  background:
+    var(--salaries-success);
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.salaries-mobile-access-ok > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+.salaries-mobile-access-ok strong {
+  color:
+    var(--salaries-success);
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.salaries-mobile-access-ok small {
+  color:
+    #668375;
+
+  font-size: 8px;
+
+  line-height: 1.4;
+}
+
+/* =========================================================
+   NOTES
+   ========================================================= */
+
+.salaries-mobile-notes {
+  margin:
+    10px 0 0;
+
+  padding:
+    10px
+    11px;
+
+  border-left:
+    3px solid
+    var(--salaries-gold);
+
+  border-radius:
+    0
+    11px
+    11px
+    0;
+
+  background:
+    #fbf8f1;
+
+  color:
+    #716c61;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+
+.salaries-mobile-actions {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-top: 12px;
+}
+
+.salaries-mobile-actions button {
+  min-height: 44px;
+
+  padding:
+    8px
+    10px;
+
+  border-radius: 13px;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.salaries-mobile-actions button:first-child {
+  border:
+    1px solid
+    #dbe3df;
+
+  background:
+    #ffffff;
+
+  color:
+    var(--salaries-green);
+}
+
+.salaries-mobile-actions button.disable {
+  border:
+    1px solid
+    #eed0d0;
+
+  background:
+    var(--salaries-danger-bg);
+
+  color:
+    var(--salaries-danger);
+}
+
+.salaries-mobile-actions button.enable {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--salaries-success-bg);
+
+  color:
+    var(--salaries-success);
+}
+
+.salaries-mobile-actions button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+.salaries-mobile-actions button:not(:disabled):active {
+  transform:
+    scale(0.98);
+}
+
+/* =========================================================
+   CHARGEMENT / VIDE
+   ========================================================= */
+
+.salaries-mobile-loading,
+.salaries-mobile-empty {
+  min-height: 255px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  box-sizing: border-box;
+
+  padding: 25px;
+
+  border:
+    1px solid
+    var(--salaries-border);
+
+  border-radius: 22px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.8
+    );
+
+  text-align: center;
+}
+
+.salaries-mobile-loading strong {
+  color:
+    var(--salaries-green);
+
+  font-size: 12px;
+}
+
+.salaries-mobile-spinner {
+  width: 38px;
+  height: 38px;
+
+  border:
+    4px solid
+    #dce5e0;
+
+  border-top-color:
+    var(--salaries-green);
+
+  border-radius: 999px;
+
+  animation:
+    salaries-mobile-spin
+    0.75s
+    linear
+    infinite;
+}
+
+@keyframes salaries-mobile-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+.salaries-mobile-empty > span {
+  font-size: 35px;
+}
+
+.salaries-mobile-empty h3 {
+  margin: 0;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 17px;
+}
+
+.salaries-mobile-empty p {
+  margin: 0;
+
+  color:
+    var(--salaries-muted);
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.salaries-mobile-empty button {
+  min-height: 42px;
+
+  margin-top: 5px;
+
+  padding:
+    8px
+    12px;
+
+  border: 0;
+
+  border-radius: 13px;
+
+  background:
+    var(--salaries-green);
+
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+/* =========================================================
+   MODALE / BOTTOM SHEET
+   ========================================================= */
+
+.salaries-mobile-modal {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 100;
+
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: center;
+
+  padding:
+    env(safe-area-inset-top)
+    0
+    0;
+}
+
+.salaries-mobile-modal-backdrop {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  padding: 0;
+
+  border: 0;
+
+  background:
+    rgba(
+      13,
+      31,
+      26,
+      0.58
+    );
+
+  backdrop-filter:
+    blur(4px);
+
+  cursor: pointer;
+}
+
+.salaries-mobile-sheet {
+  position: relative;
+
+  z-index: 1;
+
+  width: 100%;
+  max-width: 720px;
+
+  max-height:
+    calc(
+      94dvh -
+      env(safe-area-inset-top)
+    );
+
+  overflow-y: auto;
+
+  box-sizing: border-box;
+
+  padding:
+    18px
+    15px
+    calc(
+      18px +
+      env(safe-area-inset-bottom)
+    );
+
+  border-radius:
+    26px
+    26px
+    0
+    0;
+
+  background: #ffffff;
+
+  box-shadow:
+    var(--salaries-shadow-strong);
+
+  overscroll-behavior:
+    contain;
+}
+
+.salaries-mobile-sheet::before {
+  content: "";
+
+  display: block;
+
+  width: 42px;
+  height: 4px;
+
+  margin:
+    0 auto 15px;
+
+  border-radius: 999px;
+
+  background:
+    #d7ded9;
+}
+
+.salaries-mobile-sheet > header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 17px;
+}
+
+.salaries-mobile-sheet > header > div {
+  min-width: 0;
+}
+
+.salaries-mobile-sheet > header small {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color:
+    var(--salaries-gold);
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.salaries-mobile-sheet > header h2 {
+  margin: 0;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 22px;
+  font-weight: 900;
+
+  letter-spacing: -0.03em;
+}
+
+.salaries-mobile-sheet > header > button {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+
+  place-items: center;
+
+  flex:
+    0 0 38px;
+
+  padding: 0;
+
+  border:
+    1px solid
+    #e1e6e3;
+
+  border-radius: 13px;
+
+  background:
+    #f8faf9;
+
+  color:
+    var(--salaries-green);
+
+  font-size: 22px;
+
+  cursor: pointer;
+}
+
+/* =========================================================
+   FORMULAIRE
+   ========================================================= */
+
+.salaries-mobile-sheet form {
+  display: grid;
+
+  gap: 12px;
+}
+
+.salaries-mobile-sheet label {
+  display: grid;
+
+  gap: 6px;
+
+  min-width: 0;
+}
+
+.salaries-mobile-sheet label > span {
+  color:
+    #53665d;
+
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.salaries-mobile-sheet input,
+.salaries-mobile-sheet select,
+.salaries-mobile-sheet textarea {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  border:
+    1px solid
+    #dbe3df;
+
+  border-radius: 14px;
+
+  outline: none;
+
+  background:
+    #ffffff;
+
+  color:
+    var(--salaries-text);
+
+  font: inherit;
+  font-size: 13px;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.salaries-mobile-sheet input,
+.salaries-mobile-sheet select {
+  min-height: 48px;
+
+  padding:
+    10px
+    12px;
+}
+
+.salaries-mobile-sheet textarea {
+  min-height: 100px;
+
+  padding: 12px;
+
+  resize: vertical;
+
+  line-height: 1.45;
+}
+
+.salaries-mobile-sheet input:focus,
+.salaries-mobile-sheet select:focus,
+.salaries-mobile-sheet textarea:focus {
+  border-color:
+    var(--salaries-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+.salaries-mobile-two {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+}
+
+/* =========================================================
+   INFO FORMULAIRE
+   ========================================================= */
+
+.salaries-mobile-sheet-info {
+  display: grid;
+
+  grid-template-columns:
+    34px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 9px;
+
+  padding: 11px;
+
+  border:
+    1px solid
+    #d7e4de;
+
+  border-radius: 15px;
+
+  background:
+    #f1f7f4;
+}
+
+.salaries-mobile-sheet-info > span {
+  width: 32px;
+  height: 32px;
+
+  display: grid;
+
+  place-items: center;
+
+  border-radius: 10px;
+
+  background:
+    var(--salaries-green);
+
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.salaries-mobile-sheet-info p {
+  margin: 0;
+
+  color:
+    #60746a;
+
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+/* =========================================================
+   ACTIONS FORMULAIRE
+   ========================================================= */
+
+.salaries-mobile-sheet-actions {
+  position: sticky;
+
+  bottom:
+    calc(
+      -18px -
+      env(safe-area-inset-bottom)
+    );
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin:
+    3px
+    -15px
+    calc(
+      -18px -
+      env(safe-area-inset-bottom)
+    );
+
+  padding:
+    12px
+    15px
+    calc(
+      15px +
+      env(safe-area-inset-bottom)
+    );
+
+  border-top:
+    1px solid
+    #edf0ee;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.96
+    );
+
+  backdrop-filter:
+    blur(12px);
+}
+
+.salaries-mobile-sheet-actions button {
+  min-height: 47px;
+
+  border-radius: 14px;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+.salaries-mobile-sheet-actions button.cancel {
+  border:
+    1px solid
+    #dce3df;
+
+  background:
+    #ffffff;
+
+  color:
+    #66756d;
+}
+
+.salaries-mobile-sheet-actions button.save {
+  border:
+    1px solid
+    var(--salaries-green);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--salaries-green),
+      var(--salaries-green-2)
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 7px 17px
+    rgba(
+      23,
+      59,
+      49,
+      0.15
+    );
+}
+
+.salaries-mobile-sheet-actions button:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+/* =========================================================
+   PETITS ÉCRANS
+   ========================================================= */
+
+@media (
+  max-width:
+    390px
+) {
+  .salaries-mobile-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .salaries-mobile-intro {
+    gap: 8px;
+  }
+
+  .salaries-mobile-intro h2 {
+    font-size: 24px;
+  }
+
+  .salaries-mobile-new {
+    padding:
+      8px
+      10px;
+
+    font-size: 9px;
+  }
+
+  .salaries-mobile-card {
+    padding: 13px;
+  }
+
+  .salaries-mobile-card-head {
+    grid-template-columns:
+      42px
+      minmax(0, 1fr)
+      auto;
+
+    gap: 8px;
+  }
+
+  .salaries-mobile-avatar {
+    width: 42px;
+    height: 42px;
+
+    font-size: 12px;
+  }
+
+  .salaries-mobile-status {
+    padding:
+      5px
+      7px;
+
+    font-size: 7px;
+  }
+
+  .salaries-mobile-two {
+    grid-template-columns:
+      1fr;
+  }
+
+  .salaries-mobile-create-access {
+    grid-template-columns:
+      36px
+      minmax(0, 1fr)
+      20px;
+
+    gap: 8px;
+
+    padding:
+      9px
+      10px;
+  }
+
+  .salaries-mobile-create-access > span {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* =========================================================
+   TABLETTE
+   ========================================================= */
+
+@media (
+  min-width:
+    700px
+) {
+  .salaries-mobile-content {
+    padding-top: 28px;
+  }
+
+  .salaries-mobile-card {
+    padding: 18px;
+  }
+
+  .salaries-mobile-list {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .salaries-mobile-sheet {
+    margin-bottom: 18px;
+
+    border-radius: 26px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+   ========================================================= */
+
+@media (
+  prefers-reduced-motion:
+    reduce
+) {
+  .salaries-mobile-spinner {
+    animation-duration:
+      1.8s;
+  }
+
+  .salaries-mobile-new,
+  .salaries-mobile-create-access,
+  .salaries-mobile-actions button,
+  .salaries-mobile-sheet-actions button,
+  .salaries-mobile-back,
+  .salaries-mobile-refresh {
+    transition: none;
+  }
+}

@@ -1,0 +1,1483 @@
+:root {
+  --liste-devis-green: #173b31;
+  --liste-devis-green-2: #214d40;
+  --liste-devis-green-3: #2d6756;
+
+  --liste-devis-cream: #f5f1e8;
+  --liste-devis-cream-2: #fbf8f1;
+
+  --liste-devis-gold: #c9a96b;
+
+  --liste-devis-text: #19352d;
+  --liste-devis-muted: #748078;
+
+  --liste-devis-border: #e1e7e3;
+
+  --liste-devis-success: #24734f;
+  --liste-devis-success-bg: #edf8f1;
+
+  --liste-devis-danger: #a34040;
+  --liste-devis-danger-bg: #fff2f2;
+
+  --liste-devis-warning: #9a6a1b;
+  --liste-devis-warning-bg: #fff8e8;
+
+  --liste-devis-blue: #356a86;
+  --liste-devis-blue-bg: #eef7fb;
+
+  --liste-devis-shadow:
+    0 8px 26px rgba(23, 59, 49, 0.07);
+}
+
+.liste-devis-mobile {
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  width: 100%;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f9f7f2 0%,
+      #f3f6f3 100%
+    );
+
+  color: var(--liste-devis-text);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  padding-bottom:
+    calc(
+      28px +
+      env(safe-area-inset-bottom)
+    );
+}
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+
+.liste-devis-mobile-header {
+  position: sticky;
+
+  top: 0;
+  z-index: 40;
+
+  min-height: 74px;
+
+  display: grid;
+
+  grid-template-columns:
+    44px
+    1fr
+    44px;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding:
+    calc(
+      10px +
+      env(safe-area-inset-top)
+    )
+    14px
+    10px;
+
+  background:
+    rgba(
+      23,
+      59,
+      49,
+      0.98
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+
+  backdrop-filter:
+    blur(12px);
+}
+
+.liste-devis-mobile-header > div {
+  min-width: 0;
+
+  text-align: center;
+}
+
+.liste-devis-mobile-header small {
+  display: block;
+
+  margin-bottom: 2px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.58
+    );
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.12em;
+}
+
+.liste-devis-mobile-header h1 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 850;
+
+  line-height: 1.15;
+}
+
+.liste-devis-mobile-back,
+.liste-devis-mobile-refresh {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+
+  color: #ffffff;
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.liste-devis-mobile-back {
+  font-size: 28px;
+}
+
+.liste-devis-mobile-refresh {
+  font-size: 21px;
+}
+
+.liste-devis-mobile-back:active,
+.liste-devis-mobile-refresh:not(:disabled):active {
+  transform:
+    scale(0.94);
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.15
+    );
+}
+
+.liste-devis-mobile-refresh:disabled {
+  opacity: 0.45;
+
+  cursor:
+    not-allowed;
+}
+
+/* =========================================================
+   CONTENU
+   ========================================================= */
+
+.liste-devis-mobile-content {
+  width: 100%;
+  max-width: 720px;
+
+  box-sizing: border-box;
+
+  margin: 0 auto;
+
+  padding:
+    20px 15px 10px;
+}
+
+.liste-devis-mobile-top {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin-bottom: 17px;
+}
+
+.liste-devis-mobile-top > div {
+  min-width: 0;
+}
+
+.liste-devis-mobile-top small {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--liste-devis-gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.1em;
+}
+
+.liste-devis-mobile-top h2 {
+  margin: 0;
+
+  color:
+    var(--liste-devis-green);
+
+  font-size: 27px;
+  font-weight: 850;
+
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.liste-devis-mobile-top p {
+  margin:
+    7px 0 0;
+
+  color:
+    var(--liste-devis-muted);
+
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.liste-devis-mobile-new {
+  flex: 0 0 auto;
+
+  min-height: 43px;
+
+  padding:
+    9px 13px;
+
+  border: 0;
+
+  border-radius: 14px;
+
+  background:
+    var(--liste-devis-green);
+
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 7px 18px
+    rgba(
+      23,
+      59,
+      49,
+      0.17
+    );
+}
+
+.liste-devis-mobile-new:active {
+  transform:
+    scale(0.96);
+}
+
+/* =========================================================
+   MESSAGES
+   ========================================================= */
+
+.liste-devis-mobile-error,
+.liste-devis-mobile-success {
+  margin-bottom: 13px;
+
+  padding:
+    12px 13px;
+
+  border-radius: 15px;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.liste-devis-mobile-error {
+  border:
+    1px solid
+    #efcccc;
+
+  background:
+    var(--liste-devis-danger-bg);
+
+  color:
+    var(--liste-devis-danger);
+}
+
+.liste-devis-mobile-success {
+  border:
+    1px solid
+    #c9e4d3;
+
+  background:
+    var(--liste-devis-success-bg);
+
+  color:
+    var(--liste-devis-success);
+}
+
+/* =========================================================
+   RECHERCHE
+   ========================================================= */
+
+.liste-devis-mobile-search {
+  min-height: 53px;
+
+  display: grid;
+
+  grid-template-columns:
+    34px
+    1fr;
+
+  align-items: center;
+
+  margin-bottom: 13px;
+
+  padding:
+    0 9px;
+
+  border:
+    1px solid
+    #dbe2de;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 15px
+    rgba(
+      23,
+      59,
+      49,
+      0.04
+    );
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.liste-devis-mobile-search > span {
+  font-size: 18px;
+
+  text-align: center;
+}
+
+.liste-devis-mobile-search input {
+  width: 100%;
+  min-height: 51px;
+
+  box-sizing: border-box;
+
+  padding:
+    0 8px;
+
+  border: 0;
+
+  outline: none;
+
+  background:
+    transparent;
+
+  color:
+    var(--liste-devis-text);
+
+  font: inherit;
+  font-size: 14px;
+}
+
+.liste-devis-mobile-search:focus-within {
+  border-color:
+    var(--liste-devis-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+/* =========================================================
+   FILTRES
+   ========================================================= */
+
+.liste-devis-mobile-filters {
+  display: flex;
+
+  gap: 7px;
+
+  overflow-x: auto;
+
+  margin-bottom: 16px;
+
+  padding-bottom: 4px;
+
+  scrollbar-width: none;
+
+  -webkit-overflow-scrolling:
+    touch;
+}
+
+.liste-devis-mobile-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.liste-devis-mobile-filters button {
+  flex: 0 0 auto;
+
+  min-height: 38px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding:
+    7px 11px;
+
+  border:
+    1px solid
+    #dfe5e1;
+
+  border-radius: 999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.9
+    );
+
+  color:
+    #64736c;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.liste-devis-mobile-filters button > span {
+  min-width: 20px;
+  height: 20px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    0 5px;
+
+  border-radius: 999px;
+
+  background:
+    #eef1ef;
+
+  color:
+    #6f7b75;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.liste-devis-mobile-filters button.active {
+  border-color:
+    var(--liste-devis-green);
+
+  background:
+    var(--liste-devis-green);
+
+  color: #ffffff;
+}
+
+.liste-devis-mobile-filters button.active > span {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.14
+    );
+
+  color:
+    #ffffff;
+}
+
+/* =========================================================
+   LISTE
+   ========================================================= */
+
+.liste-devis-mobile-list {
+  display: grid;
+
+  gap: 13px;
+}
+
+.liste-devis-mobile-card {
+  overflow: hidden;
+
+  padding: 15px;
+
+  border:
+    1px solid
+    var(--liste-devis-border);
+
+  border-radius: 22px;
+
+  background: #ffffff;
+
+  box-shadow:
+    var(--liste-devis-shadow);
+}
+
+.liste-devis-mobile-card-head {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: flex-start;
+
+  gap: 12px;
+}
+
+.liste-devis-mobile-card-head > div {
+  min-width: 0;
+}
+
+.liste-devis-mobile-card-head small {
+  display: block;
+
+  overflow: hidden;
+
+  margin-bottom: 4px;
+
+  color:
+    var(--liste-devis-gold);
+
+  font-size: 9px;
+  font-weight: 900;
+
+  letter-spacing: 0.055em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liste-devis-mobile-card-head h3 {
+  overflow: hidden;
+
+  margin: 0;
+
+  color:
+    var(--liste-devis-green);
+
+  font-size: 16px;
+  font-weight: 850;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liste-devis-mobile-status {
+  flex: 0 0 auto;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 27px;
+
+  padding:
+    5px 9px;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+.liste-devis-mobile-status.draft {
+  border-color:
+    #dee3e0;
+
+  background:
+    #f4f6f5;
+
+  color:
+    #64716b;
+}
+
+.liste-devis-mobile-status.sent {
+  border-color:
+    #cce0eb;
+
+  background:
+    var(--liste-devis-blue-bg);
+
+  color:
+    var(--liste-devis-blue);
+}
+
+.liste-devis-mobile-status.accepted {
+  border-color:
+    #c8e2d3;
+
+  background:
+    var(--liste-devis-success-bg);
+
+  color:
+    var(--liste-devis-success);
+}
+
+.liste-devis-mobile-status.invoiced {
+  border-color:
+    #d9d0ba;
+
+  background:
+    #faf6eb;
+
+  color:
+    #826526;
+}
+
+.liste-devis-mobile-status.refused {
+  border-color:
+    #efcccc;
+
+  background:
+    var(--liste-devis-danger-bg);
+
+  color:
+    var(--liste-devis-danger);
+}
+
+.liste-devis-mobile-status.archived {
+  border-color:
+    #e0e2e1;
+
+  background:
+    #f5f5f5;
+
+  color:
+    #858d89;
+}
+
+.liste-devis-mobile-object {
+  margin:
+    10px 0 0;
+
+  color:
+    #5f6f67;
+
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.liste-devis-mobile-meta {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-top: 13px;
+}
+
+.liste-devis-mobile-meta > span {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+
+  padding:
+    10px 11px;
+
+  border-radius: 14px;
+
+  background:
+    var(--liste-devis-cream-2);
+}
+
+.liste-devis-mobile-meta small {
+  color:
+    #8c8a7b;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.liste-devis-mobile-meta strong {
+  overflow: hidden;
+
+  color:
+    var(--liste-devis-green);
+
+  font-size: 12px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   DEVIS ACCEPTÉ → FACTURE
+   ========================================================= */
+
+.liste-devis-mobile-invoice-box {
+  margin-top: 13px;
+
+  padding: 13px;
+
+  border:
+    1px solid
+    #c8e2d3;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #edf8f1,
+      #f8fbf9
+    );
+}
+
+.liste-devis-mobile-invoice-box > div {
+  display: grid;
+
+  grid-template-columns:
+    38px
+    1fr;
+
+  align-items: flex-start;
+
+  gap: 10px;
+}
+
+.liste-devis-mobile-invoice-box > div > span {
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 13px;
+
+  background:
+    var(--liste-devis-green);
+
+  color: #ffffff;
+
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.liste-devis-mobile-invoice-box > div > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 3px;
+}
+
+.liste-devis-mobile-invoice-box small {
+  color:
+    var(--liste-devis-success);
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.liste-devis-mobile-invoice-box strong {
+  color:
+    var(--liste-devis-green);
+
+  font-size: 13px;
+}
+
+.liste-devis-mobile-invoice-box p {
+  margin: 0;
+
+  color:
+    #66796f;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.liste-devis-mobile-invoice-box > button {
+  width: 100%;
+  min-height: 46px;
+
+  margin-top: 11px;
+
+  border: 0;
+
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--liste-devis-green),
+      var(--liste-devis-green-2)
+    );
+
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 7px 16px
+    rgba(
+      23,
+      59,
+      49,
+      0.15
+    );
+}
+
+.liste-devis-mobile-invoice-box > button:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+.liste-devis-mobile-invoice-box > button:not(:disabled):active {
+  transform:
+    scale(0.985);
+}
+
+/* =========================================================
+   DÉJÀ FACTURÉ
+   ========================================================= */
+
+.liste-devis-mobile-invoiced-box {
+  display: grid;
+
+  grid-template-columns:
+    36px
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-top: 13px;
+
+  padding: 12px;
+
+  border:
+    1px solid
+    #e1d7bd;
+
+  border-radius: 17px;
+
+  background:
+    #faf7ef;
+}
+
+.liste-devis-mobile-invoiced-box > span {
+  width: 34px;
+  height: 34px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  background:
+    #8c7135;
+
+  color: #ffffff;
+
+  font-weight: 900;
+}
+
+.liste-devis-mobile-invoiced-box > div {
+  min-width: 0;
+
+  display: grid;
+
+  gap: 2px;
+}
+
+.liste-devis-mobile-invoiced-box small {
+  color:
+    #9c8249;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.08em;
+}
+
+.liste-devis-mobile-invoiced-box strong {
+  color:
+    #665633;
+
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.liste-devis-mobile-invoiced-box button {
+  min-height: 34px;
+
+  padding:
+    7px 9px;
+
+  border:
+    1px solid
+    #d8cba9;
+
+  border-radius: 11px;
+
+  background: #ffffff;
+
+  color:
+    #765f2d;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 850;
+
+  cursor: pointer;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+
+.liste-devis-mobile-actions {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 9px;
+
+  margin-top: 13px;
+}
+
+.liste-devis-mobile-actions > button {
+  min-height: 47px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  padding:
+    9px 11px;
+
+  border:
+    1px solid
+    #dce3df;
+
+  border-radius: 14px;
+
+  background:
+    #ffffff;
+
+  color:
+    var(--liste-devis-green-2);
+
+  font: inherit;
+
+  cursor: pointer;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+.liste-devis-mobile-actions > button > span {
+  font-size: 17px;
+}
+
+.liste-devis-mobile-actions > button strong {
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.liste-devis-mobile-actions > button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+.liste-devis-mobile-actions > button:not(:disabled):active {
+  transform:
+    scale(0.975);
+
+  background:
+    #f6f9f7;
+}
+
+/* =========================================================
+   FORMULAIRE EMAIL
+   ========================================================= */
+
+.liste-devis-mobile-email {
+  margin-top: 11px;
+
+  padding: 13px;
+
+  border:
+    1px solid
+    #dce4df;
+
+  border-radius: 17px;
+
+  background:
+    #f8faf9;
+}
+
+.liste-devis-mobile-email label {
+  display: grid;
+
+  gap: 6px;
+}
+
+.liste-devis-mobile-email label > span {
+  color:
+    #5c6f66;
+
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.liste-devis-mobile-email input {
+  width: 100%;
+  min-height: 46px;
+
+  box-sizing: border-box;
+
+  padding:
+    10px 12px;
+
+  border:
+    1px solid
+    #d8e0dc;
+
+  border-radius: 13px;
+
+  outline: none;
+
+  background: #ffffff;
+
+  color:
+    var(--liste-devis-text);
+
+  font: inherit;
+  font-size: 13px;
+}
+
+.liste-devis-mobile-email input:focus {
+  border-color:
+    var(--liste-devis-green-3);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      45,
+      103,
+      86,
+      0.08
+    );
+}
+
+.liste-devis-mobile-email > div {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  margin-top: 9px;
+}
+
+.liste-devis-mobile-email button {
+  min-height: 43px;
+
+  border-radius: 13px;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.liste-devis-mobile-email button.cancel {
+  border:
+    1px solid
+    #dce2df;
+
+  background: #ffffff;
+
+  color:
+    #69766f;
+}
+
+.liste-devis-mobile-email button.send {
+  border:
+    1px solid
+    var(--liste-devis-green);
+
+  background:
+    var(--liste-devis-green);
+
+  color: #ffffff;
+}
+
+.liste-devis-mobile-email button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   VIDE / CHARGEMENT
+   ========================================================= */
+
+.liste-devis-mobile-loading,
+.liste-devis-mobile-empty {
+  min-height: 260px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  padding: 25px;
+
+  border:
+    1px solid
+    var(--liste-devis-border);
+
+  border-radius: 22px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.75
+    );
+
+  text-align: center;
+}
+
+.liste-devis-mobile-loading strong {
+  color:
+    var(--liste-devis-green);
+
+  font-size: 12px;
+}
+
+.liste-devis-mobile-spinner {
+  width: 38px;
+  height: 38px;
+
+  border:
+    4px solid
+    #dce5e0;
+
+  border-top-color:
+    var(--liste-devis-green);
+
+  border-radius: 999px;
+
+  animation:
+    liste-devis-spin
+    0.75s
+    linear
+    infinite;
+}
+
+@keyframes liste-devis-spin {
+  to {
+    transform:
+      rotate(360deg);
+  }
+}
+
+.liste-devis-mobile-empty > span {
+  font-size: 34px;
+}
+
+.liste-devis-mobile-empty h3 {
+  margin: 0;
+
+  color:
+    var(--liste-devis-green);
+
+  font-size: 17px;
+}
+
+.liste-devis-mobile-empty p {
+  margin: 0;
+
+  color:
+    var(--liste-devis-muted);
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.liste-devis-mobile-empty button {
+  min-height: 43px;
+
+  margin-top: 5px;
+
+  padding:
+    9px 13px;
+
+  border: 0;
+
+  border-radius: 13px;
+
+  background:
+    var(--liste-devis-green);
+
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+/* =========================================================
+   BOUTON ACTUALISER BAS
+   ========================================================= */
+
+.liste-devis-mobile-bottom-refresh {
+  width: 100%;
+  min-height: 48px;
+
+  margin-top: 15px;
+
+  border:
+    1px dashed
+    #b9c7c0;
+
+  border-radius: 15px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.72
+    );
+
+  color:
+    var(--liste-devis-green-3);
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+.liste-devis-mobile-bottom-refresh:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   PETITS ÉCRANS
+   ========================================================= */
+
+@media (max-width: 390px) {
+  .liste-devis-mobile-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .liste-devis-mobile-top {
+    gap: 9px;
+  }
+
+  .liste-devis-mobile-top h2 {
+    font-size: 24px;
+  }
+
+  .liste-devis-mobile-new {
+    padding:
+      8px 10px;
+
+    font-size: 9px;
+  }
+
+  .liste-devis-mobile-card {
+    padding: 13px;
+  }
+
+  .liste-devis-mobile-card-head {
+    gap: 8px;
+  }
+
+  .liste-devis-mobile-status {
+    padding:
+      5px 7px;
+
+    font-size: 8px;
+  }
+
+  .liste-devis-mobile-invoiced-box {
+    grid-template-columns:
+      34px
+      minmax(0, 1fr);
+  }
+
+  .liste-devis-mobile-invoiced-box button {
+    grid-column:
+      1 / -1;
+
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   TABLETTE
+   ========================================================= */
+
+@media (min-width: 700px) {
+  .liste-devis-mobile-content {
+    padding-top: 28px;
+  }
+
+  .liste-devis-mobile-card {
+    padding: 18px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .liste-devis-mobile-spinner {
+    animation-duration:
+      1.8s;
+  }
+
+  .liste-devis-mobile-new,
+  .liste-devis-mobile-back,
+  .liste-devis-mobile-refresh,
+  .liste-devis-mobile-actions > button,
+  .liste-devis-mobile-invoice-box > button {
+    transition: none;
+  }
+}

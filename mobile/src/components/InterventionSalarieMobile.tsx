@@ -1689,10 +1689,40 @@ export default function InterventionSalarieMobile({
       return;
     }
 
+    const positionScroll =
+      window.scrollY;
+
+    const restaurerPosition =
+      () => {
+        requestAnimationFrame(
+          () => {
+            window.scrollTo({
+              top:
+                positionScroll,
+
+              behavior:
+                "auto",
+            });
+          }
+        );
+      };
+
+    const elementActif =
+      document.activeElement;
+
+    if (
+      elementActif instanceof
+      HTMLElement
+    ) {
+      elementActif.blur();
+    }
+
     try {
       setEnregistrement(
         true
       );
+
+      restaurerPosition();
 
       setErreur(
         ""
@@ -1708,6 +1738,8 @@ export default function InterventionSalarieMobile({
       if (
         !acces
       ) {
+        restaurerPosition();
+
         return;
       }
 
@@ -1763,6 +1795,8 @@ export default function InterventionSalarieMobile({
                 : item
           )
       );
+
+      restaurerPosition();
     } catch (
       error
     ) {
@@ -1777,9 +1811,18 @@ export default function InterventionSalarieMobile({
           "Impossible de modifier cet élément."
         )
       );
+
+      restaurerPosition();
     } finally {
       setEnregistrement(
         false
+      );
+
+      restaurerPosition();
+
+      setTimeout(
+        restaurerPosition,
+        40
       );
     }
   }

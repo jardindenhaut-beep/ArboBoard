@@ -201,6 +201,236 @@ function aujourdHuiIso() {
   return `${annee}-${mois}-${jour}`;
 }
 
+function dateDepuisIso(
+  dateIso:
+    string
+) {
+  return new Date(
+    `${dateIso}T12:00:00`
+  );
+}
+
+function ajouterJours(
+  dateIso:
+    string,
+  jours:
+    number
+) {
+  const date =
+    dateDepuisIso(
+      dateIso
+    );
+
+  date.setDate(
+    date.getDate() +
+      jours
+  );
+
+  const annee =
+    date.getFullYear();
+
+  const mois =
+    String(
+      date.getMonth() +
+        1
+    ).padStart(
+      2,
+      "0"
+    );
+
+  const jour =
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+  return `${annee}-${mois}-${jour}`;
+}
+
+function debutSemaine(
+  dateIso:
+    string
+) {
+  const date =
+    dateDepuisIso(
+      dateIso
+    );
+
+  const jour =
+    date.getDay();
+
+  const decalage =
+    jour === 0
+      ? -6
+      : 1 - jour;
+
+  date.setDate(
+    date.getDate() +
+      decalage
+  );
+
+  const annee =
+    date.getFullYear();
+
+  const mois =
+    String(
+      date.getMonth() +
+        1
+    ).padStart(
+      2,
+      "0"
+    );
+
+  const numeroJour =
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+  return `${annee}-${mois}-${numeroJour}`;
+}
+
+function construireSemaine(
+  dateIso:
+    string
+) {
+  const debut =
+    debutSemaine(
+      dateIso
+    );
+
+  return Array.from(
+    {
+      length: 7,
+    },
+    (
+      _,
+      index
+    ) =>
+      ajouterJours(
+        debut,
+        index
+      )
+  );
+}
+
+function formatMoisAnnee(
+  dateIso:
+    string
+) {
+  try {
+    const texte =
+      new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+          month:
+            "long",
+          year:
+            "numeric",
+        }
+      ).format(
+        dateDepuisIso(
+          dateIso
+        )
+      );
+
+    return (
+      texte.charAt(
+        0
+      ).toUpperCase() +
+      texte.slice(
+        1
+      )
+    );
+  } catch {
+    return dateIso;
+  }
+}
+
+function formatJourCourt(
+  dateIso:
+    string
+) {
+  try {
+    return new Intl.DateTimeFormat(
+      "fr-FR",
+      {
+        weekday:
+          "short",
+      }
+    )
+      .format(
+        dateDepuisIso(
+          dateIso
+        )
+      )
+      .replace(
+        ".",
+        ""
+      );
+  } catch {
+    return "";
+  }
+}
+
+function formatNumeroJour(
+  dateIso:
+    string
+) {
+  try {
+    return new Intl.DateTimeFormat(
+      "fr-FR",
+      {
+        day:
+          "2-digit",
+      }
+    ).format(
+      dateDepuisIso(
+        dateIso
+      )
+    );
+  } catch {
+    return "";
+  }
+}
+
+function dateDansFiche(
+  dateIso:
+    string,
+  fiche:
+    FicheIntervention
+) {
+  const debut =
+    dateDebut(
+      fiche
+    );
+
+  const fin =
+    dateFin(
+      fiche
+    );
+
+  if (
+    !debut
+  ) {
+    return false;
+  }
+
+  return (
+    dateIso >=
+      debut &&
+    dateIso <=
+      (
+        fin ||
+        debut
+      )
+  );
+}
+
 function dateDebut(
   fiche:
     FicheIntervention
@@ -365,6 +595,69 @@ function interventionTerminee(
   );
 }
 
+function classeStatut(
+  statut:
+    string | null | undefined
+) {
+  const valeur =
+    normaliser(
+      statut
+    );
+
+  if (
+    valeur.includes(
+      "term"
+    )
+  ) {
+    return "terminee";
+  }
+
+  if (
+    valeur.includes(
+      "cours"
+    )
+  ) {
+    return "encours";
+  }
+
+  if (
+    valeur.includes(
+      "plan"
+    )
+  ) {
+    return "planifiee";
+  }
+
+  if (
+    valeur.includes(
+      "brou"
+    )
+  ) {
+    return "brouillon";
+  }
+
+  return "standard";
+}
+
+function etapeValidee(
+  statut:
+    string | null | undefined
+) {
+  const valeur =
+    normaliser(
+      statut
+    );
+
+  return (
+    valeur.includes(
+      "valid"
+    ) ||
+    valeur.includes(
+      "term"
+    )
+  );
+}
+
 function cleCacheDashboard(
   profilId:
     string
@@ -444,6 +737,14 @@ export default function DashboardSalarie({
   ] =
     useState(
       false
+    );
+
+  const [
+    datePlanning,
+    setDatePlanning,
+  ] =
+    useState(
+      aujourdHuiIso()
     );
 
   const prenomAffiche =
@@ -544,6 +845,111 @@ export default function DashboardSalarie({
         fiches,
       ]
     );
+
+  const joursSemainePlanning =
+    useMemo(
+      () =>
+        construireSemaine(
+          datePlanning
+        ),
+      [
+        datePlanning,
+      ]
+    );
+
+  const fichesJourPlanning =
+    useMemo(
+      () =>
+        fichesPlanning.filter(
+          (
+            fiche
+          ) =>
+            dateDansFiche(
+              datePlanning,
+              fiche
+            )
+        ),
+      [
+        fichesPlanning,
+        datePlanning,
+      ]
+    );
+
+  const statistiquesPlanning =
+    useMemo(
+      () => ({
+        chantiers:
+          fichesJourPlanning.length,
+        enCours:
+          fichesJourPlanning.filter(
+            (
+              fiche
+            ) =>
+              normaliser(
+                fiche.statut
+              ).includes(
+                "cours"
+              )
+          ).length,
+        termines:
+          fichesJourPlanning.filter(
+            (
+              fiche
+            ) =>
+              interventionTerminee(
+                fiche
+              )
+          ).length,
+      }),
+      [
+        fichesJourPlanning,
+      ]
+    );
+
+  function nombreFichesPlanningJour(
+    jour:
+      string
+  ) {
+    return fichesPlanning.filter(
+      (
+        fiche
+      ) =>
+        dateDansFiche(
+          jour,
+          fiche
+        )
+    ).length;
+  }
+
+  function semainePlanningPrecedente() {
+    setDatePlanning(
+      (
+        ancienne
+      ) =>
+        ajouterJours(
+          ancienne,
+          -7
+        )
+    );
+  }
+
+  function semainePlanningSuivante() {
+    setDatePlanning(
+      (
+        ancienne
+      ) =>
+        ajouterJours(
+          ancienne,
+          7
+        )
+    );
+  }
+
+  function revenirPlanningAujourdhui() {
+    setDatePlanning(
+      aujourdHuiIso()
+    );
+  }
 
   useEffect(() => {
     void chargerDashboard();
@@ -1182,35 +1588,11 @@ export default function DashboardSalarie({
     "planning"
   ) {
     return (
-      <main className="salarie-dashboard">
-        <header className="salarie-topbar">
-          <div>
-            <div className="salarie-brand">
-              <span className="salarie-brand-mark">
-                AB
-              </span>
-
-              <span>
-                arboboard
-              </span>
-            </div>
-
-            <p className="salarie-kicker">
-              MON PLANNING
-            </p>
-
-            <h1>
-              Interventions
-            </h1>
-
-            <p className="salarie-subtitle">
-              Retrouvez les chantiers qui vous sont affectés.
-            </p>
-          </div>
-
+      <main className="salarie-planning-screen">
+        <header className="salarie-planning-header">
           <button
             type="button"
-            className="salarie-avatar"
+            className="salarie-planning-back"
             onClick={
               retourAccueil
             }
@@ -1218,25 +1600,210 @@ export default function DashboardSalarie({
           >
             ‹
           </button>
+
+          <div>
+            <h1>
+              Planning
+            </h1>
+
+            <span>
+              Salarié
+            </span>
+          </div>
+
+          <div className="salarie-planning-header-space" />
         </header>
 
-        {banniereHorsLigne()}
+        <div className="salarie-planning-content">
+          {banniereHorsLigne()}
 
-        <section className="salarie-section">
-          <div className="salarie-actions-grid">
-            {fichesPlanning.length ===
+          <section className="salarie-planning-calendar-card">
+            <div className="salarie-planning-calendar-top">
+              <button
+                type="button"
+                onClick={
+                  semainePlanningPrecedente
+                }
+                aria-label="Semaine précédente"
+              >
+                ‹
+              </button>
+
+              <div>
+                <strong>
+                  {formatMoisAnnee(
+                    datePlanning
+                  )}
+                </strong>
+
+                <button
+                  type="button"
+                  onClick={
+                    revenirPlanningAujourdhui
+                  }
+                >
+                  Aujourd’hui
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  semainePlanningSuivante
+                }
+                aria-label="Semaine suivante"
+              >
+                ›
+              </button>
+            </div>
+
+            <div className="salarie-planning-week">
+              {joursSemainePlanning.map(
+                (
+                  jour
+                ) => {
+                  const actif =
+                    jour ===
+                    datePlanning;
+
+                  const aujourdHui =
+                    jour ===
+                    aujourdHuiIso();
+
+                  const nombre =
+                    nombreFichesPlanningJour(
+                      jour
+                    );
+
+                  return (
+                    <button
+                      type="button"
+                      key={
+                        jour
+                      }
+                      className={`${actif ? "active" : ""} ${
+                        aujourdHui
+                          ? "today"
+                          : ""
+                      }`}
+                      onClick={() =>
+                        setDatePlanning(
+                          jour
+                        )
+                      }
+                    >
+                      <small>
+                        {formatJourCourt(
+                          jour
+                        )}
+                      </small>
+
+                      <strong>
+                        {formatNumeroJour(
+                          jour
+                        )}
+                      </strong>
+
+                      <span
+                        className={
+                          nombre > 0
+                            ? "has-items"
+                            : ""
+                        }
+                      >
+                        {nombre > 0
+                          ? nombre
+                          : ""}
+                      </span>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          </section>
+
+          <section className="salarie-planning-day-title">
+            <div>
+              <span>
+                JOURNÉE
+              </span>
+
+              <h2>
+                {formatDate(
+                  datePlanning
+                )}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                void chargerDashboard()
+              }
+              aria-label="Actualiser"
+            >
+              ↻
+            </button>
+          </section>
+
+          <section className="salarie-planning-day-stats">
+            <div>
+              <strong>
+                {statistiquesPlanning.chantiers}
+              </strong>
+
+              <span>
+                Chantiers
+              </span>
+            </div>
+
+            <div>
+              <strong>
+                {statistiquesPlanning.enCours}
+              </strong>
+
+              <span>
+                En cours
+              </span>
+            </div>
+
+            <div>
+              <strong>
+                {statistiquesPlanning.termines}
+              </strong>
+
+              <span>
+                Terminés
+              </span>
+            </div>
+          </section>
+
+          {chargement ? (
+            <div className="salarie-planning-loading">
+              <div className="salarie-planning-spinner" />
+
+              <span>
+                Chargement du planning…
+              </span>
+            </div>
+          ) : fichesJourPlanning.length ===
             0 ? (
-              <section className="salarie-next-card">
-                <h3>
-                  Aucun chantier planifié
-                </h3>
+            <div className="salarie-planning-empty">
+              <div>
+                📅
+              </div>
 
-                <p>
-                  Les prochaines interventions apparaîtront ici.
-                </p>
-              </section>
-            ) : (
-              fichesPlanning.map(
+              <strong>
+                Journée libre
+              </strong>
+
+              <span>
+                Aucun chantier n’est prévu pour cette date.
+              </span>
+            </div>
+          ) : (
+            <div className="salarie-planning-day-list">
+              {fichesJourPlanning.map(
                 (
                   fiche
                 ) => (
@@ -1245,48 +1812,65 @@ export default function DashboardSalarie({
                     key={
                       fiche.id
                     }
+                    className="salarie-planning-job"
                     onClick={() =>
                       ouvrirIntervention(
                         fiche.id
                       )
                     }
                   >
-                    <span className="salarie-icon">
-                      {heureIntervention(
-                        fiche
-                      )}
-                    </span>
-
-                    <strong>
-                      {nomIntervention(
-                        fiche
-                      )}
-                    </strong>
-
-                    <small>
-                      {formatDate(
-                        dateDebut(
+                    <div className="salarie-planning-job-time">
+                      <strong>
+                        {heureIntervention(
                           fiche
-                        )
-                      )}
-                    </small>
+                        )}
+                      </strong>
 
-                    <small>
-                      {fiche.client_nom ||
-                        "Client"}
-                    </small>
+                      <small>
+                        prévu
+                      </small>
+                    </div>
 
-                    <small>
-                      {adresseIntervention(
-                        fiche
-                      )}
-                    </small>
+                    <div className="salarie-planning-job-main">
+                      <div className="salarie-planning-job-top">
+                        <span
+                          className={`salarie-status-pill ${classeStatut(
+                            fiche.statut
+                          )}`}
+                        >
+                          {texteStatut(
+                            fiche.statut
+                          )}
+                        </span>
+                      </div>
+
+                      <strong>
+                        {nomIntervention(
+                          fiche
+                        )}
+                      </strong>
+
+                      <span>
+                        {fiche.client_nom ||
+                          "Client non renseigné"}
+                      </span>
+
+                      <small>
+                        📍 {adresseIntervention(
+                          fiche
+                        )}
+                      </small>
+                    </div>
+
+                    <b>
+                      ›
+                    </b>
                   </button>
                 )
-              )
-            )}
-          </div>
-        </section>
+              )}
+            </div>
+          )}
+        </div>
 
         <nav className="salarie-bottom-nav">
           <button
@@ -1362,7 +1946,7 @@ export default function DashboardSalarie({
     "chantiers"
   ) {
     return (
-      <main className="salarie-dashboard">
+      <main className="salarie-dashboard salarie-list-view">
         <header className="salarie-topbar">
           <div>
             <div className="salarie-brand">
@@ -1384,7 +1968,7 @@ export default function DashboardSalarie({
             </h1>
 
             <p className="salarie-subtitle">
-              Ouvrez une intervention pour commencer ou poursuivre le chantier.
+              Retrouvez l’état de chaque intervention avant de l’ouvrir.
             </p>
           </div>
 
@@ -1402,11 +1986,39 @@ export default function DashboardSalarie({
 
         {banniereHorsLigne()}
 
-        <section className="salarie-section">
-          <div className="salarie-actions-grid">
-            {fichesPlanning.length ===
-            0 ? (
-              <section className="salarie-next-card">
+        <section className="salarie-page-shell">
+          <div className="salarie-page-heading">
+            <div>
+              <p className="salarie-kicker">
+                SUIVI CHANTIER
+              </p>
+
+              <h2>
+                Interventions affectées
+              </h2>
+
+              <p>
+                Matériel, arrivée, fin de chantier et PV visibles en un coup d’œil.
+              </p>
+            </div>
+
+            <span className="salarie-count-pill">
+              {fichesPlanning.length}
+              {" "}
+              {fichesPlanning.length > 1
+                ? "chantiers"
+                : "chantier"}
+            </span>
+          </div>
+
+          {fichesPlanning.length ===
+          0 ? (
+            <section className="salarie-premium-empty">
+              <span className="salarie-premium-empty-icon">
+                ◇
+              </span>
+
+              <div>
                 <h3>
                   Aucun chantier
                 </h3>
@@ -1414,14 +2026,17 @@ export default function DashboardSalarie({
                 <p>
                   Aucune intervention ne vous est actuellement affectée.
                 </p>
-              </section>
-            ) : (
-              fichesPlanning.map(
+              </div>
+            </section>
+          ) : (
+            <div className="salarie-chantier-list">
+              {fichesPlanning.map(
                 (
                   fiche
                 ) => (
                   <button
                     type="button"
+                    className="salarie-chantier-card"
                     key={
                       fiche.id
                     }
@@ -1431,37 +2046,125 @@ export default function DashboardSalarie({
                       )
                     }
                   >
-                    <span className="salarie-icon">
-                      🌳
-                    </span>
+                    <div className="salarie-chantier-card-head">
+                      <span
+                        className={`salarie-status-pill ${classeStatut(
+                          fiche.statut
+                        )}`}
+                      >
+                        {texteStatut(
+                          fiche.statut
+                        )}
+                      </span>
 
-                    <strong>
-                      {nomIntervention(
-                        fiche
-                      )}
-                    </strong>
+                      <span className="salarie-card-number">
+                        {fiche.numero ||
+                          "Intervention"}
+                      </span>
+                    </div>
 
-                    <small>
-                      {fiche.client_nom ||
-                        "Client"}
-                    </small>
+                    <div className="salarie-chantier-card-title">
+                      <div>
+                        <h3>
+                          {nomIntervention(
+                            fiche
+                          )}
+                        </h3>
 
-                    <small>
-                      {texteStatut(
-                        fiche.statut
-                      )}
-                    </small>
+                        <p className="salarie-card-client">
+                          {fiche.client_nom ||
+                            "Client"}
+                        </p>
+                      </div>
 
-                    {fiche.pv_fin_chantier_id ? (
-                      <small>
-                        ✓ PV enregistré
-                      </small>
-                    ) : null}
+                      <span className="salarie-card-arrow">
+                        ›
+                      </span>
+                    </div>
+
+                    <div className="salarie-chantier-meta">
+                      <span>
+                        <strong>
+                          {heureIntervention(
+                            fiche
+                          )}
+                        </strong>
+                        {formatDate(
+                          dateDebut(
+                            fiche
+                          )
+                        )}
+                      </span>
+
+                      <span>
+                        {adresseIntervention(
+                          fiche
+                        )}
+                      </span>
+                    </div>
+
+                    <div
+                      className="salarie-workflow"
+                      aria-label="Avancement du chantier"
+                    >
+                      <span
+                        className={
+                          etapeValidee(
+                            fiche.etape_materiel_statut
+                          )
+                            ? "done"
+                            : ""
+                        }
+                      >
+                        <i />
+                        Matériel
+                      </span>
+
+                      <span
+                        className={
+                          etapeValidee(
+                            fiche.etape_arrivee_statut
+                          )
+                            ? "done"
+                            : ""
+                        }
+                      >
+                        <i />
+                        Arrivée
+                      </span>
+
+                      <span
+                        className={
+                          etapeValidee(
+                            fiche.etape_fin_statut
+                          ) ||
+                          interventionTerminee(
+                            fiche
+                          )
+                            ? "done"
+                            : ""
+                        }
+                      >
+                        <i />
+                        Fin
+                      </span>
+
+                      <span
+                        className={
+                          fiche.pv_fin_chantier_id
+                            ? "done"
+                            : ""
+                        }
+                      >
+                        <i />
+                        PV
+                      </span>
+                    </div>
                   </button>
                 )
-              )
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </section>
 
         <nav className="salarie-bottom-nav">

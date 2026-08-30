@@ -17,6 +17,15 @@ export const dynamic = "force-dynamic";
 
 const NOMBRE_MAX_PHOTOS_A_SIGNER = 12;
 
+const ORIGINES_AUTORISEES = new Set([
+  "https://arboboard.fr",
+  "https://www.arboboard.fr",
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost",
+]);
+
 type SupabaseAdminClient = any;
 
 type ProfilUtilisateur = {
@@ -38,6 +47,48 @@ type PhotoBase = PhotoPv & {
   url?: string | null;
   storage_path?: string | null;
 };
+
+function origineAutorisee(origine: string) {
+  if (ORIGINES_AUTORISEES.has(origine)) {
+    return true;
+  }
+
+  return /^https?:\\/\\/(?:localhost|127\\.0\\.0\\.1)(?::\\d+)?$/i.test(
+    origine
+  );
+}
+
+function entetesCors(request: Request) {
+  const origine = String(
+    request.headers.get("origin") || ""
+  ).trim();
+
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Authorization, Content-Type, X-Arboboard-Client",
+    "Access-Control-Expose-Headers":
+      "Content-Disposition, Content-Length, Content-Type",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+
+  if (origine && origineAutorisee(origine)) {
+    headers["Access-Control-Allow-Origin"] = origine;
+  }
+
+  return headers;
+}
+
+export async function OPTIONS(request: Request) {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      ...entetesCors(request),
+      "Cache-Control": "public, max-age=86400",
+    },
+  });
+}
 
 function reponseErreur(message: string, statut = 400) {
   return Response.json(
@@ -694,6 +745,7 @@ export async function POST(request: Request) {
     return new Response(new Uint8Array(bufferRendu), {
       status: 200,
       headers: {
+        ...entetesCors(request),
         "Content-Type": "application/pdf",
         "Content-Disposition":
           `attachment; filename="${nomFichier}"; ` +

@@ -1,15 +1,23 @@
 import {
-  ComponentType,
   useEffect,
   useMemo,
   useState,
+} from "react";
+import type {
+  ComponentType,
 } from "react";
 
 import {
   supabase,
 } from "../lib/supabase";
 
-import InterventionSalarieMobile from "./InterventionSalarieMobile";
+import {
+  estEnLigne,
+  lireCache,
+  mettreEnCache,
+} from "../lib/offline";
+
+import InterventionSalarieMobile from "./InterventionSalarieOfflineBridge";
 import DemandesSalarieMobile from "./DemandesSalarieMobile";
 import ProfilSalarieMobile from "./ProfilSalarieMobile";
 import PvFinChantierMobile from "./PvFinChantierMobile";
@@ -18,16 +26,12 @@ import "./DashboardSalarie.css";
 
 type Props = {
   profilId: string;
-
   entrepriseId:
     string | null;
-
   prenom?:
     string | null;
-
   email?:
     string | null;
-
   onDeconnexion:
     () => void;
 };
@@ -43,22 +47,16 @@ type VueSalarie =
 
 type SalarieRow = {
   id: string;
-
   user_id?:
     string | null;
-
   profil_id?:
     string | null;
-
   email?:
     string | null;
-
   prenom?:
     string | null;
-
   nom?:
     string | null;
-
   entreprise_id?:
     string | null;
 };
@@ -68,7 +66,6 @@ type FicheIntervention = {
 
   numero:
     string | null;
-
   titre:
     string | null;
 
@@ -122,6 +119,17 @@ type FicheIntervention = {
 
   etape_fin_statut?:
     string | null;
+};
+
+type CacheDashboardSalarie = {
+  salarie:
+    SalarieRow;
+  entrepriseId:
+    string;
+  fiches:
+    FicheIntervention[];
+  enregistreLe:
+    string;
 };
 
 const InterventionMobile =
@@ -233,10 +241,8 @@ function formatDate(
       {
         weekday:
           "long",
-
         day:
           "numeric",
-
         month:
           "long",
       }
@@ -294,8 +300,10 @@ function texteStatut(
     return "Brouillon";
   }
 
-  return statut ||
-    "Planifiée";
+  return (
+    statut ||
+    "Planifiée"
+  );
 }
 
 function nomIntervention(
@@ -314,18 +322,20 @@ function adresseIntervention(
   fiche:
     FicheIntervention
 ) {
-  return [
-    fiche.adresse_chantier,
-    fiche.code_postal_chantier,
-    fiche.ville_chantier,
-  ]
-    .filter(
-      Boolean
-    )
-    .join(
-      " "
-    ) ||
-    "Adresse à consulter dans la fiche";
+  return (
+    [
+      fiche.adresse_chantier,
+      fiche.code_postal_chantier,
+      fiche.ville_chantier,
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        " "
+      ) ||
+    "Adresse à consulter dans la fiche"
+  );
 }
 
 function heureIntervention(
@@ -353,6 +363,13 @@ function interventionTerminee(
   ).includes(
     "term"
   );
+}
+
+function cleCacheDashboard(
+  profilId:
+    string
+) {
+  return `salarie:dashboard:${profilId}`;
 }
 
 export default function DashboardSalarie({
@@ -419,6 +436,14 @@ export default function DashboardSalarie({
   ] =
     useState(
       ""
+    );
+
+  const [
+    donneesHorsLigne,
+    setDonneesHorsLigne,
+  ] =
+    useState(
+      false
     );
 
   const prenomAffiche =
@@ -494,7 +519,9 @@ export default function DashboardSalarie({
   const fichesPlanning =
     useMemo(
       () =>
-        [...fiches].sort(
+        [
+          ...fiches,
+        ].sort(
           (
             a,
             b
@@ -579,9 +606,10 @@ export default function DashboardSalarie({
             profilId ||
           ligne.user_id ===
             profilId ||
-          Boolean(
-            emailNormalise
-          ) &&
+          (
+            Boolean(
+              emailNormalise
+            ) &&
             String(
               ligne.email ||
                 ""
@@ -589,6 +617,7 @@ export default function DashboardSalarie({
               .trim()
               .toLowerCase() ===
               emailNormalise
+          )
       ) ||
       null
     );
@@ -659,6 +688,12 @@ export default function DashboardSalarie({
           );
         }
       }
+    }
+
+    if (
+      anciennesResult.error
+    ) {
+      throw anciennesResult.error;
     }
 
     const fichesDirectes =
@@ -742,10 +777,75 @@ export default function DashboardSalarie({
       );
     }
 
+    return Array.from(
+      parId.values()
+    );
+  }
+
+  async function chargerDepuisCache() {
+    const cache =
+      await lireCache<CacheDashboardSalarie>(
+        cleCacheDashboard(
+          profilId
+        )
+      );
+
+    if (
+      !cache?.salarie ||
+      !cache.entrepriseId
+    ) {
+      return false;
+    }
+
+    setSalarie(
+      cache.salarie
+    );
+
+    setEntrepriseCouranteId(
+      cache.entrepriseId
+    );
+
     setFiches(
-      Array.from(
-        parId.values()
+      Array.isArray(
+        cache.fiches
       )
+        ? cache.fiches
+        : []
+    );
+
+    setDonneesHorsLigne(
+      true
+    );
+
+    setErreur(
+      ""
+    );
+
+    return true;
+  }
+
+  async function enregistrerCache(
+    salarieTrouve:
+      SalarieRow,
+    idEntreprise:
+      string,
+    fichesChargees:
+      FicheIntervention[]
+  ) {
+    await mettreEnCache<CacheDashboardSalarie>(
+      cleCacheDashboard(
+        profilId
+      ),
+      {
+        salarie:
+          salarieTrouve,
+        entrepriseId:
+          idEntreprise,
+        fiches:
+          fichesChargees,
+        enregistreLe:
+          new Date().toISOString(),
+      }
     );
   }
 
@@ -759,44 +859,94 @@ export default function DashboardSalarie({
         ""
       );
 
-      const salarieTrouve =
-        await trouverSalarie();
-
       if (
-        !salarieTrouve
+        !estEnLigne()
       ) {
-        throw new Error(
-          "Impossible de retrouver la fiche salarié liée à ce compte."
-        );
+        const charge =
+          await chargerDepuisCache();
+
+        if (
+          !charge
+        ) {
+          throw new Error(
+            "Aucune intervention n’est encore disponible hors ligne sur cet appareil. Ouvrez Arboboard une fois avec Internet."
+          );
+        }
+
+        return;
       }
 
-      const idEntreprise =
-        String(
-          salarieTrouve.entreprise_id ||
-            entrepriseId ||
-            ""
+      try {
+        const salarieTrouve =
+          await trouverSalarie();
+
+        if (
+          !salarieTrouve
+        ) {
+          throw new Error(
+            "Impossible de retrouver la fiche salarié liée à ce compte."
+          );
+        }
+
+        const idEntreprise =
+          String(
+            salarieTrouve.entreprise_id ||
+              entrepriseId ||
+              ""
+          );
+
+        if (
+          !idEntreprise
+        ) {
+          throw new Error(
+            "Aucune entreprise n’est rattachée à ce compte."
+          );
+        }
+
+        const fichesChargees =
+          await chargerInterventions(
+            salarieTrouve.id,
+            idEntreprise
+          );
+
+        setSalarie(
+          salarieTrouve
         );
 
-      if (
-        !idEntreprise
+        setEntrepriseCouranteId(
+          idEntreprise
+        );
+
+        setFiches(
+          fichesChargees
+        );
+
+        setDonneesHorsLigne(
+          false
+        );
+
+        await enregistrerCache(
+          salarieTrouve,
+          idEntreprise,
+          fichesChargees
+        );
+      } catch (
+        erreurEnLigne
       ) {
-        throw new Error(
-          "Aucune entreprise n’est rattachée à ce compte."
+        console.warn(
+          "Chargement salarié en ligne impossible, tentative du cache :",
+          erreurEnLigne
         );
+
+        const charge =
+          await chargerDepuisCache();
+
+        if (
+          !charge
+        ) {
+          throw erreurEnLigne;
+        }
       }
-
-      setSalarie(
-        salarieTrouve
-      );
-
-      setEntrepriseCouranteId(
-        idEntreprise
-      );
-
-      await chargerInterventions(
-        salarieTrouve.id,
-        idEntreprise
-      );
     } catch (
       error
     ) {
@@ -853,6 +1003,30 @@ export default function DashboardSalarie({
 
     setVue(
       "pv"
+    );
+  }
+
+  function banniereHorsLigne() {
+    if (
+      !donneesHorsLigne
+    ) {
+      return null;
+    }
+
+    return (
+      <section className="salarie-next-card">
+        <p className="salarie-kicker">
+          MODE HORS LIGNE
+        </p>
+
+        <h3>
+          Données enregistrées sur cet appareil
+        </h3>
+
+        <p>
+          Planning et liste des chantiers disponibles sans réseau. Les données seront actualisées au prochain chargement en ligne.
+        </p>
+      </section>
     );
   }
 
@@ -1046,6 +1220,8 @@ export default function DashboardSalarie({
           </button>
         </header>
 
+        {banniereHorsLigne()}
+
         <section className="salarie-section">
           <div className="salarie-actions-grid">
             {fichesPlanning.length ===
@@ -1122,7 +1298,6 @@ export default function DashboardSalarie({
             <span>
               ⌂
             </span>
-
             Accueil
           </button>
 
@@ -1133,7 +1308,6 @@ export default function DashboardSalarie({
             <span>
               ▦
             </span>
-
             Planning
           </button>
 
@@ -1148,7 +1322,6 @@ export default function DashboardSalarie({
             <span>
               🌳
             </span>
-
             Chantiers
           </button>
 
@@ -1163,7 +1336,6 @@ export default function DashboardSalarie({
             <span>
               ＋
             </span>
-
             Demandes
           </button>
 
@@ -1178,7 +1350,6 @@ export default function DashboardSalarie({
             <span>
               ●
             </span>
-
             Profil
           </button>
         </nav>
@@ -1228,6 +1399,8 @@ export default function DashboardSalarie({
             ‹
           </button>
         </header>
+
+        {banniereHorsLigne()}
 
         <section className="salarie-section">
           <div className="salarie-actions-grid">
@@ -1301,7 +1474,6 @@ export default function DashboardSalarie({
             <span>
               ⌂
             </span>
-
             Accueil
           </button>
 
@@ -1316,7 +1488,6 @@ export default function DashboardSalarie({
             <span>
               ▦
             </span>
-
             Planning
           </button>
 
@@ -1327,7 +1498,6 @@ export default function DashboardSalarie({
             <span>
               🌳
             </span>
-
             Chantiers
           </button>
 
@@ -1342,7 +1512,6 @@ export default function DashboardSalarie({
             <span>
               ＋
             </span>
-
             Demandes
           </button>
 
@@ -1357,7 +1526,6 @@ export default function DashboardSalarie({
             <span>
               ●
             </span>
-
             Profil
           </button>
         </nav>
@@ -1406,6 +1574,8 @@ export default function DashboardSalarie({
           👤
         </button>
       </header>
+
+      {banniereHorsLigne()}
 
       {erreur ? (
         <section
@@ -1503,7 +1673,6 @@ export default function DashboardSalarie({
               }
             >
               Ouvrir l’intervention
-
               <span>
                 →
               </span>
@@ -1740,7 +1909,6 @@ export default function DashboardSalarie({
           <span>
             ⌂
           </span>
-
           Accueil
         </button>
 
@@ -1755,7 +1923,6 @@ export default function DashboardSalarie({
           <span>
             ▦
           </span>
-
           Planning
         </button>
 
@@ -1770,7 +1937,6 @@ export default function DashboardSalarie({
           <span>
             🌳
           </span>
-
           Chantiers
         </button>
 
@@ -1785,7 +1951,6 @@ export default function DashboardSalarie({
           <span>
             ＋
           </span>
-
           Demandes
         </button>
 
@@ -1800,7 +1965,6 @@ export default function DashboardSalarie({
           <span>
             ●
           </span>
-
           Profil
         </button>
       </nav>

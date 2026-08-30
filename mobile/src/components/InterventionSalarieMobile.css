@@ -6,40 +6,31 @@
   --is-green-700: #1f644b;
   --is-green-600: #2e7659;
 
-  --is-gold: #d4b774;
-  --is-gold-light: #ecd7a7;
+  --is-gold: #c9a968;
+  --is-gold-light: #ead9b5;
 
-  --is-cream: #f7f3ea;
-  --is-cream-2: #f0ece3;
-  --is-white: #fffdfa;
+  --is-cream: #f6f2e9;
+  --is-cream-2: #eee8dc;
+  --is-white: #fffefa;
 
   --is-text: #17372d;
-  --is-soft: #66756d;
-  --is-light: #8b948f;
+  --is-soft: #68786f;
+  --is-light: #89938d;
+  --is-border: #e2ddd3;
 
-  --is-border: #e1ddd4;
-
-  --is-success: #276548;
+  --is-success: #256447;
   --is-success-bg: #e8f5ed;
-
-  --is-warning: #99631f;
-  --is-warning-bg: #fff3dc;
-
+  --is-warning: #93611f;
+  --is-warning-bg: #fff4df;
   --is-danger: #963b3b;
   --is-danger-bg: #fff0f0;
 
-  min-height: 100vh;
-
+  width: 100%;
+  min-height: 100dvh;
   background:
-    radial-gradient(
-      circle at 92% 3%,
-      rgba(212, 183, 116, 0.11),
-      transparent 22%
-    ),
+    radial-gradient(circle at 96% 1%, rgba(201, 169, 104, 0.11), transparent 23%),
     var(--is-cream);
-
   color: var(--is-text);
-
   font-family:
     Inter,
     ui-sans-serif,
@@ -50,138 +41,104 @@
     sans-serif;
 }
 
+.intervention-salarie-mobile *,
+.intervention-salarie-mobile *::before,
+.intervention-salarie-mobile *::after {
+  box-sizing: border-box;
+}
+
+.intervention-salarie-mobile button,
+.intervention-salarie-mobile input,
+.intervention-salarie-mobile textarea,
+.intervention-salarie-mobile select {
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.intervention-salarie-mobile button {
+  touch-action: manipulation;
+}
+
 /* =========================================================
    HEADER
    ========================================================= */
 
 .intervention-salarie-header {
   position: sticky;
-
   z-index: 100;
-
   top: 0;
-
-  min-height: 76px;
-
-  box-sizing: border-box;
-
+  min-height: 84px;
   display: grid;
-
-  grid-template-columns:
-    44px
-    minmax(0, 1fr)
-    44px;
-
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
-
-  gap: 8px;
-
+  gap: 10px;
   padding:
-    max(
-      14px,
-      env(safe-area-inset-top)
-    )
+    max(14px, env(safe-area-inset-top))
     14px
     12px;
-
   background:
-    radial-gradient(
-      circle at 89% 8%,
-      rgba(236, 215, 167, 0.14),
-      transparent 25%
-    ),
-    linear-gradient(
-      180deg,
-      #143f31,
-      #0b3328
-    );
-
+    radial-gradient(circle at 90% 7%, rgba(234, 217, 181, 0.15), transparent 27%),
+    linear-gradient(180deg, #154736, #0a3328);
   color: #ffffff;
-
-  box-shadow:
-    0 8px 22px
-      rgba(7, 34, 27, 0.15);
+  box-shadow: 0 8px 24px rgba(7, 34, 27, 0.16);
 }
 
 .intervention-salarie-header > div {
   min-width: 0;
-
   text-align: center;
 }
 
 .intervention-salarie-header h1 {
   overflow: hidden;
-
   margin: 0;
-
   color: #ffffff;
-
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 900;
-
+  line-height: 1.15;
   letter-spacing: -0.025em;
-
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.intervention-salarie-header
-  > div
-  > span {
+.intervention-salarie-header > div > span {
   display: block;
-
   overflow: hidden;
-
-  margin-top: 2px;
-
-  color:
-    rgba(255, 255, 255, 0.58);
-
-  font-size: 8px;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
   font-weight: 700;
-
+  line-height: 1.2;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.intervention-salarie-header
-  > button,
+.intervention-salarie-header > button,
 .intervention-salarie-back,
 .intervention-salarie-refresh {
-  width: 42px;
-  height: 42px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.08);
-
-  border-radius: 13px;
-
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 14px;
   display: grid;
   place-items: center;
-
-  background:
-    rgba(255, 255, 255, 0.07);
-
+  background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
-
   cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .intervention-salarie-back {
-  font-size: 31px;
-
+  font-size: 32px;
   line-height: 1;
 }
 
 .intervention-salarie-refresh {
-  font-size: 17px;
+  font-size: 19px;
 }
 
-.intervention-salarie-header
-  > button:disabled {
+.intervention-salarie-header > button:disabled {
   opacity: 0.5;
-
   cursor: default;
 }
 
@@ -191,168 +148,93 @@
 
 .intervention-salarie-content {
   width: 100%;
-
-  max-width: 560px;
-
+  max-width: 680px;
   margin: 0 auto;
-
-  box-sizing: border-box;
-
   padding:
-    16px 15px
-    max(
-      34px,
-      env(safe-area-inset-bottom)
-    );
+    18px 16px
+    max(40px, env(safe-area-inset-bottom));
 }
 
 /* =========================================================
-   HERO CHANTIER
+   HERO
    ========================================================= */
 
 .intervention-salarie-hero {
-  margin-bottom: 12px;
-
-  border-radius: 18px;
-
-  padding: 16px;
-
+  margin-bottom: 14px;
+  border-radius: 22px;
+  padding: 19px;
   background:
-    radial-gradient(
-      circle at 90% 12%,
-      rgba(236, 215, 167, 0.17),
-      transparent 29%
-    ),
-    linear-gradient(
-      135deg,
-      #174b3a,
-      #0c3429
-    );
-
+    radial-gradient(circle at 91% 10%, rgba(234, 217, 181, 0.17), transparent 30%),
+    linear-gradient(135deg, #174b3a, #0c3429);
   color: #ffffff;
-
-  box-shadow:
-    0 10px 25px
-      rgba(10, 52, 40, 0.16);
+  box-shadow: 0 12px 28px rgba(10, 52, 40, 0.17);
 }
 
 .intervention-salarie-hero-top {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
-  gap: 10px;
-
-  margin-bottom: 11px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.intervention-salarie-hero-top
-  > small {
-  color:
-    var(--is-gold-light);
-
-  font-size: 9px;
+.intervention-salarie-hero-top > small {
+  color: var(--is-gold-light);
+  font-size: 12px;
   font-weight: 900;
 }
 
 .intervention-salarie-hero h2 {
   overflow: hidden;
-
   margin: 0;
-
   color: #ffffff;
-
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 900;
-
-  letter-spacing: -0.025em;
-
-  white-space: nowrap;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   text-overflow: ellipsis;
 }
 
 .intervention-salarie-hero > p {
-  margin:
-    5px 0 12px;
-
-  color:
-    rgba(255, 255, 255, 0.7);
-
-  font-size: 9px;
-
-  line-height: 1.45;
+  margin: 7px 0 14px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .intervention-salarie-hero-info {
   display: flex;
-
   flex-wrap: wrap;
-
-  gap: 6px;
-
-  margin-bottom: 12px;
+  gap: 7px;
+  margin-bottom: 14px;
 }
 
-.intervention-salarie-hero-info
-  > span {
-  min-height: 28px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.08);
-
+.intervention-salarie-hero-info > span {
+  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 999px;
-
-  padding:
-    0 9px;
-
+  padding: 0 11px;
   display: inline-flex;
-
   align-items: center;
-
-  background:
-    rgba(255, 255, 255, 0.06);
-
-  color:
-    rgba(255, 255, 255, 0.8);
-
-  font-size: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 11px;
   font-weight: 750;
 }
 
-/* =========================================================
-   BARRE PROGRESSION
-   ========================================================= */
-
 .intervention-salarie-progress {
-  height: 7px;
-
+  height: 8px;
   overflow: hidden;
-
   border-radius: 999px;
-
-  background:
-    rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.13);
 }
 
-.intervention-salarie-progress
-  > span {
+.intervention-salarie-progress > span {
   display: block;
-
   height: 100%;
-
   border-radius: inherit;
-
-  background:
-    linear-gradient(
-      90deg,
-      var(--is-gold),
-      var(--is-gold-light)
-    );
-
-  transition:
-    width 250ms ease;
+  background: linear-gradient(90deg, var(--is-gold), var(--is-gold-light));
+  transition: width 250ms ease;
 }
 
 /* =========================================================
@@ -361,68 +243,38 @@
 
 .intervention-salarie-status {
   width: fit-content;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.11);
-
+  border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 999px;
-
-  padding:
-    5px 8px;
-
-  font-size: 7px;
+  padding: 6px 10px;
+  font-size: 10px;
   font-weight: 900;
-
   white-space: nowrap;
 }
 
-.intervention-salarie-status-brouillon {
-  background:
-    rgba(255, 255, 255, 0.1);
-
-  color:
-    rgba(255, 255, 255, 0.75);
+.intervention-salarie-status-brouillon,
+.intervention-salarie-status-archivee {
+  background: rgba(255, 255, 255, 0.11);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .intervention-salarie-status-planifiee {
-  background:
-    rgba(91, 156, 219, 0.2);
-
-  color:
-    #dbeeff;
+  background: rgba(91, 156, 219, 0.2);
+  color: #dbeeff;
 }
 
 .intervention-salarie-status-en_cours {
-  background:
-    rgba(225, 162, 65, 0.2);
-
-  color:
-    #ffe2ae;
+  background: rgba(225, 162, 65, 0.2);
+  color: #ffe2ae;
 }
 
 .intervention-salarie-status-terminee {
-  background:
-    rgba(77, 166, 112, 0.22);
-
-  color:
-    #d6f4e1;
+  background: rgba(77, 166, 112, 0.22);
+  color: #d6f4e1;
 }
 
 .intervention-salarie-status-annulee {
-  background:
-    rgba(201, 80, 80, 0.22);
-
-  color:
-    #ffdede;
-}
-
-.intervention-salarie-status-archivee {
-  background:
-    rgba(255, 255, 255, 0.1);
-
-  color:
-    rgba(255, 255, 255, 0.65);
+  background: rgba(201, 80, 80, 0.22);
+  color: #ffdede;
 }
 
 /* =========================================================
@@ -432,531 +284,305 @@
 .intervention-salarie-error,
 .intervention-salarie-success,
 .intervention-salarie-readonly {
-  margin-bottom: 11px;
-
-  border-radius: 11px;
-
-  padding:
-    11px 12px;
-
-  font-size: 9px;
+  margin-bottom: 13px;
+  border-radius: 13px;
+  padding: 13px 14px;
+  font-size: 13px;
   font-weight: 700;
-
   line-height: 1.5;
 }
 
 .intervention-salarie-error {
-  border:
-    1px solid
-    #edc5c5;
-
-  background:
-    var(--is-danger-bg);
-
-  color:
-    var(--is-danger);
+  border: 1px solid #e9c2c2;
+  background: var(--is-danger-bg);
+  color: var(--is-danger);
 }
 
 .intervention-salarie-success {
-  border:
-    1px solid
-    #b8ddc6;
-
-  background:
-    var(--is-success-bg);
-
-  color:
-    var(--is-success);
+  border: 1px solid #b9d8c4;
+  background: var(--is-success-bg);
+  color: var(--is-success);
 }
 
 .intervention-salarie-readonly {
-  border:
-    1px dashed
-    #d1ccc2;
-
-  background:
-    #efebe3;
-
-  color:
-    #78817c;
-
-  text-align: center;
+  border: 1px solid #dfd0ad;
+  background: var(--is-warning-bg);
+  color: var(--is-warning);
 }
 
 /* =========================================================
-   NAVIGATION ETAPES
+   NAVIGATION ÉTAPES
    ========================================================= */
 
 .intervention-salarie-steps {
   position: sticky;
-
   z-index: 40;
-
-  top: 77px;
-
+  top: 84px;
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      5,
-      minmax(0, 1fr)
-    );
-
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
-
-  margin:
-    0 -2px 14px;
-
-  padding:
-    7px 2px;
-
-  background:
-    rgba(247, 243, 234, 0.94);
-
-  backdrop-filter:
-    blur(10px);
+  margin: 0 -3px 18px;
+  padding: 8px 3px;
+  background: rgba(246, 242, 233, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.intervention-salarie-steps
-  button {
+.intervention-salarie-steps button {
   position: relative;
-
   min-width: 0;
-  min-height: 62px;
-
+  min-height: 68px;
   border: 0;
-
-  border-radius: 11px;
-
-  padding:
-    6px 2px;
-
+  border-radius: 13px;
+  padding: 7px 2px;
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 4px;
-
+  gap: 5px;
   background: transparent;
-
-  color:
-    var(--is-light);
-
+  color: var(--is-light);
   cursor: pointer;
 }
 
-.intervention-salarie-steps
-  button > span {
-  width: 28px;
-  height: 28px;
-
-  border:
-    2px solid
-    #d7d4cd;
-
+.intervention-salarie-steps button > span {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #d7d4cd;
   border-radius: 999px;
-
   display: grid;
   place-items: center;
-
-  background:
-    var(--is-white);
-
-  color:
-    #858e89;
-
-  font-size: 8px;
+  background: var(--is-white);
+  color: #7e8983;
+  font-size: 11px;
   font-weight: 900;
 }
 
-.intervention-salarie-steps
-  button > small {
+.intervention-salarie-steps button > small {
   overflow: hidden;
-
   width: 100%;
-
   color: inherit;
-
-  font-size: 6.5px;
+  font-size: 9px;
   font-weight: 850;
-
+  line-height: 1.2;
   text-align: center;
-
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.intervention-salarie-steps
-  button.active {
-  background:
-    #ebe7de;
-
-  color:
-    var(--is-green-900);
+.intervention-salarie-steps button.active {
+  background: #eae6dc;
+  color: var(--is-green-900);
 }
 
-.intervention-salarie-steps
-  button.active
-  > span {
-  border-color:
-    var(--is-green-700);
-
-  background:
-    var(--is-green-700);
-
+.intervention-salarie-steps button.active > span {
+  border-color: var(--is-green-700);
+  background: var(--is-green-700);
   color: #ffffff;
 }
 
-.intervention-salarie-steps
-  button.done
-  > span {
-  border-color:
-    var(--is-green-700);
-
-  background:
-    var(--is-success-bg);
-
-  color:
-    var(--is-success);
+.intervention-salarie-steps button.done > span {
+  border-color: var(--is-green-700);
+  background: var(--is-success-bg);
+  color: var(--is-success);
 }
 
-.intervention-salarie-steps
-  button.done.active
-  > span {
-  background:
-    var(--is-green-700);
-
+.intervention-salarie-steps button.done.active > span {
+  background: var(--is-green-700);
   color: #ffffff;
 }
 
 /* =========================================================
-   TITRE ETAPE
+   TITRE ÉTAPE
    ========================================================= */
 
 .intervention-salarie-step-heading {
-  margin-bottom: 11px;
-
-  border:
-    1px solid
-    var(--is-border);
-
-  border-radius: 15px;
-
-  padding: 13px;
-
+  margin: 5px 0 14px;
   display: grid;
-
-  grid-template-columns:
-    45px minmax(0, 1fr);
-
+  grid-template-columns: 50px minmax(0, 1fr);
   align-items: center;
-
-  gap: 10px;
-
-  background:
-    var(--is-white);
+  gap: 12px;
 }
 
-.intervention-salarie-step-heading
-  > span {
-  width: 45px;
-  height: 45px;
-
-  border-radius: 13px;
-
+.intervention-salarie-step-heading > span {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
   display: grid;
   place-items: center;
-
-  background:
-    #e7efea;
-
-  font-size: 19px;
+  background: #e5eee9;
+  font-size: 21px;
 }
 
-.intervention-salarie-step-heading
-  > div {
+.intervention-salarie-step-heading > div {
   min-width: 0;
 }
 
-.intervention-salarie-step-heading
-  small {
+.intervention-salarie-step-heading small {
   display: block;
-
-  margin-bottom: 2px;
-
-  color:
-    #a18450;
-
-  font-size: 7px;
+  margin-bottom: 3px;
+  color: #a18450;
+  font-size: 10px;
   font-weight: 900;
-
-  letter-spacing: 0.08em;
+  letter-spacing: 0.09em;
 }
 
-.intervention-salarie-step-heading
-  h2 {
+.intervention-salarie-step-heading h2 {
   margin: 0;
-
-  color:
-    var(--is-green-950);
-
-  font-size: 14px;
+  color: var(--is-green-950);
+  font-size: 20px;
   font-weight: 900;
+  line-height: 1.2;
 }
 
-.intervention-salarie-step-heading
-  p {
-  margin:
-    3px 0 0;
-
-  color:
-    var(--is-light);
-
-  font-size: 8px;
-
-  line-height: 1.45;
+.intervention-salarie-step-heading p {
+  margin: 4px 0 0;
+  color: var(--is-soft);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* =========================================================
-   CARTE GENERIQUE
+   CARTES
    ========================================================= */
 
 .intervention-salarie-card,
 .intervention-salarie-summary-card {
-  margin-bottom: 11px;
-
-  border:
-    1px solid
-    var(--is-border);
-
-  border-radius: 14px;
-
-  padding: 14px;
-
-  background:
-    var(--is-white);
-
-  box-shadow:
-    0 5px 15px
-      rgba(20, 48, 38, 0.035);
+  margin-bottom: 13px;
+  border: 1px solid var(--is-border);
+  border-radius: 18px;
+  padding: 16px;
+  background: var(--is-white);
+  box-shadow: 0 7px 22px rgba(20, 48, 38, 0.04);
 }
 
 .intervention-salarie-card > h3 {
-  margin:
-    0 0 10px;
-
-  color:
-    var(--is-green-900);
-
-  font-size: 11px;
+  margin: 0 0 12px;
+  color: var(--is-green-900);
+  font-size: 16px;
   font-weight: 900;
 }
 
 .intervention-salarie-card-title {
   display: grid;
-
-  grid-template-columns:
-    40px minmax(0, 1fr);
-
+  grid-template-columns: 44px minmax(0, 1fr);
   align-items: center;
-
-  gap: 9px;
-
-  margin-bottom: 11px;
+  gap: 11px;
+  margin-bottom: 13px;
 }
 
-.intervention-salarie-card-title
-  > span {
-  width: 40px;
-  height: 40px;
-
-  border-radius: 11px;
-
+.intervention-salarie-card-title > span {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
-
-  background:
-    #e9efeb;
-
-  font-size: 17px;
+  background: #e7efea;
+  font-size: 19px;
 }
 
-.intervention-salarie-card-title
-  > div {
+.intervention-salarie-card-title > div {
   min-width: 0;
 }
 
-.intervention-salarie-card-title
-  h3 {
+.intervention-salarie-card-title h3 {
   margin: 0;
-
-  color:
-    var(--is-green-900);
-
-  font-size: 11px;
+  color: var(--is-green-900);
+  font-size: 15px;
   font-weight: 900;
+  line-height: 1.25;
 }
 
-.intervention-salarie-card-title
-  p {
-  margin:
-    2px 0 0;
-
-  color:
-    var(--is-light);
-
-  font-size: 8px;
-
-  line-height: 1.4;
+.intervention-salarie-card-title p {
+  margin: 3px 0 0;
+  color: var(--is-soft);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 /* =========================================================
-   COMPTEUR MATERIEL
+   COMPTEUR MATÉRIEL
    ========================================================= */
 
 .intervention-salarie-counter-card {
-  margin-bottom: 11px;
-
-  border:
-    1px solid
-    #c7ddd0;
-
-  border-radius: 14px;
-
-  padding: 13px;
-
-  background:
-    #eff7f2;
+  margin-bottom: 13px;
+  border: 1px solid #cbded2;
+  border-radius: 18px;
+  padding: 15px;
+  background: #eef6f1;
 }
 
-.intervention-salarie-counter-card
-  > div:first-child {
+.intervention-salarie-counter-card > div:first-child {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
-  gap: 10px;
-
-  margin-bottom: 9px;
+  gap: 12px;
 }
 
-.intervention-salarie-counter-card
-  span {
-  color:
-    var(--is-green-900);
-
-  font-size: 9px;
+.intervention-salarie-counter-card span {
+  color: var(--is-soft);
+  font-size: 12px;
   font-weight: 800;
 }
 
-.intervention-salarie-counter-card
-  strong {
-  color:
-    var(--is-green-900);
-
+.intervention-salarie-counter-card strong {
+  color: var(--is-green-900);
   font-size: 18px;
   font-weight: 900;
 }
 
 .intervention-salarie-counter-progress {
   height: 7px;
-
   overflow: hidden;
-
+  margin-top: 11px;
   border-radius: 999px;
-
-  background:
-    #d8e7de;
+  background: #dbe7df;
 }
 
-.intervention-salarie-counter-progress
-  > span {
+.intervention-salarie-counter-progress > span {
   display: block;
-
   height: 100%;
-
   border-radius: inherit;
-
-  background:
-    linear-gradient(
-      90deg,
-      #2e7659,
-      #62a282
-    );
-
-  transition:
-    width 220ms ease;
+  background: linear-gradient(90deg, #2e7659, #62a282);
+  transition: width 220ms ease;
 }
 
 /* =========================================================
-   LISTE ELEMENTS
+   LISTE ÉLÉMENTS
    ========================================================= */
 
 .intervention-salarie-elements {
   display: grid;
-
-  gap: 7px;
+  gap: 9px;
 }
 
 .intervention-salarie-element {
   width: 100%;
-
-  min-height: 62px;
-
-  border:
-    1px solid
-    #e3dfd7;
-
-  border-radius: 11px;
-
-  padding:
-    9px;
-
+  min-height: 74px;
+  border: 1px solid #e3dfd7;
+  border-radius: 14px;
+  padding: 11px;
   display: grid;
-
-  grid-template-columns:
-    36px minmax(0, 1fr) auto;
-
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   align-items: center;
-
-  gap: 8px;
-
-  background:
-    #fbfaf7;
-
-  color:
-    var(--is-text);
-
-  font-family: inherit;
-
+  gap: 10px;
+  background: #fbfaf7;
+  color: var(--is-text);
   text-align: left;
-
   cursor: default;
 }
 
-.intervention-salarie-element.preparation:not(
-    :disabled
-  ) {
+.intervention-salarie-element.preparation:not(:disabled) {
   cursor: pointer;
 }
 
-.intervention-salarie-element.preparation:not(
-    :disabled
-  ):active {
-  transform:
-    scale(0.99);
+.intervention-salarie-element.preparation:not(:disabled):active {
+  transform: scale(0.99);
 }
 
 .intervention-salarie-element.done {
-  border-color:
-    #a9cfb7;
-
-  background:
-    #edf7f1;
+  border-color: #a9cfb7;
+  background: #edf7f1;
 }
 
 .intervention-salarie-element:disabled {
@@ -964,118 +590,72 @@
 }
 
 .intervention-salarie-element-icon {
-  width: 36px;
-  height: 36px;
-
-  border-radius: 10px;
-
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-
-  background:
-    #e8eeea;
-
-  color:
-    var(--is-green-800);
-
-  font-size: 14px;
+  background: #e8eeea;
+  color: var(--is-green-800);
+  font-size: 17px;
   font-weight: 900;
 }
 
-.intervention-salarie-element.done
-  .intervention-salarie-element-icon {
-  background:
-    var(--is-green-700);
-
+.intervention-salarie-element.done .intervention-salarie-element-icon {
+  background: var(--is-green-700);
   color: #ffffff;
 }
 
-.intervention-salarie-element
-  > div {
+.intervention-salarie-element > div {
   min-width: 0;
-
   display: grid;
-
-  gap: 2px;
+  gap: 3px;
 }
 
-.intervention-salarie-element
-  strong {
+.intervention-salarie-element strong {
   overflow: hidden;
-
-  color:
-    var(--is-green-950);
-
-  font-size: 9px;
+  color: var(--is-green-950);
+  font-size: 13px;
   font-weight: 850;
-
-  white-space: nowrap;
+  line-height: 1.3;
   text-overflow: ellipsis;
 }
 
-.intervention-salarie-element
-  small {
-  color:
-    var(--is-light);
-
-  font-size: 7px;
+.intervention-salarie-element small {
+  color: var(--is-light);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
-.intervention-salarie-element
-  p {
-  margin:
-    4px 0 0;
-
-  border-radius: 7px;
-
-  padding:
-    5px 6px;
-
-  background:
-    #ffffff;
-
-  color:
-    var(--is-soft);
-
-  font-size: 7px;
-
-  line-height: 1.4;
+.intervention-salarie-element p {
+  margin: 5px 0 0;
+  border-radius: 8px;
+  padding: 6px 7px;
+  background: #f1eee7;
+  color: var(--is-soft);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
-.intervention-salarie-element
-  p.employee {
-  background:
-    #dff1e6;
-
-  color:
-    var(--is-success);
+.intervention-salarie-element p.employee {
+  background: #eaf3ed;
+  color: var(--is-green-700);
 }
 
 .intervention-salarie-element-state {
-  flex: 0 0 auto;
-
+  min-width: 74px;
   border-radius: 999px;
-
-  padding:
-    5px 7px;
-
-  background:
-    #eceae5;
-
-  color:
-    #78817c;
-
-  font-size: 6.5px;
+  padding: 6px 8px;
+  background: #ece9e1;
+  color: #727c76;
+  font-size: 10px;
   font-weight: 900;
-
+  text-align: center;
   white-space: nowrap;
 }
 
-.intervention-salarie-element.done
-  .intervention-salarie-element-state {
-  background:
-    var(--is-green-700);
-
+.intervention-salarie-element.done .intervention-salarie-element-state {
+  background: var(--is-green-700);
   color: #ffffff;
 }
 
@@ -1084,24 +664,16 @@
    ========================================================= */
 
 .intervention-salarie-empty-small {
-  min-height: 55px;
-
-  border:
-    1px dashed
-    #ddd8cf;
-
-  border-radius: 10px;
-
+  min-height: 64px;
+  border: 1px dashed #ddd8cf;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-
-  background:
-    #faf8f3;
-
-  color:
-    var(--is-light);
-
-  font-size: 8px;
+  padding: 12px;
+  background: #faf8f3;
+  color: var(--is-soft);
+  font-size: 12px;
+  text-align: center;
 }
 
 /* =========================================================
@@ -1110,364 +682,204 @@
 
 .intervention-salarie-field {
   display: grid;
-
-  gap: 5px;
-
-  margin-bottom: 10px;
+  gap: 7px;
+  margin-bottom: 12px;
 }
 
 .intervention-salarie-field:last-child {
   margin-bottom: 0;
 }
 
-.intervention-salarie-field
-  > span {
-  color:
-    var(--is-soft);
-
-  font-size: 8px;
+.intervention-salarie-field > span {
+  color: var(--is-soft);
+  font-size: 12px;
   font-weight: 800;
 }
 
 .intervention-salarie-field textarea,
 .intervention-salarie-field input {
   width: 100%;
-
-  box-sizing: border-box;
-
-  border:
-    1px solid
-    var(--is-border);
-
-  border-radius: 10px;
-
-  background:
-    #fbfaf7;
-
-  color:
-    var(--is-text);
-
-  font-family: inherit;
-
-  font-size: 16px;
-
+  min-height: 48px;
+  border: 1px solid #dad7cf;
+  border-radius: 13px;
+  padding: 12px 13px;
+  background: #fffefa;
+  color: var(--is-text);
   outline: none;
-}
-
-.intervention-salarie-field textarea {
-  min-height: 90px;
-
-  padding:
-    10px 11px;
-
-  line-height: 1.5;
-
+  font-size: 16px;
+  line-height: 1.45;
   resize: vertical;
 }
 
-.intervention-salarie-field input {
-  min-height: 46px;
-
-  padding:
-    0 11px;
+.intervention-salarie-field textarea {
+  min-height: 96px;
 }
 
 .intervention-salarie-field textarea:focus,
 .intervention-salarie-field input:focus {
-  border-color:
-    var(--is-green-700);
-
-  box-shadow:
-    0 0 0 3px
-      rgba(31, 100, 75, 0.08);
+  border-color: var(--is-green-700);
+  box-shadow: 0 0 0 3px rgba(31, 100, 75, 0.08);
 }
 
 .intervention-salarie-field textarea:disabled,
 .intervention-salarie-field input:disabled {
-  background:
-    #efede7;
-
-  color:
-    #7f8883;
+  background: #efede7;
+  color: #7f8883;
 }
 
 /* =========================================================
-   BOUTON PRINCIPAL
+   ACTION PRINCIPALE
    ========================================================= */
 
 .intervention-salarie-main-action {
   position: sticky;
-
   z-index: 25;
-
-  bottom:
-    max(
-      13px,
-      env(safe-area-inset-bottom)
-    );
-
+  bottom: max(13px, env(safe-area-inset-bottom));
   width: 100%;
-
-  min-height: 54px;
-
-  margin:
-    15px 0;
-
+  min-height: 56px;
+  margin: 16px 0;
   border: 0;
-
-  border-radius: 13px;
-
-  padding:
-    0 14px;
-
-  background:
-    linear-gradient(
-      180deg,
-      #1b543f,
-      #103a2d
-    );
-
+  border-radius: 15px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #1b543f, #103a2d);
   color: #ffffff;
-
-  font-family: inherit;
-
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 900;
-
   cursor: pointer;
-
-  box-shadow:
-    0 10px 22px
-      rgba(10, 52, 40, 0.19);
+  box-shadow: 0 10px 24px rgba(10, 52, 40, 0.2);
 }
 
 .intervention-salarie-main-action.problem {
-  background:
-    linear-gradient(
-      180deg,
-      #a95545,
-      #81372f
-    );
+  background: linear-gradient(180deg, #a95545, #81372f);
 }
 
 .intervention-salarie-main-action:disabled {
-  background:
-    #aeb4b0;
-
-  color:
-    rgba(255, 255, 255, 0.78);
-
+  background: #aeb4b0;
+  color: rgba(255, 255, 255, 0.78);
   box-shadow: none;
-
   cursor: default;
 }
 
-.intervention-salarie-main-action:not(
-    :disabled
-  ):active {
-  transform:
-    scale(0.99);
+.intervention-salarie-main-action:not(:disabled):active {
+  transform: scale(0.99);
 }
 
 /* =========================================================
-   ETAPE TERMINEE
+   ÉTAPE TERMINÉE
    ========================================================= */
 
 .intervention-salarie-complete {
-  margin:
-    12px 0;
-
-  border:
-    1px solid
-    #afd5bd;
-
-  border-radius: 13px;
-
-  padding: 11px;
-
+  margin: 14px 0;
+  border: 1px solid #afd5bd;
+  border-radius: 15px;
+  padding: 13px;
   display: grid;
-
-  grid-template-columns:
-    38px minmax(0, 1fr) auto;
-
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   align-items: center;
-
-  gap: 9px;
-
-  background:
-    var(--is-success-bg);
+  gap: 10px;
+  background: var(--is-success-bg);
 }
 
-.intervention-salarie-complete
-  > span {
-  width: 38px;
-  height: 38px;
-
+.intervention-salarie-complete > span {
+  width: 42px;
+  height: 42px;
   border-radius: 999px;
-
   display: grid;
   place-items: center;
-
-  background:
-    var(--is-green-700);
-
+  background: var(--is-green-700);
   color: #ffffff;
-
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 900;
 }
 
-.intervention-salarie-complete
-  > div {
+.intervention-salarie-complete > div {
   min-width: 0;
-
   display: grid;
-
-  gap: 2px;
+  gap: 3px;
 }
 
-.intervention-salarie-complete
-  strong {
-  color:
-    var(--is-success);
-
-  font-size: 9px;
+.intervention-salarie-complete strong {
+  color: var(--is-success);
+  font-size: 13px;
   font-weight: 900;
 }
 
-.intervention-salarie-complete
-  small {
-  color:
-    #668274;
-
-  font-size: 7px;
+.intervention-salarie-complete small {
+  color: #668274;
+  font-size: 11px;
 }
 
-.intervention-salarie-complete
-  button {
-  min-height: 36px;
-
+.intervention-salarie-complete button {
+  min-height: 40px;
   border: 0;
-
-  border-radius: 9px;
-
-  padding:
-    0 9px;
-
-  background:
-    var(--is-green-700);
-
+  border-radius: 10px;
+  padding: 0 11px;
+  background: var(--is-green-700);
   color: #ffffff;
-
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 900;
-
   cursor: pointer;
-
   white-space: nowrap;
 }
 
 /* =========================================================
-   ADRESSE
+   ADRESSE / NOTES
    ========================================================= */
 
 .intervention-salarie-address {
   display: grid;
-
-  grid-template-columns:
-    42px minmax(0, 1fr);
-
+  grid-template-columns: 46px minmax(0, 1fr);
   align-items: center;
-
-  gap: 10px;
+  gap: 12px;
 }
 
-.intervention-salarie-address
-  > span {
-  width: 42px;
-  height: 42px;
-
-  border-radius: 12px;
-
+.intervention-salarie-address > span {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
-
-  background:
-    #e8efeb;
-
-  font-size: 17px;
+  background: #e8efeb;
+  font-size: 19px;
 }
 
-.intervention-salarie-address
-  > div {
+.intervention-salarie-address > div {
   min-width: 0;
-
   display: grid;
-
-  gap: 2px;
+  gap: 3px;
 }
 
-.intervention-salarie-address
-  small {
-  color:
-    #a18450;
-
-  font-size: 7px;
+.intervention-salarie-address small {
+  color: #a18450;
+  font-size: 10px;
   font-weight: 900;
-
   letter-spacing: 0.06em;
 }
 
-.intervention-salarie-address
-  strong {
-  color:
-    var(--is-green-900);
-
-  font-size: 9px;
-
+.intervention-salarie-address strong {
+  color: var(--is-green-900);
+  font-size: 13px;
   line-height: 1.45;
 }
 
-/* =========================================================
-   NOTES
-   ========================================================= */
-
 .intervention-salarie-note {
-  margin-top: 11px;
-
-  border:
-    1px solid
-    #e2d8bf;
-
-  border-radius: 10px;
-
-  padding:
-    10px;
-
-  background:
-    #fff8e9;
+  margin-top: 13px;
+  border: 1px solid #e2d8bf;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff8e9;
 }
 
-.intervention-salarie-note
-  strong {
-  color:
-    #8b642d;
-
-  font-size: 8px;
+.intervention-salarie-note strong {
+  color: #8b642d;
+  font-size: 12px;
 }
 
-.intervention-salarie-note
-  p {
-  margin:
-    4px 0 0;
-
-  color:
-    #77664e;
-
-  font-size: 8px;
-
-  line-height: 1.5;
-
+.intervention-salarie-note p {
+  margin: 5px 0 0;
+  color: #77664e;
+  font-size: 12px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -1477,230 +889,139 @@
 
 .intervention-salarie-time-grid {
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.intervention-salarie-time-grid
-  > div {
-  min-height: 68px;
-
-  border:
-    1px solid
-    #e5e1d9;
-
-  border-radius: 11px;
-
-  padding: 10px;
-
+.intervention-salarie-time-grid > div {
+  min-height: 78px;
+  border: 1px solid #e5e1d9;
+  border-radius: 14px;
+  padding: 12px;
   display: flex;
-
   flex-direction: column;
-
   justify-content: center;
-
-  gap: 3px;
-
-  background:
-    #fbfaf7;
+  gap: 4px;
+  background: #fbfaf7;
 }
 
-.intervention-salarie-time-grid
-  span {
-  color:
-    var(--is-light);
-
-  font-size: 7px;
+.intervention-salarie-time-grid span {
+  color: var(--is-light);
+  font-size: 11px;
   font-weight: 800;
 }
 
-.intervention-salarie-time-grid
-  strong {
-  color:
-    var(--is-green-950);
-
-  font-size: 18px;
+.intervention-salarie-time-grid strong {
+  color: var(--is-green-950);
+  font-size: 21px;
   font-weight: 900;
 }
 
 /* =========================================================
-   TEXTES CHANTIER
+   TEXTES CHANTIER / SÉCURITÉ
    ========================================================= */
 
 .intervention-salarie-text {
   margin: 0;
-
-  color:
-    var(--is-soft);
-
-  font-size: 9px;
-
-  line-height: 1.6;
-
+  color: var(--is-soft);
+  font-size: 13px;
+  line-height: 1.65;
   white-space: pre-wrap;
 }
 
 .intervention-salarie-security {
-  border-color:
-    #e7d7aa;
-
-  background:
-    #fffaf0;
+  border-color: #e3d2aa;
+  background: #fffaf0;
 }
 
 /* =========================================================
-   RESUME PHOTOS
+   PHOTOS
    ========================================================= */
 
 .intervention-salarie-photo-summary {
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      3,
-      minmax(0, 1fr)
-    );
-
-  gap: 7px;
-
-  margin-bottom: 11px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 13px;
 }
 
-.intervention-salarie-photo-summary
-  > div {
-  min-height: 70px;
-
-  border:
-    1px solid
-    var(--is-border);
-
-  border-radius: 12px;
-
+.intervention-salarie-photo-summary > div {
+  min-height: 82px;
+  border: 1px solid var(--is-border);
+  border-radius: 14px;
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 3px;
-
-  background:
-    var(--is-white);
+  gap: 4px;
+  background: var(--is-white);
 }
 
-.intervention-salarie-photo-summary
-  strong {
-  color:
-    var(--is-green-900);
-
-  font-size: 18px;
+.intervention-salarie-photo-summary strong {
+  color: var(--is-green-900);
+  font-size: 21px;
   font-weight: 900;
 }
 
-.intervention-salarie-photo-summary
-  span {
-  color:
-    var(--is-light);
-
-  font-size: 7px;
+.intervention-salarie-photo-summary span {
+  color: var(--is-light);
+  font-size: 11px;
   font-weight: 800;
 }
 
 /* =========================================================
-   SIGNALER PROBLEME
+   PROBLÈME
    ========================================================= */
 
 .intervention-salarie-problem-toggle {
-  min-height: 70px;
-
-  border:
-    1px solid
-    #ead4d4;
-
-  border-radius: 11px;
-
-  padding: 10px;
-
+  min-height: 82px;
+  border: 1px solid #ead4d4;
+  border-radius: 14px;
+  padding: 13px;
   display: grid;
-
-  grid-template-columns:
-    23px minmax(0, 1fr);
-
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: start;
-
-  gap: 9px;
-
-  background:
-    #fff8f8;
-
+  gap: 11px;
+  background: #fff8f8;
   cursor: pointer;
 }
 
-.intervention-salarie-problem-toggle
-  input {
-  width: 20px;
-  height: 20px;
-
-  margin:
-    2px 0 0;
-
-  accent-color:
-    #a74b4b;
+.intervention-salarie-problem-toggle input {
+  width: 22px;
+  height: 22px;
+  margin: 2px 0 0;
+  accent-color: #a74b4b;
 }
 
-.intervention-salarie-problem-toggle
-  > span {
+.intervention-salarie-problem-toggle > span {
   display: grid;
-
-  gap: 3px;
+  gap: 4px;
 }
 
-.intervention-salarie-problem-toggle
-  strong {
-  color:
-    #8c3c3c;
-
-  font-size: 9px;
+.intervention-salarie-problem-toggle strong {
+  color: #8c3c3c;
+  font-size: 13px;
   font-weight: 900;
 }
 
-.intervention-salarie-problem-toggle
-  small {
-  color:
-    #956c6c;
-
-  font-size: 8px;
-
-  line-height: 1.45;
+.intervention-salarie-problem-toggle small {
+  color: #956c6c;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
-.intervention-salarie-problem-toggle:has(
-    input:checked
-  ) {
-  border-color:
-    #dc9c9c;
-
-  background:
-    #fff0f0;
+.intervention-salarie-problem-toggle:has(input:checked) {
+  border-color: #dc9c9c;
+  background: #fff0f0;
 }
 
-.intervention-salarie-problem-toggle:has(
-    input:disabled
-  ) {
+.intervention-salarie-problem-toggle:has(input:disabled) {
   opacity: 0.7;
-
   cursor: default;
 }
 
 .intervention-salarie-problem-field {
-  margin-top: 11px;
+  margin-top: 13px;
 }
 
 /* =========================================================
@@ -1708,434 +1029,256 @@
    ========================================================= */
 
 .intervention-salarie-photo-reminder {
-  margin-bottom: 11px;
-
-  border:
-    1px solid
-    #cddfd4;
-
-  border-radius: 12px;
-
-  padding: 10px;
-
+  margin-bottom: 13px;
+  border: 1px solid #cddfd4;
+  border-radius: 14px;
+  padding: 12px;
   display: grid;
-
-  grid-template-columns:
-    38px minmax(0, 1fr) auto;
-
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   align-items: center;
-
-  gap: 9px;
-
-  background:
-    #f0f7f3;
+  gap: 10px;
+  background: #f0f7f3;
 }
 
-.intervention-salarie-photo-reminder
-  > span {
-  width: 38px;
-  height: 38px;
-
-  border-radius: 10px;
-
+.intervention-salarie-photo-reminder > span {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-
-  background:
-    #e0eee6;
-
-  font-size: 16px;
+  background: #e0eee6;
+  font-size: 18px;
 }
 
-.intervention-salarie-photo-reminder
-  > div {
+.intervention-salarie-photo-reminder > div {
   min-width: 0;
-
   display: grid;
-
-  gap: 2px;
+  gap: 3px;
 }
 
-.intervention-salarie-photo-reminder
-  strong {
-  color:
-    var(--is-green-900);
-
-  font-size: 9px;
+.intervention-salarie-photo-reminder strong {
+  color: var(--is-green-900);
+  font-size: 13px;
 }
 
-.intervention-salarie-photo-reminder
-  small {
-  color:
-    var(--is-light);
-
-  font-size: 7px;
+.intervention-salarie-photo-reminder small {
+  color: var(--is-light);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
-.intervention-salarie-photo-reminder
-  button {
-  min-height: 34px;
-
-  border:
-    1px solid
-    #bdd5c6;
-
-  border-radius: 8px;
-
-  padding:
-    0 9px;
-
-  background:
-    #ffffff;
-
-  color:
-    var(--is-green-800);
-
-  font-size: 7px;
+.intervention-salarie-photo-reminder button {
+  min-height: 38px;
+  border: 1px solid #bdd5c6;
+  border-radius: 10px;
+  padding: 0 11px;
+  background: #ffffff;
+  color: var(--is-green-800);
+  font-size: 11px;
   font-weight: 900;
-
   cursor: pointer;
 }
 
 /* =========================================================
-   PROBLEME PV
+   PROBLÈME PV
    ========================================================= */
 
 .intervention-salarie-problem-banner {
-  margin-bottom: 11px;
-
-  border:
-    1px solid
-    #e8bebe;
-
-  border-radius: 12px;
-
-  padding:
-    11px 12px;
-
-  background:
-    #fff1f1;
+  margin-bottom: 13px;
+  border: 1px solid #e8bebe;
+  border-radius: 14px;
+  padding: 13px 14px;
+  background: #fff1f1;
 }
 
-.intervention-salarie-problem-banner
-  strong {
-  color:
-    var(--is-danger);
-
-  font-size: 9px;
+.intervention-salarie-problem-banner strong {
+  color: var(--is-danger);
+  font-size: 13px;
 }
 
-.intervention-salarie-problem-banner
-  p {
-  margin:
-    5px 0 0;
-
-  color:
-    #8a6060;
-
-  font-size: 8px;
-
-  line-height: 1.5;
-
+.intervention-salarie-problem-banner p {
+  margin: 5px 0 0;
+  color: #8a6060;
+  font-size: 12px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
 /* =========================================================
-   FIN COMPLETE
+   FIN COMPLÈTE
    ========================================================= */
 
 .intervention-salarie-final-complete {
-  margin:
-    14px 0;
-
-  border:
-    1px solid
-    #9bc8ab;
-
-  border-radius: 15px;
-
-  padding: 14px;
-
+  margin: 16px 0;
+  border: 1px solid #9bc8ab;
+  border-radius: 18px;
+  padding: 16px;
   display: grid;
-
-  grid-template-columns:
-    46px minmax(0, 1fr);
-
+  grid-template-columns: 50px minmax(0, 1fr);
   align-items: center;
-
-  gap: 11px;
-
-  background:
-    linear-gradient(
-      135deg,
-      #e8f6ed,
-      #f3faf5
-    );
-
-  box-shadow:
-    0 6px 17px
-      rgba(38, 100, 72, 0.06);
+  gap: 13px;
+  background: linear-gradient(135deg, #e8f6ed, #f3faf5);
 }
 
-.intervention-salarie-final-complete
-  > span {
-  width: 46px;
-  height: 46px;
-
+.intervention-salarie-final-complete > span {
+  width: 50px;
+  height: 50px;
   border-radius: 999px;
-
   display: grid;
   place-items: center;
-
-  background:
-    var(--is-green-700);
-
+  background: var(--is-green-700);
   color: #ffffff;
-
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 900;
 }
 
-.intervention-salarie-final-complete
-  > div {
+.intervention-salarie-final-complete > div {
   min-width: 0;
-
-  display: grid;
-
-  gap: 3px;
 }
 
-.intervention-salarie-final-complete
-  strong {
-  color:
-    var(--is-success);
-
-  font-size: 11px;
+.intervention-salarie-final-complete strong {
+  display: block;
+  color: var(--is-success);
+  font-size: 15px;
   font-weight: 900;
 }
 
-.intervention-salarie-final-complete
-  small {
-  color:
-    #678074;
-
-  font-size: 8px;
-
+.intervention-salarie-final-complete small {
+  display: block;
+  margin-top: 4px;
+  color: #678074;
+  font-size: 11px;
   line-height: 1.45;
 }
 
 /* =========================================================
-   EQUIPE
+   ÉQUIPE
    ========================================================= */
 
 .intervention-salarie-summary-card {
-  margin-top: 15px;
+  margin-top: 17px;
 }
 
 .intervention-salarie-summary-heading {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
   gap: 10px;
-
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-.intervention-salarie-summary-heading
-  h3 {
+.intervention-salarie-summary-heading h3 {
   margin: 0;
-
-  color:
-    var(--is-green-900);
-
-  font-size: 11px;
+  color: var(--is-green-900);
+  font-size: 15px;
   font-weight: 900;
 }
 
-.intervention-salarie-summary-heading
-  > span {
-  min-width: 25px;
-  height: 25px;
-
+.intervention-salarie-summary-heading > span {
+  min-width: 28px;
+  height: 28px;
   border-radius: 999px;
-
   display: grid;
   place-items: center;
-
-  background:
-    #e7eee9;
-
-  color:
-    var(--is-green-800);
-
-  font-size: 8px;
+  background: #e7eee9;
+  color: var(--is-green-800);
+  font-size: 11px;
   font-weight: 900;
 }
 
 .intervention-salarie-team {
   display: grid;
-
-  gap: 7px;
-}
-
-.intervention-salarie-team
-  > div {
-  min-height: 50px;
-
-  border:
-    1px solid
-    #e8e4dc;
-
-  border-radius: 11px;
-
-  padding:
-    8px 9px;
-
-  display: grid;
-
-  grid-template-columns:
-    35px minmax(0, 1fr);
-
-  align-items: center;
-
   gap: 9px;
-
-  background:
-    #fbfaf7;
 }
 
-.intervention-salarie-team
-  > div
-  > span {
-  width: 35px;
-  height: 35px;
+.intervention-salarie-team > div {
+  min-height: 60px;
+  border: 1px solid #e8e4dc;
+  border-radius: 13px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  background: #fbfaf7;
+}
 
-  border-radius: 10px;
-
+.intervention-salarie-team > div > span {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
   display: grid;
   place-items: center;
-
-  background:
-    #e8efeb;
-
-  font-size: 14px;
+  background: #e8efeb;
+  font-size: 16px;
 }
 
-.intervention-salarie-team
-  > div
-  > div {
+.intervention-salarie-team > div > div {
   min-width: 0;
-
   display: grid;
-
-  gap: 2px;
+  gap: 3px;
 }
 
-.intervention-salarie-team
-  strong {
+.intervention-salarie-team strong {
   overflow: hidden;
-
-  color:
-    var(--is-green-900);
-
-  font-size: 9px;
-
+  color: var(--is-green-900);
+  font-size: 13px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.intervention-salarie-team
-  small {
-  color:
-    var(--is-light);
-
-  font-size: 7px;
+.intervention-salarie-team small {
+  color: var(--is-light);
+  font-size: 11px;
 }
 
 /* =========================================================
-   ACCES REFUSE / INTROUVABLE
+   ACCÈS REFUSÉ
    ========================================================= */
 
 .intervention-salarie-access-denied {
-  min-height: 390px;
-
-  padding: 22px;
-
+  min-height: calc(100dvh - 130px);
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 7px;
-
+  gap: 9px;
   text-align: center;
 }
 
-.intervention-salarie-access-denied
-  > span {
-  width: 66px;
-  height: 66px;
-
-  margin-bottom: 5px;
-
-  border-radius: 999px;
-
+.intervention-salarie-access-denied > span {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
   display: grid;
   place-items: center;
-
-  background:
-    #ece8df;
-
-  font-size: 28px;
+  background: #ece8df;
+  font-size: 24px;
 }
 
-.intervention-salarie-access-denied
-  > strong {
-  color:
-    var(--is-green-900);
-
-  font-size: 15px;
+.intervention-salarie-access-denied > strong {
+  color: var(--is-green-900);
+  font-size: 17px;
   font-weight: 900;
 }
 
-.intervention-salarie-access-denied
-  > p {
-  max-width: 300px;
-
-  margin:
-    2px 0 8px;
-
-  color:
-    var(--is-soft);
-
-  font-size: 9px;
-
-  line-height: 1.55;
+.intervention-salarie-access-denied > p {
+  max-width: 330px;
+  margin: 2px 0 10px;
+  color: var(--is-soft);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.intervention-salarie-access-denied
-  > button {
-  min-height: 44px;
-
+.intervention-salarie-access-denied > button {
+  min-height: 46px;
   border: 0;
-
-  border-radius: 10px;
-
-  padding:
-    0 16px;
-
-  background:
-    var(--is-green-800);
-
+  border-radius: 12px;
+  padding: 0 18px;
+  background: var(--is-green-800);
   color: #ffffff;
-
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 900;
-
   cursor: pointer;
 }
 
@@ -2144,53 +1287,36 @@
    ========================================================= */
 
 .intervention-salarie-loading {
-  min-height: 100vh;
-
+  min-height: 100dvh;
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 12px;
-
-  color:
-    var(--is-soft);
+  gap: 14px;
+  color: var(--is-soft);
 }
 
-.intervention-salarie-loading
-  strong {
-  font-size: 10px;
+.intervention-salarie-loading strong {
+  font-size: 14px;
 }
 
 .intervention-salarie-spinner {
-  width: 37px;
-  height: 37px;
-
-  border:
-    4px solid
-    rgba(21, 76, 58, 0.12);
-
-  border-top-color:
-    var(--is-green-700);
-
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(21, 76, 58, 0.12);
+  border-top-color: var(--is-green-700);
   border-radius: 999px;
-
-  animation:
-    interventionSalarieRotation
-    0.75s linear infinite;
+  animation: interventionSalarieRotation 0.75s linear infinite;
 }
 
 @keyframes interventionSalarieRotation {
   to {
-    transform:
-      rotate(360deg);
+    transform: rotate(360deg);
   }
 }
 
 /* =========================================================
-   PETITS TELEPHONES
+   PETITS IPHONE
    ========================================================= */
 
 @media (max-width: 380px) {
@@ -2199,150 +1325,240 @@
     padding-right: 12px;
   }
 
+  .intervention-salarie-header {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 7px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .intervention-salarie-header > button,
+  .intervention-salarie-back,
+  .intervention-salarie-refresh {
+    width: 42px;
+    height: 42px;
+  }
+
+  .intervention-salarie-header h1 {
+    font-size: 16px;
+  }
+
   .intervention-salarie-hero {
-    padding: 14px;
+    padding: 16px;
   }
 
   .intervention-salarie-hero h2 {
-    font-size: 18px;
+    font-size: 21px;
   }
 
   .intervention-salarie-steps {
     gap: 2px;
   }
 
-  .intervention-salarie-steps
-    button {
-    min-height: 58px;
+  .intervention-salarie-steps button {
+    min-height: 64px;
   }
 
-  .intervention-salarie-steps
-    button > span {
-    width: 25px;
-    height: 25px;
+  .intervention-salarie-steps button > span {
+    width: 29px;
+    height: 29px;
   }
 
-  .intervention-salarie-steps
-    button > small {
-    font-size: 6px;
+  .intervention-salarie-steps button > small {
+    font-size: 8px;
+  }
+
+  .intervention-salarie-complete,
+  .intervention-salarie-photo-reminder {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .intervention-salarie-complete button,
+  .intervention-salarie-photo-reminder button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .intervention-salarie-element {
-    grid-template-columns:
-      33px
-      minmax(0, 1fr);
-
-    align-items: start;
+    grid-template-columns: 40px minmax(0, 1fr);
   }
 
   .intervention-salarie-element-state {
-    grid-column:
-      2;
-
-    justify-self: start;
-  }
-
-  .intervention-salarie-element-icon {
-    width: 33px;
-    height: 33px;
-  }
-
-  .intervention-salarie-complete {
-    grid-template-columns:
-      35px
-      minmax(0, 1fr);
-
-    align-items: center;
-  }
-
-  .intervention-salarie-complete
-    > span {
-    width: 35px;
-    height: 35px;
-  }
-
-  .intervention-salarie-complete
-    > button {
-    grid-column:
-      1 / -1;
-
+    grid-column: 1 / -1;
     width: 100%;
-
-    margin-top: 3px;
   }
 }
 
 /* =========================================================
-   TRES PETITS TELEPHONES
+   TRÈS PETITS TÉLÉPHONES
    ========================================================= */
 
-@media (max-width: 340px) {
+@media (max-width: 330px) {
+  .intervention-salarie-steps button > small {
+    font-size: 7px;
+  }
+
   .intervention-salarie-time-grid {
     grid-template-columns: 1fr;
   }
 
   .intervention-salarie-photo-summary {
-    gap: 4px;
+    gap: 6px;
   }
 
-  .intervention-salarie-photo-reminder {
-    grid-template-columns:
-      35px
-      minmax(0, 1fr);
-  }
-
-  .intervention-salarie-photo-reminder
-    > button {
-    grid-column:
-      1 / -1;
-
-    width: 100%;
+  .intervention-salarie-photo-summary > div {
+    min-height: 74px;
   }
 }
 
 /* =========================================================
-   TEST SUR PC
+   IPAD / TABLETTES
    ========================================================= */
 
-@media (min-width: 600px) {
-  .intervention-salarie-mobile {
-    width: 430px;
-
-    margin-inline: auto;
-
-    border-left:
-      1px solid
-      #e2ded5;
-
-    border-right:
-      1px solid
-      #e2ded5;
-
-    box-shadow:
-      0 0 50px
-        rgba(22, 44, 35, 0.09);
+@media (min-width: 700px) {
+  .intervention-salarie-header {
+    min-height: 92px;
+    grid-template-columns: 54px minmax(0, 1fr) 54px;
+    padding-left: 24px;
+    padding-right: 24px;
   }
-}
 
-/* =========================================================
-   REDUCTION ANIMATIONS
-   ========================================================= */
+  .intervention-salarie-header > button,
+  .intervention-salarie-back,
+  .intervention-salarie-refresh {
+    width: 50px;
+    height: 50px;
+  }
 
-@media (
-  prefers-reduced-motion:
-    reduce
-) {
-  .intervention-salarie-mobile *,
-  .intervention-salarie-mobile *::before,
-  .intervention-salarie-mobile *::after {
-    scroll-behavior: auto !important;
+  .intervention-salarie-header h1 {
+    font-size: 20px;
+  }
 
-    transition: none !important;
+  .intervention-salarie-header > div > span {
+    font-size: 13px;
+  }
 
-    animation-duration:
-      0.01ms !important;
+  .intervention-salarie-content {
+    max-width: 820px;
+    padding: 24px 22px 52px;
+  }
 
-    animation-iteration-count:
-      1 !important;
+  .intervention-salarie-hero {
+    border-radius: 25px;
+    padding: 24px;
+  }
+
+  .intervention-salarie-hero h2 {
+    font-size: 28px;
+  }
+
+  .intervention-salarie-hero > p {
+    font-size: 14px;
+  }
+
+  .intervention-salarie-hero-info > span {
+    min-height: 36px;
+    font-size: 12px;
+  }
+
+  .intervention-salarie-steps {
+    top: 92px;
+    gap: 7px;
+    margin-bottom: 22px;
+  }
+
+  .intervention-salarie-steps button {
+    min-height: 76px;
+  }
+
+  .intervention-salarie-steps button > span {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+
+  .intervention-salarie-steps button > small {
+    font-size: 10px;
+  }
+
+  .intervention-salarie-step-heading {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .intervention-salarie-step-heading > span {
+    width: 56px;
+    height: 56px;
+    font-size: 23px;
+  }
+
+  .intervention-salarie-step-heading h2 {
+    font-size: 23px;
+  }
+
+  .intervention-salarie-step-heading p {
+    font-size: 13px;
+  }
+
+  .intervention-salarie-card,
+  .intervention-salarie-summary-card {
+    border-radius: 20px;
+    padding: 19px;
+    margin-bottom: 15px;
+  }
+
+  .intervention-salarie-card > h3 {
+    font-size: 17px;
+  }
+
+  .intervention-salarie-card-title h3 {
+    font-size: 16px;
+  }
+
+  .intervention-salarie-card-title p {
+    font-size: 12px;
+  }
+
+  .intervention-salarie-element {
+    min-height: 82px;
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    padding: 13px;
+  }
+
+  .intervention-salarie-element-icon {
+    width: 46px;
+    height: 46px;
+  }
+
+  .intervention-salarie-element strong {
+    font-size: 14px;
+  }
+
+  .intervention-salarie-element small,
+  .intervention-salarie-element p {
+    font-size: 12px;
+  }
+
+  .intervention-salarie-main-action {
+    min-height: 60px;
+    font-size: 15px;
+  }
+
+  .intervention-salarie-time-grid > div {
+    min-height: 88px;
+    padding: 15px;
+  }
+
+  .intervention-salarie-time-grid span {
+    font-size: 12px;
+  }
+
+  .intervention-salarie-time-grid strong {
+    font-size: 24px;
+  }
+
+  .intervention-salarie-text {
+    font-size: 14px;
   }
 }

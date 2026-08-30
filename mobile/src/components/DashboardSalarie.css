@@ -6,50 +6,37 @@
   --sal-green-700: #1f644b;
   --sal-green-600: #2e7659;
 
-  --sal-gold: #d4b774;
-  --sal-gold-light: #ecd7a7;
+  --sal-gold: #c9a968;
+  --sal-gold-soft: #ead9b5;
 
-  --sal-cream: #f7f3ea;
-  --sal-cream-2: #f0ece3;
-  --sal-white: #fffdfa;
+  --sal-cream: #f6f2e9;
+  --sal-cream-2: #eee8dc;
+  --sal-white: #fffefa;
 
   --sal-text: #17372d;
-  --sal-soft: #66756d;
-  --sal-light: #8a938e;
+  --sal-soft: #68786f;
+  --sal-light: #89938d;
 
-  --sal-border: #e1ddd4;
-
-  --sal-success: #276548;
+  --sal-border: #e2ddd3;
+  --sal-success: #256447;
   --sal-success-bg: #e8f5ed;
-
-  --sal-warning: #98631f;
+  --sal-warning: #93611f;
   --sal-warning-bg: #fff4df;
-
   --sal-danger: #963b3b;
   --sal-danger-bg: #fff0f0;
 
   width: 100%;
-  min-height: 100vh;
-
+  min-height: 100dvh;
   box-sizing: border-box;
-
-  padding-bottom:
-    calc(
-      82px +
-      env(safe-area-inset-bottom)
-    );
-
+  padding-bottom: calc(92px + env(safe-area-inset-bottom));
   background:
     radial-gradient(
-      circle at 94% 2%,
-      rgba(212, 183, 116, 0.11),
+      circle at 95% 1%,
+      rgba(201, 169, 104, 0.12),
       transparent 22%
     ),
     var(--sal-cream);
-
-  color:
-    var(--sal-text);
-
+  color: var(--sal-text);
   font-family:
     Inter,
     ui-sans-serif,
@@ -60,214 +47,169 @@
     sans-serif;
 }
 
+.salarie-dashboard *,
+.salarie-dashboard *::before,
+.salarie-dashboard *::after {
+  box-sizing: border-box;
+}
+
 /* =========================================================
    HEADER
    ========================================================= */
 
 .salarie-topbar {
   position: relative;
-
   overflow: hidden;
-
-  min-height: 175px;
-
-  box-sizing: border-box;
-
+  width: 100%;
+  min-height: 205px;
   display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    48px;
-
+  grid-template-columns: minmax(0, 1fr) 52px;
   align-items: start;
-
-  gap: 13px;
-
+  gap: 16px;
   padding:
-    max(
-      20px,
-      env(safe-area-inset-top)
-    )
-    18px
-    24px;
-
+    max(24px, env(safe-area-inset-top))
+    20px
+    40px;
   background:
     radial-gradient(
-      circle at 88% 12%,
-      rgba(236, 215, 167, 0.16),
-      transparent 27%
+      circle at 88% 11%,
+      rgba(234, 217, 181, 0.16),
+      transparent 28%
     ),
     linear-gradient(
       145deg,
       #174b3a,
-      #0a3328
+      #0a3328 72%
     );
-
   color: #ffffff;
-
   box-shadow:
-    0 9px 24px
-      rgba(10, 48, 38, 0.15);
+    0 12px 30px rgba(10, 48, 38, 0.17);
+}
+
+.salarie-topbar::before {
+  content: "";
+  position: absolute;
+  inset: auto -78px -115px auto;
+  width: 250px;
+  height: 250px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 999px;
 }
 
 .salarie-topbar::after {
   content: "";
-
   position: absolute;
-
-  right: -58px;
-  bottom: -88px;
-
-  width: 190px;
-  height: 190px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.05);
-
+  right: 28px;
+  top: 28px;
+  width: 84px;
+  height: 84px;
   border-radius: 999px;
+  background: rgba(201, 169, 104, 0.06);
+  filter: blur(1px);
 }
 
 .salarie-topbar > div {
   position: relative;
-
   z-index: 2;
-
   min-width: 0;
 }
 
 .salarie-brand {
-  display: flex;
-
+  display: inline-flex;
   align-items: center;
-
-  gap: 7px;
-
-  margin-bottom: 19px;
-
+  gap: 11px;
+  min-height: 42px;
+  margin-bottom: 24px;
   color: #ffffff;
-
-  font-size: 11px;
   font-weight: 850;
+  letter-spacing: -0.025em;
 }
 
 .salarie-brand-mark {
-  width: 27px;
-  height: 27px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.13);
-
-  border-radius: 8px;
-
-  display: grid;
-  place-items: center;
-
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
   background:
-    rgba(255, 255, 255, 0.08);
+    #ffffff
+    url("../../assets/arboboard-icon-1024.png")
+    center / cover
+    no-repeat;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.14);
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+}
 
-  color:
-    var(--sal-gold-light);
-
-  font-size: 8px;
-  font-weight: 950;
-
-  letter-spacing: -0.02em;
+.salarie-brand > span:last-child {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
 }
 
 .salarie-kicker {
-  margin:
-    0 0 4px;
-
-  color:
-    #9c8252;
-
-  font-size: 7px;
-  font-weight: 950;
-
-  letter-spacing: 0.11em;
-
+  margin: 0 0 6px;
+  color: #9b8050;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.salarie-topbar
-  .salarie-kicker {
-  color:
-    var(--sal-gold-light);
-}
-
+.salarie-topbar .salarie-kicker,
 .salarie-kicker-light {
-  color:
-    var(--sal-gold-light) !important;
+  color: var(--sal-gold-soft) !important;
 }
 
 .salarie-topbar h1 {
   overflow: hidden;
-
   margin: 0;
-
   color: #ffffff;
-
-  font-size: 26px;
-  font-weight: 950;
-
-  line-height: 1.08;
-
-  letter-spacing: -0.04em;
-
-  white-space: nowrap;
+  font-size: clamp(30px, 8vw, 42px);
+  font-weight: 900;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
   text-overflow: ellipsis;
 }
 
 .salarie-subtitle {
-  max-width: 320px;
-
-  margin:
-    7px 0 0;
-
-  color:
-    rgba(255, 255, 255, 0.66);
-
-  font-size: 9px;
-
-  line-height: 1.55;
+  max-width: 460px;
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .salarie-avatar {
   position: relative;
-
   z-index: 3;
-
-  width: 46px;
-  height: 46px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.1);
-
-  border-radius: 14px;
-
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 16px;
   display: grid;
   place-items: center;
-
-  background:
-    rgba(255, 255, 255, 0.08);
-
+  background: rgba(255, 255, 255, 0.09);
   color: #ffffff;
-
-  font-size: 18px;
+  font: inherit;
+  font-size: 21px;
   font-weight: 800;
-
   cursor: pointer;
-
-  backdrop-filter:
-    blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease;
 }
 
 .salarie-avatar:active {
-  transform:
-    scale(0.97);
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 /* =========================================================
@@ -275,227 +217,149 @@
    ========================================================= */
 
 .salarie-alert {
-  margin:
-    14px 15px 0;
-
-  border:
-    1px solid
-    #e9c6c6;
-
-  border-radius: 13px;
-
-  padding: 12px;
-
-  background:
-    var(--sal-danger-bg);
-
-  color:
-    var(--sal-danger);
+  width: min(calc(100% - 32px), 820px);
+  margin: 18px auto 0;
+  border: 1px solid #e9c6c6;
+  border-radius: 18px;
+  padding: 16px;
+  background: var(--sal-danger-bg);
+  color: var(--sal-danger);
+  box-shadow: 0 7px 22px rgba(95, 35, 35, 0.05);
 }
 
 .salarie-alert strong {
   display: block;
-
-  margin-bottom: 4px;
-
-  font-size: 9px;
+  margin-bottom: 6px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .salarie-alert p {
   margin: 0;
-
-  font-size: 8px;
-
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .salarie-alert button {
-  min-height: 33px;
-
-  margin-top: 8px;
-
-  border:
-    1px solid
-    #e4b9b9;
-
-  border-radius: 8px;
-
-  padding:
-    0 9px;
-
+  min-height: 42px;
+  margin-top: 12px;
+  border: 1px solid #e4b9b9;
+  border-radius: 11px;
+  padding: 0 14px;
   background: #ffffff;
-
-  color:
-    var(--sal-danger);
-
-  font-size: 7px;
-  font-weight: 900;
-
+  color: var(--sal-danger);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
   cursor: pointer;
 }
 
 /* =========================================================
-   JOURNEE PRINCIPALE
+   JOURNÉE PRINCIPALE
    ========================================================= */
 
 .salarie-today {
   position: relative;
-
   z-index: 10;
-
-  margin:
-    -18px 15px 14px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.68);
-
-  border-radius: 18px;
-
-  padding: 15px;
-
+  width: min(calc(100% - 32px), 820px);
+  margin: -24px auto 20px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 24px;
+  padding: 20px;
   background:
     linear-gradient(
       180deg,
       #fffefa,
       #fcfaf5
     );
-
   box-shadow:
-    0 11px 27px
-      rgba(18, 47, 37, 0.1);
+    0 16px 40px rgba(18, 47, 37, 0.11);
 }
 
 .salarie-today-heading {
   display: flex;
-
   align-items: flex-start;
   justify-content: space-between;
-
-  gap: 10px;
+  gap: 14px;
 }
 
-.salarie-today-heading
-  > div {
+.salarie-today-heading > div {
   min-width: 0;
 }
 
 .salarie-today-heading h2 {
   margin: 0;
-
-  color:
-    var(--sal-green-950);
-
-  font-size: 17px;
-  font-weight: 950;
-
-  line-height: 1.2;
-
-  letter-spacing: -0.025em;
+  color: var(--sal-green-950);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.16;
+  letter-spacing: -0.03em;
 }
 
 .salarie-status {
   flex: 0 0 auto;
-
-  border:
-    1px solid
-    #c2ddcc;
-
+  border: 1px solid #c2ddcc;
   border-radius: 999px;
-
-  padding:
-    6px 8px;
-
-  background:
-    var(--sal-success-bg);
-
-  color:
-    var(--sal-success);
-
-  font-size: 7px;
+  padding: 7px 10px;
+  background: var(--sal-success-bg);
+  color: var(--sal-success);
+  font-size: 11px;
   font-weight: 900;
-
+  line-height: 1;
   white-space: nowrap;
 }
 
 .salarie-date {
-  margin:
-    7px 0 12px;
-
-  color:
-    var(--sal-soft);
-
-  font-size: 8px;
+  margin: 9px 0 16px;
+  color: var(--sal-soft);
+  font-size: 13px;
   font-weight: 700;
+  line-height: 1.4;
+  text-transform: capitalize;
 }
 
 /* =========================================================
-   CLIENT DU JOUR
+   CLIENT / ADRESSE
    ========================================================= */
 
 .salarie-client-card {
   overflow: hidden;
-
-  margin-bottom: 11px;
-
-  border:
-    1px solid
-    #e6e1d8;
-
-  border-radius: 12px;
-
-  background:
-    #f8f5ef;
+  margin-bottom: 15px;
+  border: 1px solid #e6e1d8;
+  border-radius: 17px;
+  background: #f8f5ef;
 }
 
-.salarie-client-card
-  > div {
-  min-height: 50px;
-
-  box-sizing: border-box;
-
-  padding:
-    9px 11px;
-
+.salarie-client-card > div {
+  min-height: 62px;
+  padding: 13px 14px;
   display: grid;
-
-  grid-template-columns:
-    78px
-    minmax(0, 1fr);
-
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: center;
-
-  gap: 8px;
-
-  border-bottom:
-    1px solid
-    #e7e2d9;
+  gap: 12px;
+  border-bottom: 1px solid #e7e2d9;
 }
 
-.salarie-client-card
-  > div:last-child {
+.salarie-client-card > div:last-child {
   border-bottom: 0;
 }
 
 .salarie-client-card span {
-  color:
-    var(--sal-light);
-
-  font-size: 7px;
+  color: var(--sal-light);
+  font-size: 11px;
   font-weight: 800;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .salarie-client-card strong {
   min-width: 0;
-
-  color:
-    var(--sal-green-900);
-
-  font-size: 9px;
+  color: var(--sal-green-900);
+  font-size: 14px;
   font-weight: 850;
-
-  line-height: 1.4;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 /* =========================================================
@@ -504,64 +368,46 @@
 
 .salarie-primary {
   width: 100%;
-
-  min-height: 48px;
-
+  min-height: 54px;
   border: 0;
-
-  border-radius: 11px;
-
-  padding:
-    0 13px;
-
+  border-radius: 15px;
+  padding: 0 17px;
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
-  gap: 10px;
-
+  gap: 12px;
   background:
     linear-gradient(
       180deg,
       #1b543f,
       #103a2d
     );
-
   color: #ffffff;
-
-  font-family: inherit;
-
-  font-size: 9px;
+  font: inherit;
+  font-size: 14px;
   font-weight: 900;
-
   cursor: pointer;
-
   box-shadow:
-    0 7px 16px
-      rgba(11, 55, 42, 0.14);
+    0 9px 20px rgba(11, 55, 42, 0.15);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .salarie-primary span {
-  font-size: 13px;
+  font-size: 19px;
 }
 
-.salarie-primary:not(
-    :disabled
-  ):active {
-  transform:
-    scale(0.99);
+.salarie-primary:not(:disabled):active {
+  transform: scale(0.985);
+  box-shadow:
+    0 5px 14px rgba(11, 55, 42, 0.13);
 }
 
 .salarie-primary:disabled {
-  background:
-    #adb3af;
-
-  color:
-    rgba(255, 255, 255, 0.8);
-
+  background: #adb3af;
+  color: rgba(255, 255, 255, 0.82);
   box-shadow: none;
-
   cursor: default;
 }
 
@@ -570,290 +416,204 @@
    ========================================================= */
 
 .salarie-empty {
-  margin:
-    12px 0 0;
-
-  border:
-    1px dashed
-    #d9d4cb;
-
-  border-radius: 11px;
-
-  padding:
-    14px;
-
-  background:
-    #f7f4ed;
-
-  color:
-    var(--sal-light);
-
-  font-size: 8px;
-
-  line-height: 1.5;
-
+  margin: 14px 0 0;
+  border: 1px dashed #d9d4cb;
+  border-radius: 15px;
+  padding: 18px;
+  background: #f7f4ed;
+  color: var(--sal-soft);
+  font-size: 13px;
+  line-height: 1.55;
   text-align: center;
 }
 
 /* =========================================================
-   SECTION
+   SECTIONS
    ========================================================= */
 
 .salarie-section {
-  margin:
-    0 15px 14px;
+  width: min(calc(100% - 32px), 820px);
+  margin: 0 auto 20px;
 }
 
 .salarie-section-title {
-  margin-bottom: 9px;
+  margin-bottom: 12px;
 }
 
 .salarie-section-title h2 {
   margin: 0;
-
-  color:
-    var(--sal-green-950);
-
-  font-size: 15px;
-  font-weight: 950;
-
-  letter-spacing: -0.02em;
+  color: var(--sal-green-950);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.025em;
 }
 
 /* =========================================================
-   ACTIONS RAPIDES
+   ACTIONS RAPIDES / LISTES PLANNING ET CHANTIERS
    ========================================================= */
 
 .salarie-actions-grid {
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
 }
 
-.salarie-actions-grid
-  > button {
-  min-height: 112px;
-
-  border:
-    1px solid
-    var(--sal-border);
-
-  border-radius: 14px;
-
-  padding: 12px;
-
+.salarie-actions-grid > button {
+  min-width: 0;
+  min-height: 138px;
+  border: 1px solid var(--sal-border);
+  border-radius: 19px;
+  padding: 16px;
   display: flex;
-
   flex-direction: column;
-
   align-items: flex-start;
   justify-content: flex-start;
-
-  gap: 4px;
-
-  background:
-    var(--sal-white);
-
-  color:
-    var(--sal-text);
-
-  font-family: inherit;
-
+  gap: 5px;
+  background: var(--sal-white);
+  color: var(--sal-text);
+  font: inherit;
   text-align: left;
-
   cursor: pointer;
-
   box-shadow:
-    0 5px 15px
-      rgba(20, 48, 38, 0.035);
+    0 7px 22px rgba(20, 48, 38, 0.045);
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
-.salarie-actions-grid
-  > button:not(:disabled):active {
-  transform:
-    scale(0.98);
+.salarie-actions-grid > button:not(:disabled):active {
+  transform: scale(0.98);
+  border-color: #cbd8d0;
+  box-shadow:
+    0 4px 14px rgba(20, 48, 38, 0.04);
 }
 
-.salarie-actions-grid
-  > button:disabled {
+.salarie-actions-grid > button:disabled {
   opacity: 0.48;
-
   cursor: default;
 }
 
 .salarie-icon {
-  width: 37px;
-  height: 37px;
-
-  margin-bottom: 5px;
-
-  border-radius: 11px;
-
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  margin-bottom: 8px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
-
   background:
-    #e7efea;
-
-  color:
-    var(--sal-green-800);
-
-  font-size: 15px;
+    linear-gradient(
+      180deg,
+      #edf3ef,
+      #e4ede8
+    );
+  color: var(--sal-green-800);
+  font-size: 19px;
   font-weight: 900;
 }
 
 .salarie-actions-grid strong {
-  color:
-    var(--sal-green-900);
-
-  font-size: 10px;
+  width: 100%;
+  color: var(--sal-green-900);
+  font-size: 15px;
   font-weight: 900;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
 .salarie-actions-grid small {
-  color:
-    var(--sal-light);
+  width: 100%;
+  color: var(--sal-soft);
+  font-size: 12px;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
 
-  font-size: 7px;
-
-  line-height: 1.4;
+.salarie-actions-grid > .salarie-next-card {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
 }
 
 /* =========================================================
-   RESUME
+   RÉSUMÉ
    ========================================================= */
 
 .salarie-summary {
+  width: min(calc(100% - 32px), 820px);
+  margin: 0 auto 20px;
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  gap: 8px;
-
-  margin:
-    0 15px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
 }
 
-.salarie-summary
-  > div {
-  min-height: 76px;
-
-  border:
-    1px solid
-    var(--sal-border);
-
-  border-radius: 13px;
-
-  padding:
-    10px;
-
-  box-sizing: border-box;
-
+.salarie-summary > div {
+  min-height: 98px;
+  border: 1px solid var(--sal-border);
+  border-radius: 18px;
+  padding: 15px;
   display: flex;
-
   flex-direction: column;
-
   justify-content: center;
-
-  gap: 3px;
-
-  background:
-    var(--sal-white);
-
+  gap: 6px;
+  background: var(--sal-white);
   box-shadow:
-    0 4px 13px
-      rgba(20, 48, 38, 0.03);
+    0 6px 20px rgba(20, 48, 38, 0.035);
 }
 
 .salarie-summary span {
-  color:
-    var(--sal-light);
-
-  font-size: 7px;
+  color: var(--sal-light);
+  font-size: 11px;
   font-weight: 800;
-
   line-height: 1.35;
 }
 
 .salarie-summary strong {
-  color:
-    var(--sal-green-950);
-
-  font-size: 17px;
-  font-weight: 950;
+  color: var(--sal-green-950);
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.05;
 }
 
 /* =========================================================
-   CARTE SUIVANTE / PLANNING / DEMANDES
+   CARTE D'INFORMATION / FIN DE CHANTIER
    ========================================================= */
 
 .salarie-next-card {
-  margin:
-    0 15px 12px;
-
-  border:
-    1px solid
-    var(--sal-border);
-
-  border-radius: 15px;
-
-  padding: 14px;
-
+  width: min(calc(100% - 32px), 820px);
+  margin: 0 auto 18px;
+  border: 1px solid var(--sal-border);
+  border-radius: 20px;
+  padding: 18px;
   background:
-    var(--sal-white);
-
+    linear-gradient(
+      180deg,
+      #fffefa,
+      #faf7f0
+    );
   box-shadow:
-    0 5px 15px
-      rgba(20, 48, 38, 0.035);
-}
-
-.salarie-section
-  > .salarie-next-card {
-  margin:
-    0 0 9px;
+    0 7px 23px rgba(20, 48, 38, 0.04);
 }
 
 .salarie-next-card h3 {
-  margin:
-    0 0 6px;
-
-  color:
-    var(--sal-green-950);
-
-  font-size: 12px;
+  margin: 0 0 7px;
+  color: var(--sal-green-950);
+  font-size: 17px;
   font-weight: 900;
-
   line-height: 1.35;
+  letter-spacing: -0.018em;
 }
 
-.salarie-next-card p:not(
-    .salarie-kicker
-  ) {
-  margin:
-    0 0 11px;
-
-  color:
-    var(--sal-soft);
-
-  font-size: 8px;
-
+.salarie-next-card p:not(.salarie-kicker) {
+  margin: 0 0 14px;
+  color: var(--sal-soft);
+  font-size: 13px;
   line-height: 1.55;
 }
 
 .salarie-next-card p strong {
-  color:
-    var(--sal-green-900);
-
+  color: var(--sal-green-900);
   font-weight: 850;
 }
 
@@ -863,199 +623,172 @@
 
 .salarie-bottom-nav {
   position: fixed;
-
   z-index: 200;
-
-  left: 0;
-  right: 0;
-  bottom: 0;
-
-  min-height: 69px;
-
-  box-sizing: border-box;
-
+  left: 50%;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  width: min(calc(100% - 18px), 650px);
+  min-height: 72px;
+  transform: translateX(-50%);
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      5,
-      minmax(0, 1fr)
-    );
-
-  gap: 1px;
-
-  padding:
-    6px 7px
-    max(
-      7px,
-      env(safe-area-inset-bottom)
-    );
-
-  border-top:
-    1px solid
-    rgba(215, 211, 202, 0.85);
-
-  background:
-    rgba(
-      255,
-      253,
-      250,
-      0.96
-    );
-
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  padding: 7px;
+  border: 1px solid rgba(213, 211, 202, 0.92);
+  border-radius: 23px;
+  background: rgba(255, 254, 250, 0.96);
   box-shadow:
-    0 -8px 24px
-      rgba(20, 48, 38, 0.07);
-
-  backdrop-filter:
-    blur(14px);
+    0 16px 42px rgba(20, 48, 38, 0.15);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-.salarie-bottom-nav
-  button {
+.salarie-bottom-nav button {
   min-width: 0;
-  min-height: 49px;
-
+  min-height: 55px;
   border: 0;
-
-  border-radius: 11px;
-
-  padding:
-    4px 2px;
-
+  border-radius: 16px;
+  padding: 6px 2px;
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 2px;
-
+  gap: 3px;
   background: transparent;
-
-  color:
-    #7d8782;
-
-  font-family: inherit;
-
-  font-size: 6px;
+  color: #7a8680;
+  font: inherit;
+  font-size: 10px;
   font-weight: 800;
-
+  line-height: 1.05;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.salarie-bottom-nav
-  button > span {
-  min-height: 21px;
-
+.salarie-bottom-nav button > span {
+  min-height: 23px;
   display: grid;
   place-items: center;
-
   color: inherit;
-
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 900;
 }
 
-.salarie-bottom-nav
-  button.active {
+.salarie-bottom-nav button.active {
   background:
-    #e8efeb;
-
-  color:
-    var(--sal-green-800);
+    linear-gradient(
+      180deg,
+      #edf3ef,
+      #e5eee9
+    );
+  color: var(--sal-green-800);
 }
 
-.salarie-bottom-nav
-  button:active {
-  transform:
-    scale(0.97);
-}
-
-/* =========================================================
-   PLANNING
-   ========================================================= */
-
-.salarie-dashboard
-  > .salarie-section:first-of-type {
-  margin-top: 16px;
+.salarie-bottom-nav button:active {
+  transform: scale(0.96);
 }
 
 /* =========================================================
-   ETAT CHARGEMENT
+   ÉTAT CHARGEMENT / TOUCH
    ========================================================= */
 
 .salarie-dashboard button,
 .salarie-dashboard input,
 .salarie-dashboard textarea,
 .salarie-dashboard select {
-  -webkit-tap-highlight-color:
-    transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.salarie-dashboard button {
+  touch-action: manipulation;
 }
 
 /* =========================================================
-   PETITS TELEPHONES
+   IPHONE COMPACTS
    ========================================================= */
 
-@media (max-width: 370px) {
+@media (max-width: 390px) {
   .salarie-topbar {
-    min-height: 165px;
+    min-height: 195px;
+    grid-template-columns: minmax(0, 1fr) 48px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 
-    padding-left: 14px;
-    padding-right: 14px;
+  .salarie-brand {
+    margin-bottom: 20px;
+  }
+
+  .salarie-brand-mark {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .salarie-brand > span:last-child {
+    font-size: 16px;
   }
 
   .salarie-topbar h1 {
-    font-size: 23px;
+    font-size: 29px;
   }
 
-  .salarie-today {
-    margin-left: 12px;
-    margin-right: 12px;
-
-    padding: 13px;
+  .salarie-subtitle {
+    font-size: 13px;
   }
 
+  .salarie-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .salarie-today,
   .salarie-section,
   .salarie-summary,
   .salarie-next-card,
   .salarie-alert {
-    margin-left: 12px;
-    margin-right: 12px;
+    width: calc(100% - 24px);
   }
 
-  .salarie-section
-    > .salarie-next-card {
-    margin-left: 0;
-    margin-right: 0;
+  .salarie-today {
+    padding: 17px;
   }
 
-  .salarie-actions-grid
-    > button {
-    min-height: 105px;
-
-    padding: 10px;
+  .salarie-today-heading h2 {
+    font-size: 20px;
   }
 
-  .salarie-client-card
-    > div {
-    grid-template-columns:
-      66px
-      minmax(0, 1fr);
+  .salarie-actions-grid {
+    gap: 9px;
   }
 
-  .salarie-bottom-nav
-    button {
-    font-size: 5.7px;
+  .salarie-actions-grid > button {
+    min-height: 130px;
+    padding: 14px;
+  }
+
+  .salarie-client-card > div {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .salarie-bottom-nav {
+    width: calc(100% - 12px);
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .salarie-bottom-nav button {
+    font-size: 9px;
   }
 }
 
 /* =========================================================
-   TRES PETITS TELEPHONES
+   TRÈS PETITS TÉLÉPHONES
    ========================================================= */
 
-@media (max-width: 330px) {
+@media (max-width: 340px) {
   .salarie-actions-grid {
     grid-template-columns: 1fr;
   }
@@ -1063,63 +796,113 @@
   .salarie-summary {
     grid-template-columns: 1fr;
   }
+
+  .salarie-client-card > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .salarie-bottom-nav button {
+    font-size: 8px;
+  }
+
+  .salarie-bottom-nav button > span {
+    font-size: 17px;
+  }
 }
 
 /* =========================================================
-   TEST SUR PC
+   IPAD / TABLETTE
    ========================================================= */
 
-@media (min-width: 600px) {
+@media (min-width: 700px) {
   .salarie-dashboard {
-    width: 430px;
+    padding-bottom:
+      calc(
+        106px +
+        env(safe-area-inset-bottom)
+      );
+  }
 
-    margin-inline: auto;
+  .salarie-topbar {
+    width: min(calc(100% - 32px), 900px);
+    min-height: 230px;
+    margin: 16px auto 0;
+    border-radius: 28px;
+    padding:
+      max(30px, env(safe-area-inset-top))
+      34px
+      48px;
+  }
 
-    border-left:
-      1px solid
-      #e2ded5;
+  .salarie-topbar h1 {
+    font-size: 42px;
+  }
 
-    border-right:
-      1px solid
-      #e2ded5;
+  .salarie-subtitle {
+    max-width: 520px;
+    font-size: 15px;
+  }
 
-    box-shadow:
-      0 0 50px
-        rgba(22, 44, 35, 0.09);
+  .salarie-today {
+    margin-top: -28px;
+    padding: 24px;
+  }
+
+  .salarie-today-heading h2 {
+    font-size: 26px;
+  }
+
+  .salarie-client-card > div {
+    grid-template-columns: 120px minmax(0, 1fr);
+    min-height: 66px;
+  }
+
+  .salarie-actions-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .salarie-actions-grid > button {
+    min-height: 150px;
+  }
+
+  .salarie-summary > div {
+    min-height: 108px;
   }
 
   .salarie-bottom-nav {
-    left: 50%;
-    right: auto;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    min-height: 78px;
+  }
 
-    width: 430px;
+  .salarie-bottom-nav button {
+    font-size: 11px;
+  }
 
-    transform:
-      translateX(-50%);
+  .salarie-bottom-nav button > span {
+    font-size: 20px;
   }
 }
 
 /* =========================================================
-   ACCESSIBILITE
+   GRANDES TABLETTES / TEST PC
    ========================================================= */
 
-@media (
-  prefers-reduced-motion:
-    reduce
-) {
-  .salarie-dashboard *,
-  .salarie-dashboard *::before,
-  .salarie-dashboard *::after {
-    scroll-behavior:
-      auto !important;
+@media (min-width: 980px) {
+  .salarie-topbar {
+    width: min(calc(100% - 48px), 980px);
+  }
 
-    transition:
-      none !important;
+  .salarie-today,
+  .salarie-section,
+  .salarie-summary,
+  .salarie-next-card,
+  .salarie-alert {
+    max-width: 900px;
+  }
 
-    animation-duration:
-      0.01ms !important;
-
-    animation-iteration-count:
-      1 !important;
+  .salarie-actions-grid > button {
+    min-height: 155px;
   }
 }

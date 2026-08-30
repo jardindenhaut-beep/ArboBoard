@@ -42,6 +42,26 @@ import {
 
 } from "./lib/appareilConfianceMobile";
 
+import {
+
+  estEnLigne,
+
+  initialiserModeHorsLigne,
+
+  lireCache,
+
+  mettreEnCache,
+
+  supprimerDuCache,
+
+} from "./lib/offline";
+
+import {
+
+  initialiserSynchronisationTerrain,
+
+} from "./lib/syncInterventions";
+
 import DashboardChef from "./components/DashboardChef";
 
 import DashboardSalarie from "./components/DashboardSalarie";
@@ -92,6 +112,33 @@ type EtapeConnexion =
   | "identifiants"
 
   | "mfa";
+
+
+type ProfilHorsLigne = {
+
+  profil: ProfilUtilisateur;
+
+  espace: Espace;
+
+  valideLe: string;
+
+  expireLe: string;
+
+};
+
+const DUREE_ACCES_HORS_LIGNE_MS =
+
+  7 * 24 * 60 * 60 * 1000;
+
+function cleProfilHorsLigne(
+
+  userId: string
+
+) {
+
+  return `auth:profil:${userId}`;
+
+}
 
 function normaliser(
 
@@ -579,7 +626,35 @@ export default function App() {
 
   useEffect(() => {
 
-    void verifierSession();
+    void initialiserModeHorsLigne()
+
+      .catch(
+
+        (error) => {
+
+          console.warn(
+
+            "Initialisation mode hors ligne Arboboard :",
+
+            error
+
+          );
+
+        }
+
+      )
+
+      .finally(
+
+        () => {
+
+          initialiserSynchronisationTerrain();
+
+          void verifierSession();
+
+        }
+
+      );
 
     const {
 
@@ -664,6 +739,180 @@ export default function App() {
       ""
 
     );
+
+  }
+
+  async function enregistrerProfilHorsLigne(
+
+    profilAEnregistrer: ProfilUtilisateur,
+
+    espaceAEnregistrer: Espace
+
+  ) {
+
+    const maintenant =
+
+      Date.now();
+
+    await mettreEnCache<ProfilHorsLigne>(
+
+      cleProfilHorsLigne(
+
+        profilAEnregistrer.id
+
+      ),
+
+      {
+
+        profil:
+
+          profilAEnregistrer,
+
+        espace:
+
+          espaceAEnregistrer,
+
+        valideLe:
+
+          new Date(
+
+            maintenant
+
+          ).toISOString(),
+
+        expireLe:
+
+          new Date(
+
+            maintenant +
+
+              DUREE_ACCES_HORS_LIGNE_MS
+
+          ).toISOString(),
+
+      }
+
+    );
+
+  }
+
+  async function chargerProfilHorsLigne(
+
+    userId: string
+
+  ) {
+
+    const cache =
+
+      await lireCache<ProfilHorsLigne>(
+
+        cleProfilHorsLigne(
+
+          userId
+
+        )
+
+      );
+
+    if (
+
+      !cache?.profil ||
+
+      !cache.espace
+
+    ) {
+
+      throw new Error(
+
+        "Aucun accès hors ligne n’est encore enregistré sur cet appareil. Connectez-vous une fois avec Internet."
+
+      );
+
+    }
+
+    const expiration =
+
+      new Date(
+
+        cache.expireLe
+
+      ).getTime();
+
+    if (
+
+      !Number.isFinite(
+
+        expiration
+
+      ) ||
+
+      Date.now() >
+
+        expiration
+
+    ) {
+
+      throw new Error(
+
+        "L’accès hors ligne de cet appareil doit être renouvelé. Reconnectez-vous avec Internet."
+
+      );
+
+    }
+
+    if (
+
+      cache.profil.id !==
+
+      userId
+
+    ) {
+
+      throw new Error(
+
+        "Le profil hors ligne ne correspond pas à la session enregistrée."
+
+      );
+
+    }
+
+    if (
+
+      !profilActif(
+
+        cache.profil.statut
+
+      )
+
+    ) {
+
+      throw new Error(
+
+        "Ce compte Arboboard est désactivé."
+
+      );
+
+    }
+
+    setProfil(
+
+      cache.profil
+
+    );
+
+    setEspace(
+
+      cache.espace
+
+    );
+
+    setEtape(
+
+      "identifiants"
+
+    );
+
+    nettoyerEtatMfa();
 
   }
 
@@ -802,6 +1051,14 @@ export default function App() {
       );
 
     }
+
+    await enregistrerProfilHorsLigne(
+
+      profilCharge,
+
+      espaceTrouve
+
+    );
 
     setProfil(
 
@@ -1125,15 +1382,55 @@ export default function App() {
 
       }
 
-      await gererMfaApresConnexion(
+      if (
 
-        session.user,
+        !estEnLigne()
 
-        session.access_token ||
+      ) {
 
-          null
+        await chargerProfilHorsLigne(
 
-      );
+          session.user.id
+
+        );
+
+        return;
+
+      }
+
+      try {
+
+        await gererMfaApresConnexion(
+
+          session.user,
+
+          session.access_token ||
+
+            null
+
+        );
+
+      } catch (
+
+        errorEnLigne
+
+      ) {
+
+        console.warn(
+
+          "Restauration en ligne impossible, tentative du cache hors ligne :",
+
+          errorEnLigne
+
+        );
+
+        await chargerProfilHorsLigne(
+
+          session.user.id
+
+        );
+
+      }
 
     } catch (
 
@@ -1161,7 +1458,15 @@ export default function App() {
 
       );
 
-      await supabase.auth.signOut();
+      /*
+       * IMPORTANT :
+       * on ne détruit plus automatiquement
+       * la session lorsqu'une coupure réseau
+       * empêche la restauration.
+       *
+       * Une déconnexion explicite reste gérée
+       * par deconnecter().
+       */
 
       setProfil(
 
@@ -1689,6 +1994,12 @@ export default function App() {
 
   async function deconnecter() {
 
+    const profilIdAvantDeconnexion =
+
+      profil?.id ||
+
+      null;
+
     try {
 
       setChargement(
@@ -1698,22 +2009,33 @@ export default function App() {
       );
 
       /*
-
        * On ne supprime PAS le jeton
-
        * d'appareil de confiance ici.
-
        *
-
        * Une déconnexion normale doit
-
        * conserver la confiance pendant
-
        * les 90 jours prévus.
-
        */
 
       await supabase.auth.signOut();
+
+      if (
+
+        profilIdAvantDeconnexion
+
+      ) {
+
+        await supprimerDuCache(
+
+          cleProfilHorsLigne(
+
+            profilIdAvantDeconnexion
+
+          )
+
+        );
+
+      }
 
     } finally {
 

@@ -10,6 +10,9 @@ PODS:
   - CapacitorFilesystem (7.1.0):
     - Capacitor
     - IONFilesystemLib (~> 1.0)
+  - CapacitorFileViewer (1.0.7):
+    - Capacitor
+    - IONFileViewerLib (~> 1.0.3)
   - CapacitorHaptics (7.0.5):
     - Capacitor
   - CapacitorNetwork (7.0.4):
@@ -22,6 +25,7 @@ PODS:
   - CapacitorStatusBar (7.0.6):
     - Capacitor
   - IONFilesystemLib (1.1.2)
+  - IONFileViewerLib (1.0.4)
   - KeychainSwift (21.0.0)
   - SwiftKeychainWrapper (4.0.1)
 
@@ -31,6 +35,7 @@ DEPENDENCIES:
   - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
+  - "CapacitorFileViewer (from `../../node_modules/@capacitor/file-viewer`)"
   - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorNetwork (from `../../node_modules/@capacitor/network`)"
   - CapacitorSecureStoragePlugin (from `../../node_modules/capacitor-secure-storage-plugin`)
@@ -40,6 +45,7 @@ DEPENDENCIES:
 SPEC REPOS:
   trunk:
     - IONFilesystemLib
+    - IONFileViewerLib
     - KeychainSwift
     - SwiftKeychainWrapper
 
@@ -54,6 +60,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFilesystem:
     :path: "../../node_modules/@capacitor/filesystem"
+  CapacitorFileViewer:
+    :path: "../../node_modules/@capacitor/file-viewer"
   CapacitorHaptics:
     :path: "../../node_modules/@capacitor/haptics"
   CapacitorNetwork:
@@ -71,15 +79,17 @@ SPEC CHECKSUMS:
   CapacitorCamera: 9e952270be355797f769aa835bb7643a96c871fe
   CapacitorCordova: e61ee8c40101b8cd011d0224261606a290c082cf
   CapacitorFilesystem: e694d02cd370b9632e3bdb81d00a38c367cea62f
+  CapacitorFileViewer: 187aed33f5a4d76ddfa451ec7015f423210d6a00
   CapacitorHaptics: 1b145fa83c622e5383a3bac04ea81e2514f0b0f5
   CapacitorNetwork: b719d692a8d1310da8d26d6648d3aa1ef1e100e1
   CapacitorSecureStoragePlugin: 50de0808ad398aa401e00f9e58adf88c77cb3c25
   CapacitorShare: 25f7fc5dd0e4edbde5d6801c6de5d14a8b450a41
   CapacitorStatusBar: 416e9e53fd6397e668d4a181cd2131617d949bd6
   IONFilesystemLib: 21a63377696b2d8fab5632ecfb7d2ac67bddb68a
+  IONFileViewerLib: 834a41ff8581ca18cb02eb45f76a7dcc853cf3d9
   KeychainSwift: 4a71a45c802fd9e73906457c2dcbdbdc06c9419d
   SwiftKeychainWrapper: 807ba1d63c33a7d0613288512399cd1eda1e470c
 
-PODFILE CHECKSUM: 68c5fbf30b54c9f21487669bcc1a5fbd843b2a79
+PODFILE CHECKSUM: 7ef2cb709d1a40e79cb0b940a019f1abb6dea363
 
 COCOAPODS: 1.17.0

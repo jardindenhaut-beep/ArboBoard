@@ -7,6 +7,23 @@ import {
 } from "react";
 
 import {
+  Capacitor,
+} from "@capacitor/core";
+
+import {
+  Directory,
+  Filesystem,
+} from "@capacitor/filesystem";
+
+import {
+  FileViewer,
+} from "@capacitor/file-viewer";
+
+import {
+  Share,
+} from "@capacitor/share";
+
+import {
   supabase,
 } from "../lib/supabase";
 
@@ -499,12 +516,144 @@ function extraireNomFichier(
   );
 }
 
-function declencherTelechargement(
+async function blobVersBase64(
+  blob:
+    Blob
+) {
+  return new Promise<string>(
+    (
+      resolve,
+      reject
+    ) => {
+      const lecteur =
+        new FileReader();
+
+      lecteur.onloadend =
+        () => {
+          const resultat =
+            String(
+              lecteur.result ||
+                ""
+            );
+
+          const virgule =
+            resultat.indexOf(
+              ","
+            );
+
+          if (
+            virgule === -1
+          ) {
+            reject(
+              new Error(
+                "Impossible de convertir le PDF."
+              )
+            );
+
+            return;
+          }
+
+          resolve(
+            resultat.slice(
+              virgule + 1
+            )
+          );
+        };
+
+      lecteur.onerror =
+        () => {
+          reject(
+            lecteur.error ||
+              new Error(
+                "Impossible de lire le PDF."
+              )
+          );
+        };
+
+      lecteur.readAsDataURL(
+        blob
+      );
+    }
+  );
+}
+
+async function declencherTelechargement(
   blob:
     Blob,
   nomFichier:
     string
 ) {
+  if (
+    Capacitor.isNativePlatform()
+  ) {
+    const nomSecurise =
+      nomFichier
+        .replace(
+          /[\/\:*?"<>|]/g,
+          "-"
+        )
+        .trim() ||
+      "pv-fin-chantier.pdf";
+
+    const base64 =
+      await blobVersBase64(
+        blob
+      );
+
+    const fichier =
+      await Filesystem.writeFile({
+        path:
+          `arboboard-pv/${nomSecurise}`,
+
+        data:
+          base64,
+
+        directory:
+          Directory.Cache,
+
+        recursive:
+          true,
+      });
+
+    const cheminLocal =
+      decodeURIComponent(
+        new URL(
+          fichier.uri
+        ).pathname
+      );
+
+    try {
+      await FileViewer.openDocumentFromLocalPath({
+        path:
+          cheminLocal,
+      });
+    } catch (
+      erreurOuverture
+    ) {
+      console.warn(
+        "Ouverture native PDF impossible, utilisation du partage :",
+        erreurOuverture
+      );
+
+      await Share.share({
+        title:
+          "PV de fin de chantier",
+
+        text:
+          "PV de fin de chantier Arboboard",
+
+        files: [
+          fichier.uri,
+        ],
+
+        dialogTitle:
+          "Ouvrir ou enregistrer le PDF",
+      });
+    }
+
+    return;
+  }
+
   const url =
     URL.createObjectURL(
       blob
@@ -544,7 +693,6 @@ function declencherTelechargement(
     10_000
   );
 }
-
 /* =========================================================
    SIGNATURE
    ========================================================= */
@@ -2019,7 +2167,7 @@ export default function PvFinChantierMobile({
           ficheId
         );
 
-      declencherTelechargement(
+      await declencherTelechargement(
         blob,
         nomFichier
       );

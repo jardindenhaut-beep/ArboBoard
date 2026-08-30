@@ -53,7 +53,7 @@ function origineAutorisee(origine: string) {
     return true;
   }
 
-  return /^https?:\\/\\/(?:localhost|127\\.0\\.0\\.1)(?::\\d+)?$/i.test(
+  return /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(
     origine
   );
 }

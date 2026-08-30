@@ -19,7 +19,7 @@
     "@capacitor/camera": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/haptics": "^7.0.0",
-    "@capacitor/ios": "^7.0.0",
+    "@capacitor/ios": "^7.6.8",
     "@capacitor/share": "^7.0.0",
     "@capacitor/status-bar": "^7.0.0",
     "@supabase/supabase-js": "^2.57.4",

@@ -18,12 +18,17 @@ export default function Brand({
           className="brand-logo-img"
         />
       </div>
+
       <div className="brand-copy">
         <div className={`brand-name ${compact ? "compact" : ""}`}>
-          <strong>Arbo</strong><span>Board</span>
+          <strong>Arbo</strong>
+          <span>Board</span>
         </div>
+
         {showTagline ? (
-          <div className="brand-tagline">Gestion métier paysage & élagage</div>
+          <div className="brand-tagline">
+            Gestion métier paysage & élagage
+          </div>
         ) : null}
       </div>
     </div>

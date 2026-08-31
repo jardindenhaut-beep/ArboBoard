@@ -11,6 +11,58 @@ export const dynamic = "force-dynamic";
 type TypeDocumentDemande = "devis" | "facture" | "avoir";
 type ModePdf = "download" | "inline";
 
+
+const ORIGINES_AUTORISEES = new Set([
+  "https://arboboard.fr",
+  "https://www.arboboard.fr",
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost",
+]);
+
+function origineAutorisee(origine: string | null) {
+  if (!origine) {
+    return null;
+  }
+
+  if (ORIGINES_AUTORISEES.has(origine)) {
+    return origine;
+  }
+
+  if (/^https?:\/\/localhost(?::\d+)?$/i.test(origine)) {
+    return origine;
+  }
+
+  if (/^https?:\/\/127\.0\.0\.1(?::\d+)?$/i.test(origine)) {
+    return origine;
+  }
+
+  return null;
+}
+
+function appliquerCors(request: NextRequest, response: NextResponse) {
+  const origine = origineAutorisee(request.headers.get("origin"));
+
+  if (origine) {
+    response.headers.set("Access-Control-Allow-Origin", origine);
+  }
+
+  response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Arboboard-Client"
+  );
+  response.headers.set(
+    "Access-Control-Expose-Headers",
+    "Content-Disposition, Content-Length, Content-Type"
+  );
+  response.headers.set("Access-Control-Max-Age", "86400");
+  response.headers.set("Vary", "Origin");
+
+  return response;
+}
+
 function creerSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,21 +95,32 @@ function headerContentDisposition(nomFichier: string, mode: ModePdf) {
   )}`;
 }
 
-export async function POST(request: NextRequest) {
-  const supabaseAdmin = creerSupabaseAdmin();
+export async function OPTIONS(request: NextRequest) {
+  return appliquerCors(
+    request,
+    new NextResponse(null, {
+      status: 204,
+      headers: {
+        "Cache-Control": "public, max-age=86400",
+      },
+    })
+  );
+}
 
+export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = creerSupabaseAdmin();
     const authorization = request.headers.get("authorization") || "";
     const token = authorization.replace("Bearer ", "").trim();
 
     if (!token) {
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Token d’authentification manquant.",
         },
         { status: 401 }
-      );
+      ));
     }
 
     const {
@@ -66,13 +129,13 @@ export async function POST(request: NextRequest) {
     } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user?.id) {
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Utilisateur non connecté.",
         },
         { status: 401 }
-      );
+      ));
     }
 
     const { data: profil, error: profilError } = await supabaseAdmin
@@ -87,13 +150,13 @@ export async function POST(request: NextRequest) {
         profilError
       );
 
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Profil utilisateur introuvable.",
         },
         { status: 403 }
-      );
+      ));
     }
 
     if (
@@ -101,13 +164,13 @@ export async function POST(request: NextRequest) {
       profil.statut !== "actif" ||
       !profil.entreprise_id
     ) {
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Accès refusé. Seul le chef actif peut accéder au PDF.",
         },
         { status: 403 }
-      );
+      ));
     }
 
     const body = (await request.json().catch(() => ({}))) as {
@@ -127,23 +190,23 @@ export async function POST(request: NextRequest) {
     const mode: ModePdf = body.mode === "inline" ? "inline" : "download";
 
     if (!["devis", "facture", "avoir"].includes(typeDemande)) {
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Type de document invalide.",
         },
         { status: 400 }
-      );
+      ));
     }
 
     if (!documentId) {
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Identifiant du document manquant.",
         },
         { status: 400 }
-      );
+      ));
     }
 
     const entrepriseId = profil.entreprise_id as string;
@@ -177,13 +240,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!entreprise) {
-      return NextResponse.json(
+      return appliquerCors(request, NextResponse.json(
         {
           success: false,
           error: "Entreprise introuvable.",
         },
         { status: 404 }
-      );
+      ));
     }
 
     let document: Record<string, any> | null = null;
@@ -228,13 +291,13 @@ export async function POST(request: NextRequest) {
       }
 
       if (!data) {
-        return NextResponse.json(
+        return appliquerCors(request, NextResponse.json(
           {
             success: false,
             error: "Devis introuvable.",
           },
           { status: 404 }
-        );
+        ));
       }
 
       document = data;
@@ -317,13 +380,13 @@ export async function POST(request: NextRequest) {
       }
 
       if (!data) {
-        return NextResponse.json(
+        return appliquerCors(request, NextResponse.json(
           {
             success: false,
             error: "Facture introuvable.",
           },
           { status: 404 }
-        );
+        ));
       }
 
       document = data;
@@ -335,13 +398,13 @@ export async function POST(request: NextRequest) {
       typeDocumentFinal = estAvoir ? "avoir" : "facture";
 
       if (typeDemande === "avoir" && !estAvoir) {
-        return NextResponse.json(
+        return appliquerCors(request, NextResponse.json(
           {
             success: false,
             error: "Ce document n’est pas un avoir.",
           },
           { status: 400 }
-        );
+        ));
       }
 
       if (typeDemande === "facture" && estAvoir) {
@@ -446,7 +509,7 @@ export async function POST(request: NextRequest) {
 
     const corpsPdf = new Uint8Array(pieceJointePdf.buffer);
 
-    return new NextResponse(corpsPdf as any, {
+    const response = new NextResponse(corpsPdf as any, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
@@ -459,15 +522,17 @@ export async function POST(request: NextRequest) {
         "X-Content-Type-Options": "nosniff",
       },
     });
+
+    return appliquerCors(request, response);
   } catch (error) {
     console.error("Erreur génération PDF document :", error);
 
-    return NextResponse.json(
+    return appliquerCors(request, NextResponse.json(
       {
         success: false,
         error: "Une erreur est survenue pendant la génération du PDF.",
       },
       { status: 500 }
-    );
+    ));
   }
 }

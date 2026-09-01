@@ -17,6 +17,66 @@ import {
 
 export const runtime = "nodejs";
 
+const ORIGINES_AUTORISEES = new Set([
+  "capacitor://localhost",
+  "ionic://localhost",
+]);
+
+function appliquerCors(request: NextRequest, response: NextResponse) {
+  const origine = request.headers.get("origin");
+
+  if (origine && ORIGINES_AUTORISEES.has(origine)) {
+    response.headers.set("Access-Control-Allow-Origin", origine);
+
+    const vary = response.headers.get("Vary");
+    if (!vary) {
+      response.headers.set("Vary", "Origin");
+    } else if (!vary.split(",").map((valeur) => valeur.trim()).includes("Origin")) {
+      response.headers.set("Vary", `${vary}, Origin`);
+    }
+  }
+
+  response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Arboboard-Client"
+  );
+  response.headers.set("Access-Control-Max-Age", "86400");
+
+  return response;
+}
+
+function reponseJson(
+  request: NextRequest,
+  body: any,
+  init?: ResponseInit
+) {
+  return appliquerCors(request, NextResponse.json(body, init));
+}
+
+function reponseErreur(
+  request: NextRequest,
+  error: string,
+  status: number,
+  headers?: HeadersInit
+) {
+  return reponseJson(
+    request,
+    {
+      success: false,
+      error,
+    },
+    {
+      status,
+      headers,
+    }
+  );
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return appliquerCors(request, new NextResponse(null, { status: 204 }));
+}
+
 type TypeDocumentDemande = "devis" | "facture" | "avoir";
 
 type ParametresEmail = {
@@ -484,16 +544,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!limiteIp.autorise) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          "Trop de tentatives d’envoi de documents. Réessaie dans quelques minutes.",
-      },
-      {
-        status: 429,
-        headers: entetesLimiteRequetes(limiteIp),
-      }
+    return reponseErreur(
+      request,
+      "Trop de tentatives d’envoi de documents. Réessaie dans quelques minutes.",
+      429,
+      entetesLimiteRequetes(limiteIp)
     );
   }
 
@@ -514,12 +569,10 @@ export async function POST(request: NextRequest) {
     const token = authorization.replace("Bearer ", "").trim();
 
     if (!token) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Token d’authentification manquant.",
-        },
-        { status: 401 }
+      return reponseErreur(
+        request,
+        "Token d’authentification manquant.",
+        401
       );
     }
 
@@ -529,13 +582,7 @@ export async function POST(request: NextRequest) {
     } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user?.id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Utilisateur non connecté.",
-        },
-        { status: 401 }
-      );
+      return reponseErreur(request, "Utilisateur non connecté.", 401);
     }
 
     const limiteUtilisateur =
@@ -546,19 +593,11 @@ export async function POST(request: NextRequest) {
       });
 
     if (!limiteUtilisateur.autorise) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "La limite horaire d’envoi de documents est atteinte. Réessaie plus tard.",
-        },
-        {
-          status: 429,
-          headers:
-            entetesLimiteRequetes(
-              limiteUtilisateur
-            ),
-        }
+      return reponseErreur(
+        request,
+        "La limite horaire d’envoi de documents est atteinte. Réessaie plus tard.",
+        429,
+        entetesLimiteRequetes(limiteUtilisateur)
       );
     }
 
@@ -569,13 +608,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profilError || !profil) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Profil utilisateur introuvable.",
-        },
-        { status: 403 }
-      );
+      return reponseErreur(request, "Profil utilisateur introuvable.", 403);
     }
 
     if (
@@ -583,12 +616,10 @@ export async function POST(request: NextRequest) {
       profil.statut !== "actif" ||
       !profil.entreprise_id
     ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Accès refusé. Seul le chef actif peut envoyer un document.",
-        },
-        { status: 403 }
+      return reponseErreur(
+        request,
+        "Accès refusé. Seul le chef actif peut envoyer un document.",
+        403
       );
     }
 
@@ -616,32 +647,22 @@ export async function POST(request: NextRequest) {
     );
 
     if (!["devis", "facture", "avoir"].includes(typeDemande)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Type de document invalide.",
-        },
-        { status: 400 }
-      );
+      return reponseErreur(request, "Type de document invalide.", 400);
     }
 
     if (!documentId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Identifiant du document manquant.",
-        },
-        { status: 400 }
+      return reponseErreur(
+        request,
+        "Identifiant du document manquant.",
+        400
       );
     }
 
     if (!emailDestinataire || !emailValide(emailDestinataire)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Adresse email destinataire invalide.",
-        },
-        { status: 400 }
+      return reponseErreur(
+        request,
+        "Adresse email destinataire invalide.",
+        400
       );
     }
 
@@ -654,13 +675,7 @@ export async function POST(request: NextRequest) {
     if (entrepriseError) throw entrepriseError;
 
     if (!entreprise) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Entreprise introuvable.",
-        },
-        { status: 404 }
-      );
+      return reponseErreur(request, "Entreprise introuvable.", 404);
     }
 
     const { data: parametresData } = await supabaseAdmin
@@ -687,13 +702,7 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
 
       if (!data) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Devis introuvable.",
-          },
-          { status: 404 }
-        );
+        return reponseErreur(request, "Devis introuvable.", 404);
       }
 
       document = data;
@@ -720,13 +729,7 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
 
       if (!data) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Facture introuvable.",
-          },
-          { status: 404 }
-        );
+        return reponseErreur(request, "Facture introuvable.", 404);
       }
 
       document = data;
@@ -917,7 +920,7 @@ export async function POST(request: NextRequest) {
       envoye_at: new Date().toISOString(),
     });
 
-    return NextResponse.json({
+    return reponseJson(request, {
       success: true,
       typeDocument: typeDocumentFinal,
       resendId: resultatResend?.id || null,
@@ -947,13 +950,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          "Une erreur est survenue pendant l’envoi du document par email.",
-      },
-      { status: 500 }
+    return reponseErreur(
+      request,
+      "Une erreur est survenue pendant l’envoi du document par email.",
+      500
     );
   }
 }

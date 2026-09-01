@@ -5,6 +5,23 @@ import {
 } from "react";
 
 import {
+  Capacitor,
+} from "@capacitor/core";
+
+import {
+  Directory,
+  Filesystem,
+} from "@capacitor/filesystem";
+
+import {
+  FileViewer,
+} from "@capacitor/file-viewer";
+
+import {
+  Share,
+} from "@capacitor/share";
+
+import {
   supabase,
 } from "../lib/supabase";
 
@@ -728,6 +745,99 @@ function messageErreur(
   }
 
   return fallback;
+}
+
+async function blobVersBase64(
+  blob: Blob
+) {
+  return new Promise<string>(
+    (
+      resolve,
+      reject
+    ) => {
+      const lecteur =
+        new FileReader();
+
+      lecteur.onloadend =
+        () => {
+          const resultat =
+            String(
+              lecteur.result ||
+                ""
+            );
+
+          const virgule =
+            resultat.indexOf(
+              ","
+            );
+
+          if (
+            virgule === -1
+          ) {
+            reject(
+              new Error(
+                "Impossible de convertir le PDF."
+              )
+            );
+
+            return;
+          }
+
+          resolve(
+            resultat.slice(
+              virgule + 1
+            )
+          );
+        };
+
+      lecteur.onerror =
+        () => {
+          reject(
+            lecteur.error ||
+              new Error(
+                "Impossible de lire le PDF."
+              )
+          );
+        };
+
+      lecteur.readAsDataURL(
+        blob
+      );
+    }
+  );
+}
+
+async function enregistrerPdfNatif(
+  blob: Blob,
+  nomFichier: string
+) {
+  const nomSecurise =
+    nomFichier
+      .replace(
+        /[\/\:*?"<>|]/g,
+        "-"
+      )
+      .trim() ||
+    "devis.pdf";
+
+  const base64 =
+    await blobVersBase64(
+      blob
+    );
+
+  return Filesystem.writeFile({
+    path:
+      `arboboard-documents/${nomSecurise}`,
+
+    data:
+      base64,
+
+    directory:
+      Directory.Cache,
+
+    recursive:
+      true,
+  });
 }
 
 export default function DevisMobile({
@@ -2166,6 +2276,12 @@ export default function DevisMobile({
   }
 
   async function voirPdf() {
+    if (
+      !resultat
+    ) {
+      return;
+    }
+
     try {
       setActionFinale(
         "pdf"
@@ -2175,6 +2291,57 @@ export default function DevisMobile({
 
       const blob =
         await recupererPdf();
+
+      const nomFichier =
+        `${resultat.numero}.pdf`;
+
+      if (
+        Capacitor.isNativePlatform()
+      ) {
+        const fichier =
+          await enregistrerPdfNatif(
+            blob,
+            nomFichier
+          );
+
+        const cheminLocal =
+          decodeURIComponent(
+            new URL(
+              fichier.uri
+            ).pathname
+          );
+
+        try {
+          await FileViewer.openDocumentFromLocalPath({
+            path:
+              cheminLocal,
+          });
+        } catch (
+          erreurOuverture
+        ) {
+          console.warn(
+            "Ouverture native PDF devis impossible, utilisation du partage :",
+            erreurOuverture
+          );
+
+          await Share.share({
+            title:
+              `Devis ${resultat.numero}`,
+
+            text:
+              `Devis ${resultat.numero}`,
+
+            files: [
+              fichier.uri,
+            ],
+
+            dialogTitle:
+              "Ouvrir ou enregistrer le PDF",
+          });
+        }
+
+        return;
+      }
 
       const url =
         URL.createObjectURL(
@@ -2393,12 +2560,42 @@ export default function DevisMobile({
       const blob =
         await recupererPdf();
 
+      const nomFichier =
+        `${resultat.numero}.pdf`;
+
+      if (
+        Capacitor.isNativePlatform()
+      ) {
+        const fichierNatif =
+          await enregistrerPdfNatif(
+            blob,
+            nomFichier
+          );
+
+        await Share.share({
+          title:
+            `Devis ${resultat.numero}`,
+
+          text:
+            `Devis ${resultat.numero}`,
+
+          files: [
+            fichierNatif.uri,
+          ],
+
+          dialogTitle:
+            "Partager le devis",
+        });
+
+        return;
+      }
+
       const fichier =
         new File(
           [
             blob,
           ],
-          `${resultat.numero}.pdf`,
+          nomFichier,
           {
             type:
               "application/pdf",
@@ -2445,7 +2642,7 @@ export default function DevisMobile({
         url;
 
       lien.download =
-        `${resultat.numero}.pdf`;
+        nomFichier;
 
       document.body.appendChild(
         lien

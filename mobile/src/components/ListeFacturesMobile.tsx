@@ -5,6 +5,23 @@ import {
 } from "react";
 
 import {
+  Capacitor,
+} from "@capacitor/core";
+
+import {
+  Directory,
+  Filesystem,
+} from "@capacitor/filesystem";
+
+import {
+  FileViewer,
+} from "@capacitor/file-viewer";
+
+import {
+  Share,
+} from "@capacitor/share";
+
+import {
   supabase,
 } from "../lib/supabase";
 
@@ -445,6 +462,197 @@ function messageErreur(
   }
 
   return fallback;
+}
+
+async function blobVersBase64(
+  blob:
+    Blob
+) {
+  return new Promise<string>(
+    (
+      resolve,
+      reject
+    ) => {
+      const lecteur =
+        new FileReader();
+
+      lecteur.onloadend =
+        () => {
+          const resultat =
+            String(
+              lecteur.result ||
+                ""
+            );
+
+          const virgule =
+            resultat.indexOf(
+              ","
+            );
+
+          if (
+            virgule === -1
+          ) {
+            reject(
+              new Error(
+                "Impossible de convertir le PDF."
+              )
+            );
+
+            return;
+          }
+
+          resolve(
+            resultat.slice(
+              virgule + 1
+            )
+          );
+        };
+
+      lecteur.onerror =
+        () => {
+          reject(
+            lecteur.error ||
+              new Error(
+                "Impossible de lire le PDF."
+              )
+          );
+        };
+
+      lecteur.readAsDataURL(
+        blob
+      );
+    }
+  );
+}
+
+async function ouvrirPdf(
+  blob:
+    Blob,
+  nomFichier:
+    string,
+  dossier:
+    string,
+  titre:
+    string,
+  texte:
+    string
+) {
+  if (
+    Capacitor.isNativePlatform()
+  ) {
+    const nomSecurise =
+      nomFichier
+        .replace(
+          /[\/\:*?"<>|]/g,
+          "-"
+        )
+        .trim() ||
+      "document.pdf";
+
+    const base64 =
+      await blobVersBase64(
+        blob
+      );
+
+    const fichier =
+      await Filesystem.writeFile({
+        path:
+          `${dossier}/${nomSecurise}`,
+
+        data:
+          base64,
+
+        directory:
+          Directory.Cache,
+
+        recursive:
+          true,
+      });
+
+    const cheminLocal =
+      decodeURIComponent(
+        new URL(
+          fichier.uri
+        ).pathname
+      );
+
+    try {
+      await FileViewer.openDocumentFromLocalPath({
+        path:
+          cheminLocal,
+      });
+    } catch (
+      erreurOuverture
+    ) {
+      console.warn(
+        "Ouverture native PDF impossible, utilisation du partage :",
+        erreurOuverture
+      );
+
+      await Share.share({
+        title:
+          titre,
+
+        text:
+          texte,
+
+        files: [
+          fichier.uri,
+        ],
+
+        dialogTitle:
+          "Ouvrir ou enregistrer le PDF",
+      });
+    }
+
+    return;
+  }
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+  const fenetre =
+    window.open(
+      url,
+      "_blank"
+    );
+
+  if (
+    !fenetre
+  ) {
+    const lien =
+      document.createElement(
+        "a"
+      );
+
+    lien.href =
+      url;
+
+    lien.target =
+      "_blank";
+
+    lien.rel =
+      "noopener";
+
+    document.body.appendChild(
+      lien
+    );
+
+    lien.click();
+
+    lien.remove();
+  }
+
+  window.setTimeout(
+    () => {
+      URL.revokeObjectURL(
+        url
+      );
+    },
+    60_000
+  );
 }
 
 export default function ListeFacturesMobile({
@@ -1056,50 +1264,29 @@ export default function ListeFacturesMobile({
           facture
         );
 
-      const url =
-        URL.createObjectURL(
-          blob
+      const avoir =
+        estAvoir(
+          facture
         );
 
-      const fenetre =
-        window.open(
-          url,
-          "_blank"
+      const numero =
+        facture.numero?.trim() ||
+        (
+          avoir
+            ? "avoir"
+            : "facture"
         );
 
-      if (
-        !fenetre
-      ) {
-        const lien =
-          document.createElement(
-            "a"
-          );
-
-        lien.href =
-          url;
-
-        lien.target =
-          "_blank";
-
-        lien.rel =
-          "noopener";
-
-        document.body.appendChild(
-          lien
-        );
-
-        lien.click();
-
-        lien.remove();
-      }
-
-      window.setTimeout(
-        () => {
-          URL.revokeObjectURL(
-            url
-          );
-        },
-        60000
+      await ouvrirPdf(
+        blob,
+        `${numero}.pdf`,
+        "arboboard-factures",
+        avoir
+          ? `Avoir ${numero}`
+          : `Facture ${numero}`,
+        avoir
+          ? `Avoir ${numero} Arboboard`
+          : `Facture ${numero} Arboboard`
       );
     } catch (
       error
